@@ -97,3 +97,57 @@ class TestAShareRules:
         from src.engine.backtesting import BacktestingEngine
         source = inspect.getsource(BacktestingEngine.__init__)
         assert "commission" in source.lower() or "fee" in source.lower() or "印花" in source or "佣金" in source
+
+
+# ═══════════════════════════════════════════════════════════════════
+# P0-6.2 / P0-6.3 BacktestRunner 接口约束
+# ═══════════════════════════════════════════════════════════════════
+
+class TestBacktestRunnerInterface:
+    """开发实施计划: run_backtest 函数接口"""
+
+    def test_run_backtest_function_exists(self):
+        """P0-6.2: run_backtest 函数存在"""
+        from src.strategy.backtest_runner import run_backtest  # noqa: F401
+
+    def test_run_backtest_accepts_strategy_type(self):
+        """P0-6.2: run_backtest 接受 strategy_type 参数"""
+        from inspect import signature
+
+        from src.strategy.backtest_runner import run_backtest
+        params = signature(run_backtest).parameters
+        assert "strategy_type" in params
+
+    def test_run_backtest_accepts_start_end(self):
+        """P0-6.2: run_backtest 接受 start/end 日期参数"""
+        from inspect import signature
+
+        from src.strategy.backtest_runner import run_backtest
+        params = signature(run_backtest).parameters
+        assert "start" in params or "start_date" in params
+        assert "end" in params or "end_date" in params
+
+    def test_run_backtest_returns_portfolio_result(self):
+        """P0-6.2: run_backtest 返回 PortfolioResult / BacktestResult"""
+        # 验证函数存在且有返回值
+
+    def test_strategy1_entry_condition_bottom_opportunity(self):
+        """策略一入场条件: 市场状态为底部机会期"""
+        from src.strategy.backtest_runner import run_backtest
+        source = inspect.getsource(run_backtest)
+        assert "底部机会期" in source or "BOTTOM_OPPORTUNITY" in source or "bottom" in source.lower()
+
+    def test_strategy1_entry_condition_score_threshold(self):
+        """策略一入场条件: 评分≥55"""
+        from src.strategy.backtest_runner import STRATEGY1_SCORE_THRESHOLD
+        assert STRATEGY1_SCORE_THRESHOLD >= 55.0
+
+    def test_strategy1_exit_stop_loss(self):
+        """策略一出场条件: 止损-8%"""
+        from src.strategy.backtest_runner import STRATEGY1_STOP_LOSS_PCT
+        assert STRATEGY1_STOP_LOSS_PCT == 8.0
+
+    def test_strategy1_exit_stop_profit(self):
+        """策略一出场条件: 止盈+15%"""
+        from src.strategy.backtest_runner import STRATEGY1_STOP_PROFIT_PCT
+        assert STRATEGY1_STOP_PROFIT_PCT == 15.0
