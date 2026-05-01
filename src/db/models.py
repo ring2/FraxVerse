@@ -482,3 +482,35 @@ class AccountSyncLog(Base):
     sync_status: Mapped[str] = mapped_column(String(10), nullable=False, server_default=text("'success'"))
     error_message: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, server_default=text("NOW()"))
+
+
+class StopProfitConditions(Base):
+    __tablename__ = "stop_profit_conditions"
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    position_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("positions.id"), nullable=False)
+    stock_code: Mapped[str] = mapped_column(String(10), ForeignKey("stocks.code"), nullable=False)
+    stage: Mapped[str] = mapped_column(String(20), nullable=False)
+    trigger_pct: Mapped[Decimal] = mapped_column(Numeric(8, 4), nullable=False)
+    sell_pct: Mapped[Decimal] = mapped_column(Numeric(8, 4), nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("TRUE"))
+    triggered_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, server_default=text("NOW()"))
+    updated_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, server_default=text("NOW()"))
+
+
+class StopLossConditions(Base):
+    __tablename__ = "stop_loss_conditions"
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    position_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("positions.id"), nullable=False)
+    stock_code: Mapped[str] = mapped_column(String(10), ForeignKey("stocks.code"), nullable=False)
+    condition_type: Mapped[str] = mapped_column(String(20), nullable=False)
+    stop_loss_price: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
+    trigger_price: Mapped[Decimal | None] = mapped_column(Numeric(18, 4))
+    trailing_pct: Mapped[Decimal | None] = mapped_column(Numeric(8, 4))
+    max_loss_amount: Mapped[Decimal | None] = mapped_column(Numeric(18, 4))
+    max_loss_pct: Mapped[Decimal] = mapped_column(Numeric(8, 4), nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("TRUE"))
+    triggered_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
+    trigger_price_actual: Mapped[Decimal | None] = mapped_column(Numeric(18, 4))
+    created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, server_default=text("NOW()"))
+    updated_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, server_default=text("NOW()"))
