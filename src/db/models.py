@@ -22,6 +22,7 @@ from sqlalchemy import (
     ForeignKey,
     Integer,
     Numeric,
+    SmallInteger,
     String,
     Text,
     UniqueConstraint,
@@ -254,3 +255,230 @@ class TradeMode(Base):
     emergency_stopped_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
     created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, server_default=text("NOW()"))
     updated_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, server_default=text("NOW()"))
+
+
+class MarketStateLog(Base):
+    __tablename__ = "market_state_log"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    date: Mapped[datetime] = mapped_column(Date, nullable=False)
+    from_state: Mapped[str] = mapped_column(String(16), nullable=False)
+    to_state: Mapped[str] = mapped_column(String(16), nullable=False)
+    trigger_reason: Mapped[str] = mapped_column(Text, nullable=False)
+    main_line_sector: Mapped[str | None] = mapped_column(String(32))
+    confidence: Mapped[Decimal | None] = mapped_column(Numeric(4, 2))
+    created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, server_default=text("NOW()"))
+
+
+class StockPool(Base):
+    __tablename__ = "stock_pool"
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    date: Mapped[datetime] = mapped_column(Date, nullable=False)
+    stock_code: Mapped[str] = mapped_column(String(10), ForeignKey("stocks.code"), nullable=False)
+    strategy_type: Mapped[str] = mapped_column(String(20), nullable=False)
+    pass_coarse: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("FALSE"))
+    score_total: Mapped[Decimal | None] = mapped_column(Numeric(6, 2))
+    score_volume: Mapped[Decimal | None] = mapped_column(Numeric(6, 2))
+    score_fund: Mapped[Decimal | None] = mapped_column(Numeric(6, 2))
+    score_sentiment: Mapped[Decimal | None] = mapped_column(Numeric(6, 2))
+    score_mainforce: Mapped[Decimal | None] = mapped_column(Numeric(6, 2))
+    score_logic: Mapped[Decimal | None] = mapped_column(Numeric(6, 2))
+    agent_scores: Mapped[dict | None] = mapped_column(JSONB, server_default=text("'{}'"))
+    final_decision: Mapped[str | None] = mapped_column(String(10))
+    final_score: Mapped[Decimal | None] = mapped_column(Numeric(6, 2))
+    position_pct: Mapped[Decimal | None] = mapped_column(Numeric(4, 2))
+    stop_loss_pct: Mapped[Decimal | None] = mapped_column(Numeric(4, 2))
+    stop_profit_pct: Mapped[Decimal | None] = mapped_column(Numeric(4, 2))
+    reject_reason: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, server_default=text("NOW()"))
+    __table_args__ = (
+        UniqueConstraint("date", "stock_code", "strategy_type"),
+    )
+
+
+class StrategyParams(Base):
+    __tablename__ = "strategy_params"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    strategy_type: Mapped[str] = mapped_column(String(20), nullable=False)
+    param_key: Mapped[str] = mapped_column(String(50), nullable=False)
+    param_value: Mapped[str] = mapped_column(Text, nullable=False)
+    param_type: Mapped[str] = mapped_column(String(20), nullable=False, server_default=text("'string'"))
+    description: Mapped[str | None] = mapped_column(Text)
+    updated_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, server_default=text("NOW()"))
+    __table_args__ = (
+        UniqueConstraint("strategy_type", "param_key"),
+    )
+
+
+class BacktestResults(Base):
+    __tablename__ = "backtest_results"
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    strategy_type: Mapped[str] = mapped_column(String(20), nullable=False)
+    start_date: Mapped[datetime] = mapped_column(Date, nullable=False)
+    end_date: Mapped[datetime] = mapped_column(Date, nullable=False)
+    initial_capital: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False)
+    final_capital: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False)
+    annual_return: Mapped[Decimal | None] = mapped_column(Numeric(8, 4))
+    max_drawdown: Mapped[Decimal | None] = mapped_column(Numeric(8, 4))
+    win_rate: Mapped[Decimal | None] = mapped_column(Numeric(8, 4))
+    profit_loss_ratio: Mapped[Decimal | None] = mapped_column(Numeric(8, 4))
+    total_trades: Mapped[int | None] = mapped_column(Integer)
+    params_used: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    daily_equity: Mapped[dict | None] = mapped_column(JSONB)
+    created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, server_default=text("NOW()"))
+
+
+class AgentDiscussions(Base):
+    __tablename__ = "agent_discussions"
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    date: Mapped[datetime] = mapped_column(Date, nullable=False)
+    stock_code: Mapped[str] = mapped_column(String(10), ForeignKey("stocks.code"), nullable=False)
+    round_num: Mapped[int] = mapped_column(SmallInteger, nullable=False, server_default=text("1"))
+    agent_name: Mapped[str] = mapped_column(String(32), nullable=False)
+    score: Mapped[int | None] = mapped_column(SmallInteger)
+    buy_reasons: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default=text("'[]'"))
+    against_reasons: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default=text("'[]'"))
+    confidence: Mapped[Decimal | None] = mapped_column(Numeric(4, 2), server_default=text("0.5"))
+    prompt_tokens: Mapped[int | None] = mapped_column(Integer, server_default=text("0"))
+    completion_tokens: Mapped[int | None] = mapped_column(Integer, server_default=text("0"))
+    model_name: Mapped[str | None] = mapped_column(String(32))
+    is_valid: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("TRUE"))
+    invalid_reason: Mapped[str | None] = mapped_column(String(64))
+    predicted_outcome: Mapped[str | None] = mapped_column(String(16))
+    actual_outcome: Mapped[str | None] = mapped_column(String(16))
+    outcome_updated_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
+    raw_response: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, server_default=text("NOW()"))
+    updated_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, server_default=text("NOW()"))
+
+
+class AgentWeights(Base):
+    __tablename__ = "agent_weights"
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    agent_name: Mapped[str] = mapped_column(String(32), nullable=False)
+    market_state: Mapped[str] = mapped_column(String(16), nullable=False)
+    base_weight: Mapped[Decimal] = mapped_column(Numeric(4, 2), nullable=False)
+    calib_factor: Mapped[Decimal] = mapped_column(Numeric(4, 2), nullable=False, server_default=text("1.0"))
+    effective_weight: Mapped[Decimal] = mapped_column(Numeric(4, 2), nullable=False)
+    win_rate: Mapped[Decimal | None] = mapped_column(Numeric(5, 4), server_default=text("0.5"))
+    recent_count: Mapped[int | None] = mapped_column(Integer, server_default=text("0"))
+    extreme_count: Mapped[int | None] = mapped_column(Integer, server_default=text("0"))
+    is_degraded: Mapped[bool | None] = mapped_column(Boolean, server_default=text("FALSE"))
+    updated_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, server_default=text("NOW()"))
+
+
+class Notifications(Base):
+    __tablename__ = "notifications"
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False)
+    event_type: Mapped[str] = mapped_column(String(40), nullable=False)
+    priority: Mapped[str] = mapped_column(String(10), nullable=False, server_default=text("'normal'"))
+    title: Mapped[str] = mapped_column(String(200), nullable=False)
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    content_json: Mapped[dict | None] = mapped_column(JSONB, server_default=text("'{}'"))
+    push_channel: Mapped[str] = mapped_column(String(20), nullable=False, server_default=text("'wechat'"))
+    push_status: Mapped[str] = mapped_column(String(20), nullable=False, server_default=text("'pending'"))
+    wechat_msg_id: Mapped[str | None] = mapped_column(String(100))
+    confirm_type: Mapped[str | None] = mapped_column(String(20), server_default=text("'none'"))
+    confirm_status: Mapped[str | None] = mapped_column(String(20), server_default=text("'none'"))
+    confirm_payload: Mapped[dict | None] = mapped_column(JSONB, server_default=text("'{}'"))
+    confirm_reply: Mapped[str | None] = mapped_column(Text)
+    confirm_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
+    expire_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
+    retry_count: Mapped[int] = mapped_column(SmallInteger, nullable=False, server_default=text("0"))
+    max_retry: Mapped[int] = mapped_column(SmallInteger, nullable=False, server_default=text("3"))
+    last_retry_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
+    dedup_key: Mapped[str | None] = mapped_column(String(100))
+    is_read: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("FALSE"))
+    read_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, server_default=text("NOW()"))
+    updated_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, server_default=text("NOW()"))
+
+
+class RiskEvents(Base):
+    __tablename__ = "risk_events"
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    event_type: Mapped[str] = mapped_column(String(40), nullable=False)
+    event_level: Mapped[str] = mapped_column(String(20), nullable=False)
+    trigger_value: Mapped[Decimal | None] = mapped_column(Numeric(18, 4))
+    threshold_value: Mapped[Decimal | None] = mapped_column(Numeric(18, 4))
+    trigger_reason: Mapped[str] = mapped_column(Text, nullable=False)
+    action_taken: Mapped[str] = mapped_column(String(40), nullable=False)
+    action_detail: Mapped[dict | None] = mapped_column(JSONB, server_default=text("'{}'"))
+    recovery_path: Mapped[str | None] = mapped_column(String(10))
+    recovery_status: Mapped[str | None] = mapped_column(String(20), server_default=text("'pending'"))
+    recovery_deadline: Mapped[datetime | None] = mapped_column(Date)
+    resolved_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
+    trade_date: Mapped[datetime] = mapped_column(Date, nullable=False)
+    is_intraday: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("FALSE"))
+    created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, server_default=text("NOW()"))
+    updated_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, server_default=text("NOW()"))
+
+
+class RiskMetricsDaily(Base):
+    __tablename__ = "risk_metrics_daily"
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    trade_date: Mapped[datetime] = mapped_column(Date, nullable=False)
+    daily_drawdown: Mapped[Decimal | None] = mapped_column(Numeric(8, 4))
+    max_drawdown: Mapped[Decimal | None] = mapped_column(Numeric(8, 4))
+    win_rate: Mapped[Decimal | None] = mapped_column(Numeric(8, 4))
+    win_rate_3d: Mapped[Decimal | None] = mapped_column(Numeric(8, 4))
+    consecutive_loss_days: Mapped[int | None] = mapped_column(Integer, server_default=text("0"))
+    profit_loss_ratio: Mapped[Decimal | None] = mapped_column(Numeric(8, 4))
+    pl_ratio_rolling: Mapped[Decimal | None] = mapped_column(Numeric(8, 4))
+    consecutive_losses: Mapped[int | None] = mapped_column(Integer, server_default=text("0"))
+    total_position_pct: Mapped[Decimal | None] = mapped_column(Numeric(8, 4))
+    position_count: Mapped[int | None] = mapped_column(Integer, server_default=text("0"))
+    annual_return: Mapped[Decimal | None] = mapped_column(Numeric(8, 4))
+    sharpe_ratio: Mapped[Decimal | None] = mapped_column(Numeric(8, 4))
+    calmar_ratio: Mapped[Decimal | None] = mapped_column(Numeric(8, 4))
+    market_daily_change: Mapped[Decimal | None] = mapped_column(Numeric(8, 4))
+    qmt_failure_count: Mapped[int | None] = mapped_column(Integer, server_default=text("0"))
+    risk_status: Mapped[str | None] = mapped_column(String(20), server_default=text("'normal'"))
+    created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, server_default=text("NOW()"))
+    __table_args__ = (
+        UniqueConstraint("trade_date"),
+    )
+
+
+class Experiences(Base):
+    __tablename__ = "experiences"
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    market_state: Mapped[str] = mapped_column(String(20), nullable=False)
+    sector: Mapped[str | None] = mapped_column(String(32))
+    strategy_type: Mapped[str] = mapped_column(String(20), nullable=False)
+    stock_code: Mapped[str | None] = mapped_column(String(10))
+    operation: Mapped[str] = mapped_column(String(20), nullable=False)
+    operation_detail: Mapped[dict | None] = mapped_column(JSONB, server_default=text("'{}'"))
+    result: Mapped[str] = mapped_column(String(20), nullable=False)
+    pnl_pct: Mapped[Decimal | None] = mapped_column(Numeric(8, 4))
+    holding_days: Mapped[int | None] = mapped_column(Integer)
+    score: Mapped[Decimal] = mapped_column(Numeric(6, 2), nullable=False)
+    confidence: Mapped[Decimal] = mapped_column(Numeric(4, 2), nullable=False, server_default=text("50.0"))
+    tags: Mapped[dict | None] = mapped_column(JSONB, server_default=text("'[]'"))
+    scenario_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    source: Mapped[str] = mapped_column(String(20), nullable=False, server_default=text("'real'"))
+    source_id: Mapped[int | None] = mapped_column(BigInteger)
+    is_archived: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("FALSE"))
+    last_verified_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
+    weight: Mapped[Decimal] = mapped_column(Numeric(4, 2), nullable=False, server_default=text("100.0"))
+    related_trade_id: Mapped[int | None] = mapped_column(BigInteger)
+    feedback_text: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, server_default=text("NOW()"))
+    updated_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, server_default=text("NOW()"))
+    __table_args__ = (
+        UniqueConstraint("scenario_hash"),
+    )
+
+
+class AccountSyncLog(Base):
+    __tablename__ = "account_sync_log"
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    sync_type: Mapped[str] = mapped_column(String(20), nullable=False)
+    total_asset: Mapped[Decimal | None] = mapped_column(Numeric(18, 4))
+    available_cash: Mapped[Decimal | None] = mapped_column(Numeric(18, 4))
+    frozen_cash: Mapped[Decimal | None] = mapped_column(Numeric(18, 4))
+    daily_pnl: Mapped[Decimal | None] = mapped_column(Numeric(18, 4))
+    positions_json: Mapped[dict | None] = mapped_column(JSONB)
+    sync_status: Mapped[str] = mapped_column(String(10), nullable=False, server_default=text("'success'"))
+    error_message: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, server_default=text("NOW()"))
