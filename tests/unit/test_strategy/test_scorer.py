@@ -22,7 +22,6 @@ from src.strategy.scorer import (
     score_candidates,
 )
 
-
 # ── 辅助函数 ────────────────────────────────────────────────────
 
 def make_kline(

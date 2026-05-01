@@ -6,31 +6,28 @@
 
 import inspect
 
-import pandas as pd
-
 from src.strategy.screener import (
-    STRATEGY1_DROP_60D_THRESHOLD,
     STRATEGY1_DROP_5D_THRESHOLD,
-    STRATEGY1_MIN_MARKET_CAP,
+    STRATEGY1_DROP_60D_THRESHOLD,
     STRATEGY1_MAX_MARKET_CAP,
     STRATEGY1_MIN_DAILY_AMOUNT,
     STRATEGY1_MIN_DAYS_LISTED,
-    STRATEGY2_SECTOR_CONCENTRATION,
+    STRATEGY1_MIN_MARKET_CAP,
     STRATEGY2_MIN_ADX,
-    STRATEGY2_VOLUME_RATIO,
-    STRATEGY2_PRICE_DROP_THRESHOLD,
     STRATEGY2_MIN_DAILY_AMOUNT,
+    STRATEGY2_PRICE_DROP_THRESHOLD,
     STRATEGY2_SECTOR_CHECK_DAYS,
-    is_st_stock,
-    is_new_stock,
+    STRATEGY2_SECTOR_CONCENTRATION,
+    STRATEGY2_VOLUME_RATIO,
+    StrategyCandidate,
     has_drop_in_window,
     has_sufficient_liquidity,
     is_bullish_arrangement,
+    is_new_stock,
+    is_st_stock,
     is_volume_shrinking,
-    calculate_adx,
     screen_strategy1,
     screen_strategy2,
-    StrategyCandidate,
 )
 
 # ═══════════════════════════════════════════════════════════════════

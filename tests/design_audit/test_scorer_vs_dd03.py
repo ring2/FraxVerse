@@ -4,20 +4,17 @@
 """
 
 import inspect
-from types import SimpleNamespace
 
 from src.strategy.scorer import (
     WEIGHTS,
     ScoredCandidate,
-    DimensionScore,
-    calculate_volume_price_score,
-    calculate_fund_score,
-    calculate_sentiment_score,
-    calculate_mainforce_score,
     calculate_capital_logic_score,
+    calculate_fund_score,
+    calculate_mainforce_score,
+    calculate_sentiment_score,
+    calculate_volume_price_score,
     score_candidates,
 )
-
 
 # ═══════════════════════════════════════════════════════════════════
 # DD-03 §3.3 五维度评分 — 权重检查
