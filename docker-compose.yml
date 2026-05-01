@@ -1,0 +1,43 @@
+# FraxVerse 碎片宇宙量化系统 · 开发环境
+# PostgreSQL + Redis + （后端/前端后续P1阶段加入）
+
+name: fraxverse
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: fraxverse-db
+    environment:
+      POSTGRES_DB: fraxverse
+      POSTGRES_USER: fraxverse
+      POSTGRES_PASSWORD: fraxverse_dev
+      TZ: Asia/Shanghai
+    volumes:
+      - fraxverse-pgdata:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fraxverse -d fraxverse"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: fraxverse-redis
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+    volumes:
+      - fraxverse-redis-data:/data
+    ports:
+      - "127.0.0.1:6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  fraxverse-pgdata:
+  fraxverse-redis-data:
