@@ -1,10 +1,12 @@
 """PostgreSQL 和 Redis 连接验证测试"""
-import pytest
+import psycopg2
+import redis
+
+EXPECTED_MIN_TABLES = 35
 
 
 def test_postgres_connection():
     """验证 PostgreSQL 连接正常"""
-    import psycopg2
     conn = psycopg2.connect(
         host="127.0.0.1",
         port=5432,
@@ -21,14 +23,12 @@ def test_postgres_connection():
 
 def test_redis_connection():
     """验证 Redis 连接正常"""
-    import redis
     r = redis.Redis(host="127.0.0.1", port=6379, db=0)
     assert r.ping()
 
 
 def test_database_has_all_tables():
     """验证数据库包含全部预期表（35张）"""
-    import psycopg2
     conn = psycopg2.connect(
         host="127.0.0.1",
         port=5432,
@@ -41,4 +41,4 @@ def test_database_has_all_tables():
     count = cur.fetchone()[0]
     cur.close()
     conn.close()
-    assert count >= 35, f"预期至少35张表，实际{count}张"
+    assert count >= EXPECTED_MIN_TABLES, f"预期至少{EXPECTED_MIN_TABLES}张表，实际{count}张"
