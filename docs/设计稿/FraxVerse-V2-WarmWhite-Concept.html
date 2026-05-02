@@ -1,0 +1,1345 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FraxVerse V2 — 双主题概念稿</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Noto+Sans+SC:wght@300;400;500;600&display=swap');
+
+  /* ========== LIGHT THEME (默认) ========== */
+  :root, [data-theme="light"] {
+    --bg-page: #FAF9F7;
+    --bg-surface: #FFFFFF;
+    --bg-sidebar: #F5F3EF;
+    --bg-sidebar-hover: #EDEAE4;
+    --bg-subtle: #F8F6F2;
+    --purple-50: #F3F1FE;
+    --purple-100: #E6E2FC;
+    --purple-200: #CECBF6;
+    --purple-400: #9B93E4;
+    --purple-500: #7F77DD;
+    --purple-600: #5F56C8;
+    --purple-700: #4A42A8;
+    --up: #E8735A;
+    --up-bg: #FEF2EF;
+    --down: #4DB899;
+    --down-bg: #EFF9F5;
+    --amber: #E8A840;
+    --amber-bg: #FFF8EB;
+    --text-primary: #2D2B28;
+    --text-secondary: #6B6760;
+    --text-tertiary: #9E9A92;
+    --text-inverse: #FFFFFF;
+    --border-light: rgba(0,0,0,0.06);
+    --border-medium: rgba(0,0,0,0.1);
+    --radius-sm: 6px;
+    --radius-md: 10px;
+    --radius-lg: 14px;
+    --radius-xl: 20px;
+    --shadow-card: 0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.02);
+    --shadow-elevated: 0 4px 16px rgba(0,0,0,0.06), 0 1px 4px rgba(0,0,0,0.03);
+    --logo-gradient: linear-gradient(135deg, #9B93E4, #5F56C8);
+    --logo-shadow: 0 2px 8px rgba(127,119,221,0.25);
+    --btn-shadow: 0 2px 8px rgba(127,119,221,0.3);
+    --btn-shadow-hover: 0 4px 14px rgba(127,119,221,0.4);
+    --scrollbar-thumb: rgba(0,0,0,0.1);
+    --particle-base-opacity: 0.15;
+    --particle-link-opacity: 0.06;
+    --particle-mouse-boost: 0.35;
+  }
+
+  /* ========== DARK THEME (暗黑紫色) ========== */
+  [data-theme="dark"] {
+    --bg-page: #06060f;
+    --bg-surface: rgba(15, 15, 35, 0.85);
+    --bg-sidebar: rgba(6, 6, 15, 0.7);
+    --bg-sidebar-hover: rgba(25, 25, 55, 0.9);
+    --bg-subtle: rgba(10, 10, 26, 0.6);
+    --purple-50: rgba(83, 74, 183, 0.1);
+    --purple-100: rgba(83, 74, 183, 0.15);
+    --purple-200: rgba(127, 119, 221, 0.25);
+    --purple-400: #AFA9EC;
+    --purple-500: #7F77DD;
+    --purple-600: #AFA9EC;
+    --purple-700: #CECBF6;
+    --up: #F0997B;
+    --up-bg: rgba(216, 90, 48, 0.15);
+    --down: #5DCAA5;
+    --down-bg: rgba(29, 158, 117, 0.15);
+    --amber: #EF9F27;
+    --amber-bg: rgba(239, 159, 39, 0.15);
+    --text-primary: #e0dff0;
+    --text-secondary: #8887a8;
+    --text-tertiary: #5a5880;
+    --text-inverse: #06060f;
+    --border-light: rgba(83, 74, 183, 0.2);
+    --border-medium: rgba(127, 119, 221, 0.4);
+    --shadow-card: 0 1px 3px rgba(0,0,0,0.3), 0 1px 2px rgba(0,0,0,0.2);
+    --shadow-elevated: 0 4px 16px rgba(0,0,0,0.4), 0 1px 4px rgba(0,0,0,0.3);
+    --logo-gradient: linear-gradient(135deg, #7F77DD, #534AB7);
+    --logo-shadow: 0 2px 8px rgba(127,119,221,0.4);
+    --btn-shadow: 0 2px 8px rgba(127,119,221,0.4);
+    --btn-shadow-hover: 0 4px 14px rgba(127,119,221,0.5);
+    --scrollbar-thumb: rgba(83, 74, 183, 0.3);
+    --particle-base-opacity: 0.25;
+    --particle-link-opacity: 0.12;
+    --particle-mouse-boost: 0.45;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Inter', 'Noto Sans SC', -apple-system, sans-serif;
+    background: var(--bg-page);
+    color: var(--text-primary);
+    font-size: 14px;
+    line-height: 1.5;
+    overflow: hidden;
+    height: 100vh;
+    transition: background 0.35s ease, color 0.35s ease;
+  }
+
+  #particleCanvas {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .app {
+    display: flex;
+    height: 100vh;
+    position: relative;
+    z-index: 1;
+  }
+
+  /* === 侧栏 === */
+  .sidebar {
+    width: 200px;
+    background: var(--bg-sidebar);
+    border-right: 1px solid var(--border-light);
+    display: flex;
+    flex-direction: column;
+    padding: 16px 12px;
+    gap: 2px;
+    flex-shrink: 0;
+    transition: background 0.35s ease, border-color 0.35s ease;
+  }
+
+  .sidebar-brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 4px 8px;
+    margin-bottom: 20px;
+  }
+
+  .sidebar-logo {
+    width: 32px;
+    height: 32px;
+    border-radius: var(--radius-sm);
+    background: var(--logo-gradient);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    box-shadow: var(--logo-shadow);
+    transition: box-shadow 0.35s ease;
+  }
+
+  .sidebar-logo svg { width: 18px; height: 18px; }
+
+  .sidebar-brand-name {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text-primary);
+    letter-spacing: -0.3px;
+    transition: color 0.35s ease;
+  }
+
+  .sidebar-nav {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    flex: 1;
+  }
+
+  .nav-section-label {
+    font-size: 10px;
+    font-weight: 500;
+    color: var(--text-tertiary);
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    padding: 16px 10px 6px;
+  }
+
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: all 0.15s ease;
+    color: var(--text-secondary);
+    font-size: 13px;
+    font-weight: 400;
+    position: relative;
+  }
+
+  .nav-item:hover {
+    background: var(--bg-sidebar-hover);
+    color: var(--text-primary);
+  }
+
+  .nav-item.active {
+    background: var(--purple-50);
+    color: var(--purple-600);
+    font-weight: 500;
+  }
+
+  .nav-item.active::before {
+    content: '';
+    position: absolute;
+    left: -12px;
+    width: 3px;
+    height: 18px;
+    border-radius: 0 3px 3px 0;
+    background: var(--purple-500);
+  }
+
+  .nav-item svg { width: 18px; height: 18px; flex-shrink: 0; }
+
+  .nav-item .nav-badge {
+    margin-left: auto;
+    font-size: 11px;
+    font-weight: 500;
+    padding: 1px 7px;
+    border-radius: 10px;
+    background: var(--purple-100);
+    color: var(--purple-600);
+  }
+
+  .sidebar-bottom {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    border-top: 1px solid var(--border-light);
+    padding-top: 8px;
+    margin-top: 8px;
+  }
+
+  /* === 主区域 === */
+  .main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* === 顶栏 === */
+  .topbar {
+    height: 52px;
+    background: var(--bg-surface);
+    border-bottom: 1px solid var(--border-light);
+    display: flex;
+    align-items: center;
+    padding: 0 24px;
+    gap: 16px;
+    flex-shrink: 0;
+    transition: background 0.35s ease, border-color 0.35s ease;
+  }
+
+  .topbar-title {
+    font-size: 15px;
+    font-weight: 500;
+    color: var(--text-primary);
+  }
+
+  .topbar-sep {
+    color: var(--text-tertiary);
+    font-size: 12px;
+  }
+
+  .topbar-subtitle {
+    font-size: 13px;
+    color: var(--text-tertiary);
+  }
+
+  .topbar-spacer { flex: 1; }
+
+  .market-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 12px;
+    padding: 3px 10px;
+    border-radius: 20px;
+    background: var(--down-bg);
+    color: var(--down);
+    font-weight: 500;
+    transition: background 0.35s ease, color 0.35s ease;
+  }
+
+  .market-status .pulse {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--down);
+    animation: pulse 2s infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+
+  .topbar-search {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 12px;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-light);
+    background: var(--bg-page);
+    color: var(--text-tertiary);
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.2s;
+    min-width: 180px;
+  }
+
+  .topbar-search:hover {
+    border-color: var(--border-medium);
+    background: var(--bg-surface);
+  }
+
+  .topbar-search kbd {
+    margin-left: auto;
+    font-size: 11px;
+    font-family: inherit;
+    padding: 1px 5px;
+    border-radius: 4px;
+    background: var(--bg-sidebar);
+    border: 1px solid var(--border-light);
+    color: var(--text-tertiary);
+  }
+
+  .icon-btn {
+    width: 34px; height: 34px;
+    border-radius: var(--radius-sm);
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    color: var(--text-secondary);
+    transition: all 0.2s;
+    position: relative;
+    border: none;
+    background: transparent;
+  }
+
+  .icon-btn:hover {
+    background: var(--bg-subtle);
+    color: var(--text-primary);
+  }
+
+  .icon-btn svg { width: 18px; height: 18px; }
+
+  .icon-btn .badge {
+    position: absolute;
+    top: 5px; right: 5px;
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--up);
+  }
+
+  /* === 主题切换按钮 === */
+  .theme-toggle {
+    width: 34px; height: 34px;
+    border-radius: var(--radius-sm);
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    color: var(--text-secondary);
+    transition: all 0.3s ease;
+    position: relative;
+    border: none;
+    background: transparent;
+    overflow: hidden;
+  }
+
+  .theme-toggle:hover {
+    background: var(--bg-subtle);
+    color: var(--purple-500);
+  }
+
+  .theme-toggle svg {
+    width: 18px; height: 18px;
+    transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease;
+    position: absolute;
+  }
+
+  .theme-toggle .icon-sun {
+    opacity: 0;
+    transform: rotate(-90deg) scale(0.5);
+  }
+
+  .theme-toggle .icon-moon {
+    opacity: 1;
+    transform: rotate(0deg) scale(1);
+  }
+
+  [data-theme="dark"] .theme-toggle .icon-sun {
+    opacity: 1;
+    transform: rotate(0deg) scale(1);
+  }
+
+  [data-theme="dark"] .theme-toggle .icon-moon {
+    opacity: 0;
+    transform: rotate(90deg) scale(0.5);
+  }
+
+  .avatar {
+    width: 30px; height: 30px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--purple-200), var(--purple-400));
+    display: flex; align-items: center; justify-content: center;
+    color: white;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.35s ease;
+  }
+
+  /* === 内容区 === */
+  .content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 24px;
+  }
+
+  .content::-webkit-scrollbar { width: 6px; }
+  .content::-webkit-scrollbar-track { background: transparent; }
+  .content::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 3px; }
+
+  .page-header {
+    margin-bottom: 24px;
+  }
+
+  .page-header h1 {
+    font-size: 20px;
+    font-weight: 500;
+    color: var(--text-primary);
+    margin-bottom: 2px;
+    transition: color 0.35s ease;
+  }
+
+  .page-header p {
+    font-size: 13px;
+    color: var(--text-tertiary);
+  }
+
+  .metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 14px;
+    margin-bottom: 24px;
+  }
+
+  .metric-card {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-lg);
+    padding: 18px;
+    transition: all 0.25s ease;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .metric-card::after {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--purple-400), transparent);
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+
+  .metric-card:hover {
+    box-shadow: var(--shadow-elevated);
+    border-color: var(--purple-100);
+  }
+
+  .metric-card:hover::after { opacity: 1; }
+
+  .metric-label {
+    font-size: 12px;
+    color: var(--text-tertiary);
+    margin-bottom: 6px;
+  }
+
+  .metric-value {
+    font-size: 24px;
+    font-weight: 500;
+    color: var(--text-primary);
+    line-height: 1.2;
+    transition: color 0.35s ease;
+  }
+
+  .metric-change {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 12px;
+    font-weight: 500;
+    margin-top: 5px;
+    padding: 2px 7px;
+    border-radius: 20px;
+  }
+
+  .metric-change.up { color: var(--up); background: var(--up-bg); }
+  .metric-change.down { color: var(--down); background: var(--down-bg); }
+
+  .two-col {
+    display: grid;
+    grid-template-columns: 1.4fr 1fr;
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+
+  .section-card {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    transition: background 0.35s ease, border-color 0.35s ease, box-shadow 0.25s ease;
+  }
+
+  .section-card:hover { box-shadow: var(--shadow-card); }
+
+  .section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--border-light);
+  }
+
+  .section-title {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .section-title .dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--purple-400);
+    transition: background 0.35s ease;
+  }
+
+  .section-action {
+    font-size: 12px;
+    color: var(--purple-500);
+    cursor: pointer;
+    padding: 3px 7px;
+    border-radius: var(--radius-sm);
+    transition: background 0.2s, color 0.35s ease;
+  }
+
+  .section-action:hover { background: var(--purple-50); }
+
+  .signal-list { padding: 6px 10px; }
+
+  .signal-item {
+    display: flex;
+    align-items: center;
+    padding: 9px 8px;
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: background 0.2s;
+    gap: 10px;
+  }
+
+  .signal-item:hover { background: var(--bg-subtle); }
+
+  .signal-code { font-size: 13px; font-weight: 500; min-width: 54px; color: var(--text-primary); }
+  .signal-name { font-size: 12px; color: var(--text-secondary); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .signal-strategy { font-size: 11px; padding: 2px 8px; border-radius: 20px; }
+  .signal-strategy.s1 { background: var(--purple-50); color: var(--purple-600); }
+  .signal-strategy.s2 { background: var(--amber-bg); color: var(--amber); }
+  .signal-score { font-size: 13px; font-weight: 500; min-width: 34px; text-align: right; }
+  .signal-score.high { color: var(--up); }
+  .signal-score.mid { color: var(--amber); }
+  .signal-score.low { color: var(--text-tertiary); }
+  .signal-price { font-size: 12px; color: var(--text-secondary); min-width: 62px; text-align: right; }
+  .signal-change { font-size: 12px; font-weight: 500; min-width: 50px; text-align: right; }
+  .signal-change.up { color: var(--up); }
+  .signal-change.down { color: var(--down); }
+
+  .agent-discussion { padding: 14px 18px; }
+
+  .agent-bubble {
+    padding: 10px 12px;
+    border-radius: var(--radius-md);
+    margin-bottom: 10px;
+    transition: background 0.35s ease, border-color 0.35s ease;
+  }
+
+  .agent-bubble:last-child { margin-bottom: 0; }
+
+  .agent-bubble .agent-name {
+    font-size: 11px;
+    font-weight: 500;
+    margin-bottom: 3px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+
+  .agent-bubble .agent-text {
+    font-size: 12px;
+    line-height: 1.6;
+    color: var(--text-secondary);
+  }
+
+  .agent-bubble.hunter { background: var(--purple-50); border-left: 2px solid var(--purple-400); }
+  .agent-bubble.hunter .agent-name { color: var(--purple-600); }
+  .agent-bubble.detector { background: var(--down-bg); border-left: 2px solid var(--down); }
+  .agent-bubble.detector .agent-name { color: var(--down); }
+  .agent-bubble.sentiment { background: var(--amber-bg); border-left: 2px solid var(--amber); }
+  .agent-bubble.sentiment .agent-name { color: var(--amber); }
+  .agent-bubble.judge { background: var(--bg-subtle); border-left: 2px solid var(--text-tertiary); }
+  .agent-bubble.judge .agent-name { color: var(--text-secondary); }
+
+  .agent-avatar {
+    width: 17px; height: 17px;
+    border-radius: 50%;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 9px; font-weight: 500; color: white;
+  }
+
+  .agent-avatar.hunter-avatar { background: var(--purple-500); }
+  .agent-avatar.detector-avatar { background: var(--down); }
+  .agent-avatar.sentiment-avatar { background: var(--amber); }
+  .agent-avatar.judge-avatar { background: var(--text-tertiary); }
+
+  .position-table { width: 100%; border-collapse: collapse; }
+  .position-table th { text-align: left; padding: 9px 14px; font-size: 11px; font-weight: 400; color: var(--text-tertiary); border-bottom: 1px solid var(--border-light); letter-spacing: 0.3px; }
+  .position-table td { padding: 10px 14px; font-size: 13px; border-bottom: 1px solid var(--border-light); }
+  .position-table tr:last-child td { border-bottom: none; }
+  .position-table tr:hover td { background: var(--bg-subtle); }
+  .pos-code { font-weight: 500; }
+  .pos-pnl { font-weight: 500; }
+  .pos-pnl.up { color: var(--up); }
+  .pos-pnl.down { color: var(--down); }
+
+  .mini-chart { height: 30px; display: flex; align-items: flex-end; gap: 1px; }
+  .mini-chart .bar { width: 3px; border-radius: 1.5px; }
+
+  .three-col {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 14px;
+  }
+
+  .quick-actions { display: flex; gap: 8px; }
+
+  .btn {
+    padding: 6px 14px;
+    border-radius: var(--radius-md);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    border: none;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+
+  .btn-primary {
+    background: linear-gradient(135deg, var(--purple-500), var(--purple-600));
+    color: white;
+    box-shadow: var(--btn-shadow);
+  }
+
+  .btn-primary:hover {
+    box-shadow: var(--btn-shadow-hover);
+    transform: translateY(-1px);
+  }
+
+  [data-theme="dark"] .btn-primary {
+    color: #fff;
+  }
+
+  .btn-ghost {
+    background: transparent;
+    color: var(--text-secondary);
+    border: 1px solid var(--border-medium);
+  }
+
+  .btn-ghost:hover { background: var(--bg-subtle); color: var(--text-primary); }
+
+  .exp-card {
+    padding: 12px 14px;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-light);
+    margin-bottom: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .exp-card:hover { border-color: var(--purple-200); background: var(--purple-50); }
+  .exp-card .exp-title { font-size: 13px; font-weight: 500; margin-bottom: 2px; }
+  .exp-card .exp-meta { font-size: 11px; color: var(--text-tertiary); }
+
+  .exp-tag { display: inline-block; font-size: 10px; padding: 1px 6px; border-radius: 10px; margin-right: 4px; }
+  .exp-tag.win { background: var(--down-bg); color: var(--down); }
+  .exp-tag.loss { background: var(--up-bg); color: var(--up); }
+
+  /* === 主题切换提示 === */
+  .theme-toast {
+    position: fixed;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%) translateY(-80px);
+    background: var(--bg-surface);
+    border: 1px solid var(--border-medium);
+    border-radius: var(--radius-lg);
+    padding: 10px 20px;
+    box-shadow: var(--shadow-elevated);
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--text-primary);
+    transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.4s ease;
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .theme-toast.show {
+    transform: translateX(-50%) translateY(0);
+    opacity: 1;
+  }
+
+  .theme-toast svg { width: 16px; height: 16px; color: var(--purple-500); }
+
+  .design-note {
+    position: fixed;
+    bottom: 20px; right: 20px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-lg);
+    padding: 16px 20px;
+    max-width: 280px;
+    box-shadow: var(--shadow-elevated);
+    z-index: 1001;
+    transition: background 0.35s ease, border-color 0.35s ease;
+  }
+
+  .design-note h4 { font-size: 12px; font-weight: 500; color: var(--purple-600); margin-bottom: 8px; letter-spacing: 0.5px; }
+  .design-note p { font-size: 12px; color: var(--text-secondary); line-height: 1.6; margin-bottom: 4px; }
+  .design-note .close-note { position: absolute; top: 8px; right: 10px; cursor: pointer; color: var(--text-tertiary); font-size: 14px; line-height: 1; }
+</style>
+</head>
+<body>
+<canvas id="particleCanvas"></canvas>
+
+<!-- 主题切换提示 -->
+<div class="theme-toast" id="themeToast">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+    <circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+  </svg>
+  <span id="themeToastText">已切换至暖白模式</span>
+</div>
+
+<div class="app">
+
+  <!-- 侧栏 -->
+  <nav class="sidebar">
+    <div class="sidebar-brand">
+      <div class="sidebar-logo">
+        <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.5" stroke-linecap="round">
+          <circle cx="12" cy="12" r="3"/>
+          <ellipse cx="12" cy="12" rx="9" ry="5"/>
+          <ellipse cx="12" cy="12" rx="9" ry="5" transform="rotate(60 12 12)"/>
+          <ellipse cx="12" cy="12" rx="9" ry="5" transform="rotate(120 12 12)"/>
+        </svg>
+      </div>
+      <span class="sidebar-brand-name">FraxVerse</span>
+    </div>
+
+    <div class="sidebar-nav">
+      <div class="nav-section-label">交易</div>
+      <div class="nav-item active">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+        仪表盘
+      </div>
+      <div class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a4 4 0 0 0-8 0v2"/><circle cx="12" cy="14" r="2"/></svg>
+        持仓管理
+      </div>
+      <div class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><polygon points="12,2 15,9 22,9 16.5,14 18.5,21 12,17 5.5,21 7.5,14 2,9 9,9"/></svg>
+        交易信号
+        <span class="nav-badge">12</span>
+      </div>
+      <div class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+        AI 分析
+      </div>
+
+      <div class="nav-section-label">数据</div>
+      <div class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+        经验库
+      </div>
+      <div class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><polyline points="22,12 18,12 15,21 9,3 6,12 2,12"/></svg>
+        资产曲线
+      </div>
+      <div class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        风险监控
+      </div>
+    </div>
+
+    <div class="sidebar-bottom">
+      <div class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        设置
+      </div>
+    </div>
+  </nav>
+
+  <!-- 主区域 -->
+  <div class="main">
+    <header class="topbar">
+      <div class="topbar-title">仪表盘</div>
+      <span class="topbar-sep">/</span>
+      <div class="topbar-subtitle">总览</div>
+      <div class="topbar-spacer"></div>
+      <div class="market-status">
+        <span class="pulse"></span>
+        交易中
+      </div>
+      <div class="topbar-search">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        搜索股票、信号、策略...
+        <kbd>⌘K</kbd>
+      </div>
+      <!-- 主题切换 -->
+      <button class="theme-toggle" id="themeToggle" title="切换主题">
+        <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+        <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+      </button>
+      <div class="icon-btn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+        <span class="badge"></span>
+      </div>
+      <div class="avatar">YC</div>
+    </header>
+
+    <main class="content">
+      <div class="page-header">
+        <div style="display: flex; align-items: center; justify-content: space-between;">
+          <div>
+            <h1>仪表盘</h1>
+            <p>2026年5月1日 · A股实时行情</p>
+          </div>
+          <div class="quick-actions">
+            <button class="btn btn-ghost">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+              刷新数据
+            </button>
+            <button class="btn btn-primary">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><polygon points="12,2 15,9 22,9 16.5,14 18.5,21 12,17 5.5,21 7.5,14 2,9 9,9"/></svg>
+              发起信号扫描
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 指标卡片 -->
+      <div class="metrics-grid">
+        <div class="metric-card">
+          <div class="metric-label">总资产</div>
+          <div class="metric-value">¥1,284,350</div>
+          <div class="metric-change up">↑ 2.3% 今日</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">今日盈亏</div>
+          <div class="metric-value" style="color: var(--up);">+¥28,940</div>
+          <div class="metric-change up">↑ 1.8%</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">活跃信号</div>
+          <div class="metric-value" style="color: var(--purple-500);">12</div>
+          <div class="metric-change" style="color: var(--amber); background: var(--amber-bg);">● 3 待审</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">经验库</div>
+          <div class="metric-value">247</div>
+          <div class="metric-change down">↓ 2 失败经验</div>
+        </div>
+      </div>
+
+      <!-- 双栏 -->
+      <div class="two-col">
+        <!-- 信号列表 -->
+        <div class="section-card">
+          <div class="section-header">
+            <div class="section-title">
+              <span class="dot"></span>
+              今日交易信号
+            </div>
+            <span class="section-action">查看全部 →</span>
+          </div>
+          <div class="signal-list">
+            <div class="signal-item">
+              <span class="signal-code">600519</span>
+              <span class="signal-name">贵州茅台</span>
+              <span class="signal-strategy s1">周期底部</span>
+              <span class="signal-score high">92</span>
+              <span class="signal-price">1,680.50</span>
+              <span class="signal-change up">+3.2%</span>
+            </div>
+            <div class="signal-item">
+              <span class="signal-code">300750</span>
+              <span class="signal-name">宁德时代</span>
+              <span class="signal-strategy s2">趋势低吸</span>
+              <span class="signal-score high">87</span>
+              <span class="signal-price">218.30</span>
+              <span class="signal-change up">+2.1%</span>
+            </div>
+            <div class="signal-item">
+              <span class="signal-code">000858</span>
+              <span class="signal-name">五粮液</span>
+              <span class="signal-strategy s1">周期底部</span>
+              <span class="signal-score mid">74</span>
+              <span class="signal-price">156.80</span>
+              <span class="signal-change up">+1.5%</span>
+            </div>
+            <div class="signal-item">
+              <span class="signal-code">601318</span>
+              <span class="signal-name">中国平安</span>
+              <span class="signal-strategy s2">趋势低吸</span>
+              <span class="signal-score mid">68</span>
+              <span class="signal-price">52.40</span>
+              <span class="signal-change down">-0.8%</span>
+            </div>
+            <div class="signal-item">
+              <span class="signal-code">002475</span>
+              <span class="signal-name">立讯精密</span>
+              <span class="signal-strategy s1">周期底部</span>
+              <span class="signal-score low">55</span>
+              <span class="signal-price">38.20</span>
+              <span class="signal-change down">-1.2%</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Agent讨论 -->
+        <div class="section-card">
+          <div class="section-header">
+            <div class="section-title">
+              <span class="dot"></span>
+              AI 分析 · 最新讨论
+            </div>
+            <span class="section-action">详情 →</span>
+          </div>
+          <div class="agent-discussion">
+            <div class="agent-bubble hunter">
+              <div class="agent-name">
+                <span class="agent-avatar hunter-avatar">猎</span>
+                主线猎手
+              </div>
+              <div class="agent-text">贵州茅台近期量能显著放大，5日均量突破20日均量1.8倍，叠加周期底部信号，主力资金正在集中建仓。</div>
+            </div>
+            <div class="agent-bubble detector">
+              <div class="agent-name">
+                <span class="agent-avatar detector-avatar">侦</span>
+                资金侦探
+              </div>
+              <div class="agent-text">北向资金连续3日净流入茅台，单日最大流入4.2亿，融资余额上升3.5%。资金面确认。</div>
+            </div>
+            <div class="agent-bubble sentiment">
+              <div class="agent-name">
+                <span class="agent-avatar sentiment-avatar">情</span>
+                情绪捕手
+              </div>
+              <div class="agent-text">白酒板块舆情偏正面（0.72），茅台近7日正面新闻占比68%，无重大利空事件。</div>
+            </div>
+            <div class="agent-bubble judge">
+              <div class="agent-name">
+                <span class="agent-avatar judge-avatar">判</span>
+                经验法官
+              </div>
+              <div class="agent-text">综合评分 92/100，置信度 0.85。建议仓位10%，止损位1,620。风险：消费数据不及预期。</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 三栏 -->
+      <div class="three-col">
+        <!-- 持仓 -->
+        <div class="section-card">
+          <div class="section-header">
+            <div class="section-title">
+              <span class="dot"></span>
+              持仓列表
+            </div>
+            <span class="section-action">管理 →</span>
+          </div>
+          <table class="position-table">
+            <thead>
+              <tr><th>代码</th><th>盈亏</th><th>占比</th><th>走势</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="pos-code">600519</td>
+                <td class="pos-pnl up">+8.2%</td>
+                <td>35%</td>
+                <td>
+                  <div class="mini-chart">
+                    <div class="bar" style="height:8px; background:var(--up);"></div>
+                    <div class="bar" style="height:12px; background:var(--up);"></div>
+                    <div class="bar" style="height:10px; background:var(--up);"></div>
+                    <div class="bar" style="height:16px; background:var(--up);"></div>
+                    <div class="bar" style="height:14px; background:var(--up);"></div>
+                    <div class="bar" style="height:20px; background:var(--up);"></div>
+                    <div class="bar" style="height:18px; background:var(--up);"></div>
+                    <div class="bar" style="height:24px; background:var(--up);"></div>
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <td class="pos-code">300750</td>
+                <td class="pos-pnl down">-2.1%</td>
+                <td>25%</td>
+                <td>
+                  <div class="mini-chart">
+                    <div class="bar" style="height:20px; background:var(--down);"></div>
+                    <div class="bar" style="height:18px; background:var(--down);"></div>
+                    <div class="bar" style="height:14px; background:var(--down);"></div>
+                    <div class="bar" style="height:16px; background:var(--down);"></div>
+                    <div class="bar" style="height:12px; background:var(--down);"></div>
+                    <div class="bar" style="height:10px; background:var(--down);"></div>
+                    <div class="bar" style="height:14px; background:var(--down);"></div>
+                    <div class="bar" style="height:8px; background:var(--down);"></div>
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <td class="pos-code">000858</td>
+                <td class="pos-pnl up">+3.5%</td>
+                <td>20%</td>
+                <td>
+                  <div class="mini-chart">
+                    <div class="bar" style="height:10px; background:var(--up);"></div>
+                    <div class="bar" style="height:14px; background:var(--up);"></div>
+                    <div class="bar" style="height:12px; background:var(--down);"></div>
+                    <div class="bar" style="height:16px; background:var(--up);"></div>
+                    <div class="bar" style="height:20px; background:var(--up);"></div>
+                    <div class="bar" style="height:18px; background:var(--up);"></div>
+                    <div class="bar" style="height:22px; background:var(--up);"></div>
+                    <div class="bar" style="height:26px; background:var(--up);"></div>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- 经验库 -->
+        <div class="section-card">
+          <div class="section-header">
+            <div class="section-title">
+              <span class="dot"></span>
+              近期经验
+            </div>
+            <span class="section-action">全部 →</span>
+          </div>
+          <div style="padding: 10px 14px;">
+            <div class="exp-card">
+              <div class="exp-title">白酒板块周期底部反转模式</div>
+              <div class="exp-meta"><span class="exp-tag win">成功</span> 3次验证 · 置信度 0.82</div>
+            </div>
+            <div class="exp-card">
+              <div class="exp-title">新能源超跌反弹的量能确认条件</div>
+              <div class="exp-meta"><span class="exp-tag win">成功</span> 2次验证 · 置信度 0.75</div>
+            </div>
+            <div class="exp-card">
+              <div class="exp-title">金融板块趋势低吸的止损阈值</div>
+              <div class="exp-meta"><span class="exp-tag loss">失败</span> 1次反思 · 置信度 0.45</div>
+            </div>
+            <div class="exp-card">
+              <div class="exp-title">科技股北向资金流入的持续性判断</div>
+              <div class="exp-meta"><span class="exp-tag win">成功</span> 5次验证 · 置信度 0.88</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 风控 -->
+        <div class="section-card">
+          <div class="section-header">
+            <div class="section-title">
+              <span class="dot"></span>
+              风险监控
+            </div>
+            <span class="section-action">设置 →</span>
+          </div>
+          <div style="padding: 14px 18px;">
+            <div style="margin-bottom: 14px;">
+              <div style="display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 5px;">
+                <span style="color: var(--text-secondary);">仓位风险</span>
+                <span style="color: var(--amber); font-weight: 500;">中等</span>
+              </div>
+              <div style="height: 5px; background: var(--bg-subtle); border-radius: 3px; overflow: hidden;">
+                <div style="height: 100%; width: 65%; background: linear-gradient(90deg, var(--down), var(--amber)); border-radius: 3px;"></div>
+              </div>
+            </div>
+            <div style="margin-bottom: 14px;">
+              <div style="display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 5px;">
+                <span style="color: var(--text-secondary);">行业集中度</span>
+                <span style="color: var(--up); font-weight: 500;">偏高</span>
+              </div>
+              <div style="height: 5px; background: var(--bg-subtle); border-radius: 3px; overflow: hidden;">
+                <div style="height: 100%; width: 78%; background: linear-gradient(90deg, var(--amber), var(--up)); border-radius: 3px;"></div>
+              </div>
+            </div>
+            <div style="margin-bottom: 14px;">
+              <div style="display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 5px;">
+                <span style="color: var(--text-secondary);">止损覆盖率</span>
+                <span style="color: var(--down); font-weight: 500;">良好</span>
+              </div>
+              <div style="height: 5px; background: var(--bg-subtle); border-radius: 3px; overflow: hidden;">
+                <div style="height: 100%; width: 92%; background: var(--down); border-radius: 3px;"></div>
+              </div>
+            </div>
+            <div style="border-top: 1px solid var(--border-light); padding-top: 10px; margin-top: 2px;">
+              <div style="font-size: 12px; color: var(--text-tertiary); margin-bottom: 5px;">今日预警</div>
+              <div style="font-size: 12px; color: var(--up); padding: 5px 9px; background: var(--up-bg); border-radius: var(--radius-sm); margin-bottom: 4px;">
+                ⚠ 宁德时代 接近止损位 -2.5%
+              </div>
+              <div style="font-size: 12px; color: var(--amber); padding: 5px 9px; background: var(--amber-bg); border-radius: var(--radius-sm);">
+                ◐ 白酒板块仓位占比超 55%
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+
+<!-- 设计说明 -->
+<div class="design-note" id="designNote">
+  <span class="close-note" onclick="document.getElementById('designNote').style.display='none'">×</span>
+  <h4>V2 双主题设计</h4>
+  <p><b>默认</b> 暖白柔光 · 柔紫薰衣草</p>
+  <p><b>暗黑</b> 深空宇宙 · 星云紫色系</p>
+  <p><b>切换</b> 顶栏月亮/太阳图标</p>
+  <p><b>粒子</b> 随主题自适应颜色</p>
+  <p><b>命名</b> 大白话，不用宇宙词</p>
+</div>
+
+<script>
+// ============ THEME SYSTEM ============
+const ThemeManager = {
+  STORAGE_KEY: 'fraxverse-theme',
+  DARK: 'dark',
+  LIGHT: 'light',
+
+  init() {
+    const saved = localStorage.getItem(this.STORAGE_KEY);
+    const preferDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+    const theme = saved || (preferDark ? this.DARK : this.LIGHT);
+    this.apply(theme, false);
+    document.getElementById('themeToggle').addEventListener('click', () => this.toggle());
+  },
+
+  apply(theme, showToast) {
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem(this.STORAGE_KEY, theme);
+    // 通知粒子系统更新
+    if (window.particleSystem) {
+      window.particleSystem.updateTheme(theme);
+    }
+    if (showToast) {
+      this.showToast(theme);
+    }
+  },
+
+  toggle() {
+    const current = document.documentElement.getAttribute('data-theme');
+    const next = current === this.DARK ? this.LIGHT : this.DARK;
+    this.apply(next, true);
+  },
+
+  showToast(theme) {
+    const toast = document.getElementById('themeToast');
+    const text = document.getElementById('themeToastText');
+    text.textContent = theme === this.DARK ? '已切换至暗黑模式 ✦' : '已切换至暖白模式 ☀';
+    toast.classList.add('show');
+    clearTimeout(this._toastTimer);
+    this._toastTimer = setTimeout(() => toast.classList.remove('show'), 1800);
+  }
+};
+
+// ============ PARTICLE SYSTEM ============
+(function() {
+  const canvas = document.getElementById('particleCanvas');
+  const ctx = canvas.getContext('2d');
+  let W, H;
+  let mouseX = -1000, mouseY = -1000;
+
+  function resize() {
+    W = canvas.width = window.innerWidth;
+    H = canvas.height = window.innerHeight;
+  }
+  resize();
+  window.addEventListener('resize', resize);
+  document.addEventListener('mousemove', function(e) { mouseX = e.clientX; mouseY = e.clientY; });
+
+  // 两套粒子配色方案
+  const colorSchemes = {
+    light: [
+      { r: 155, g: 147, b: 228 },  // 柔紫
+      { r: 127, g: 119, b: 221 },  // 中紫
+      { r: 206, g: 203, b: 246 },  // 淡紫
+      { r: 230, g: 226, b: 252 },  // 极淡紫
+      { r: 77, g: 184, b: 153 },   // 薄荷绿
+      { r: 232, g: 168, b: 64 },   // 暖琥珀
+      { r: 180, g: 178, b: 169 },  // 灰棕
+    ],
+    dark: [
+      { r: 127, g: 119, b: 221 },  // 星云紫
+      { r: 175, g: 169, b: 236 },  // 淡紫
+      { r: 83, g: 74, b: 183 },    // 深紫
+      { r: 206, g: 203, b: 246 },  // 极淡紫
+      { r: 93, g: 202, b: 165 },   // 薄荷翠
+      { r: 240, g: 153, b: 123 },  // 珊瑚橙
+      { r: 90, g: 88, b: 128 },    // 暗灰紫
+    ]
+  };
+
+  let currentTheme = 'light';
+
+  // 连线颜色
+  const linkColors = {
+    light: { r: 155, g: 147, b: 228 },
+    dark: { r: 127, g: 119, b: 221 }
+  };
+
+  class Particle {
+    constructor() { this.reset(true); }
+    reset(init) {
+      this.x = Math.random() * W;
+      this.y = init ? Math.random() * H : -10;
+      this.size = Math.random() * 3 + 0.8;
+      this.speedX = (Math.random() - 0.5) * 0.3;
+      this.speedY = Math.random() * 0.25 + 0.08;
+      this.baseOpacity = Math.random() * 0.25 + 0.05;
+      this.opacity = this.baseOpacity;
+      const pool = colorSchemes[currentTheme];
+      this.color = pool[Math.floor(Math.random() * pool.length)];
+      this.wobbleAmp = Math.random() * 0.5 + 0.2;
+      this.wobbleFreq = Math.random() * 0.008 + 0.003;
+      this.phase = Math.random() * Math.PI * 2;
+      this.life = 0;
+      // 光晕 (暗黑模式下更明显)
+      this.glowSize = this.size > 1.5 ? this.size * 2.5 : 0;
+    }
+    update() {
+      this.life++;
+      this.x += this.speedX + Math.sin(this.life * this.wobbleFreq + this.phase) * this.wobbleAmp * 0.1;
+      this.y += this.speedY;
+      const dx = this.x - mouseX, dy = this.y - mouseY;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      const mouseBoost = currentTheme === 'dark' ? 0.45 : 0.35;
+      if (dist < 150) { this.opacity = this.baseOpacity + (1 - dist / 150) * mouseBoost; }
+      else { this.opacity += (this.baseOpacity - this.opacity) * 0.05; }
+      if (this.y > H + 10 || this.x < -10 || this.x > W + 10) this.reset(false);
+    }
+    draw() {
+      const c = this.color;
+      // 暗黑模式下加光晕
+      if (currentTheme === 'dark' && this.glowSize > 0) {
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.glowSize, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(' + c.r + ',' + c.g + ',' + c.b + ',' + (this.opacity * 0.12) + ')';
+        ctx.fill();
+      }
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(' + c.r + ',' + c.g + ',' + c.b + ',' + this.opacity + ')';
+      ctx.fill();
+    }
+  }
+
+  const count = Math.min(120, Math.max(40, Math.floor(W * H / 8000)));
+  const particles = [];
+  for (let i = 0; i < count; i++) particles.push(new Particle());
+
+  function drawLinks() {
+    const linkDist = 100;
+    const lc = linkColors[currentTheme];
+    const baseAlpha = currentTheme === 'dark' ? 0.12 : 0.06;
+    for (let i = 0; i < particles.length; i++) {
+      for (let j = i + 1; j < particles.length; j++) {
+        const dx = particles[i].x - particles[j].x, dy = particles[i].y - particles[j].y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < linkDist) {
+          const alpha = (1 - dist / linkDist) * baseAlpha;
+          ctx.beginPath();
+          ctx.moveTo(particles[i].x, particles[i].y);
+          ctx.lineTo(particles[j].x, particles[j].y);
+          ctx.strokeStyle = 'rgba(' + lc.r + ',' + lc.g + ',' + lc.b + ',' + alpha + ')';
+          ctx.lineWidth = 0.5;
+          ctx.stroke();
+        }
+      }
+    }
+  }
+
+  function animate() {
+    ctx.clearRect(0, 0, W, H);
+    for (let i = 0; i < particles.length; i++) { particles[i].update(); particles[i].draw(); }
+    drawLinks();
+    requestAnimationFrame(animate);
+  }
+  animate();
+
+  // 暴露主题更新接口
+  window.particleSystem = {
+    updateTheme(theme) {
+      currentTheme = theme;
+      const pool = colorSchemes[theme];
+      // 渐变过渡：逐步替换粒子颜色
+      particles.forEach((p, i) => {
+        // 每帧替换一部分，实现渐进过渡
+        setTimeout(() => {
+          p.color = pool[Math.floor(Math.random() * pool.length)];
+          p.baseOpacity = theme === 'dark'
+            ? Math.random() * 0.35 + 0.1
+            : Math.random() * 0.25 + 0.05;
+          p.glowSize = p.size > 1.5 ? p.size * 2.5 : 0;
+        }, Math.random() * 300);
+      });
+    }
+  };
+})();
+
+// ============ INIT ============
+ThemeManager.init();
+</script>
+</body>
+</html>

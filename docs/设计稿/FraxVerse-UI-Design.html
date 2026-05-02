@@ -1,0 +1,1059 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FraxVerse - 碎片宇宙量化交易系统</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;500;600&family=Inter:wght@300;400;500;600&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --cosmos-bg: #06060f;
+    --cosmos-deep: #0a0a1a;
+    --cosmos-surface: rgba(15, 15, 35, 0.85);
+    --cosmos-surface-hover: rgba(25, 25, 55, 0.9);
+    --cosmos-border: rgba(83, 74, 183, 0.2);
+    --cosmos-border-bright: rgba(127, 119, 221, 0.4);
+    --cosmos-purple: #7F77DD;
+    --cosmos-purple-deep: #534AB7;
+    --cosmos-purple-light: #AFA9EC;
+    --cosmos-purple-glow: #CECBF6;
+    --cosmos-teal: #1D9E75;
+    --cosmos-teal-light: #5DCAA5;
+    --cosmos-coral: #D85A30;
+    --cosmos-amber: #EF9F27;
+    --cosmos-text: #e0dff0;
+    --cosmos-text-muted: #8887a8;
+    --cosmos-text-dim: #5a5880;
+    --frax-radius: 12px;
+    --frax-radius-sm: 8px;
+    --font-sans: 'Inter', -apple-system, sans-serif;
+    --font-serif: 'Noto Serif SC', serif;
+  }
+
+  body {
+    background: var(--cosmos-bg);
+    color: var(--cosmos-text);
+    font-family: var(--font-sans);
+    overflow-x: hidden;
+    min-height: 100vh;
+  }
+
+  #particle-canvas {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    z-index: 9999;
+    pointer-events: none;
+  }
+
+  .app-shell {
+    position: relative;
+    z-index: 1;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ============ NAV ============ */
+  .top-nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 28px;
+    background: rgba(6, 6, 15, 0.7);
+    backdrop-filter: blur(20px);
+    border-bottom: 1px solid var(--cosmos-border);
+  }
+
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+
+  .brand-icon {
+    width: 36px; height: 36px;
+    position: relative;
+  }
+
+  .brand-icon .orbit {
+    position: absolute;
+    border: 1px solid var(--cosmos-purple);
+    border-radius: 50%;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+  }
+  .brand-icon .orbit-1 { width: 34px; height: 34px; opacity: 0.3; animation: spin 12s linear infinite; }
+  .brand-icon .orbit-2 { width: 24px; height: 24px; opacity: 0.5; animation: spin 8s linear infinite reverse; }
+  .brand-icon .orbit-3 { width: 14px; height: 14px; opacity: 0.7; animation: spin 5s linear infinite; }
+  .brand-icon .core {
+    position: absolute;
+    width: 5px; height: 5px;
+    background: var(--cosmos-purple);
+    border-radius: 50%;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    box-shadow: 0 0 8px var(--cosmos-purple);
+  }
+  .brand-icon .fragment {
+    position: absolute;
+    width: 3px; height: 3px;
+    background: var(--cosmos-purple-light);
+    border-radius: 50%;
+    opacity: 0.8;
+  }
+
+  @keyframes spin { from { transform: translate(-50%, -50%) rotate(0deg); } to { transform: translate(-50%, -50%) rotate(360deg); } }
+
+  .brand-name {
+    font-family: var(--font-serif);
+    font-size: 18px;
+    font-weight: 500;
+    color: var(--cosmos-purple-glow);
+    letter-spacing: 2px;
+  }
+
+  .brand-name span {
+    font-family: var(--font-sans);
+    font-size: 11px;
+    font-weight: 400;
+    color: var(--cosmos-text-muted);
+    letter-spacing: 3px;
+    margin-left: 10px;
+    text-transform: uppercase;
+  }
+
+  .nav-links {
+    display: flex;
+    gap: 6px;
+  }
+
+  .nav-link {
+    padding: 6px 16px;
+    font-size: 13px;
+    color: var(--cosmos-text-muted);
+    border-radius: var(--frax-radius-sm);
+    cursor: pointer;
+    transition: all 0.2s;
+    border: 1px solid transparent;
+  }
+  .nav-link:hover, .nav-link.active {
+    color: var(--cosmos-purple-light);
+    background: rgba(83, 74, 183, 0.1);
+    border-color: var(--cosmos-border);
+  }
+  .nav-link.active {
+    border-color: var(--cosmos-purple-deep);
+    background: rgba(83, 74, 183, 0.15);
+  }
+
+  .nav-right {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .market-badge {
+    font-size: 12px;
+    padding: 4px 12px;
+    border-radius: 20px;
+    background: rgba(29, 158, 117, 0.15);
+    color: var(--cosmos-teal-light);
+    border: 1px solid rgba(29, 158, 117, 0.3);
+  }
+
+  .market-badge.bear {
+    background: rgba(216, 90, 48, 0.15);
+    color: #F0997B;
+    border-color: rgba(216, 90, 48, 0.3);
+  }
+
+  .user-avatar {
+    width: 32px; height: 32px;
+    border-radius: 50%;
+    border: 1.5px solid var(--cosmos-purple-deep);
+    background: rgba(83, 74, 183, 0.2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    color: var(--cosmos-purple-light);
+  }
+
+  /* ============ MAIN ============ */
+  .main-content {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 220px 1fr 280px;
+    gap: 0;
+    min-height: 0;
+  }
+
+  /* ============ SIDEBAR ============ */
+  .sidebar {
+    background: rgba(6, 6, 15, 0.5);
+    backdrop-filter: blur(10px);
+    border-right: 1px solid var(--cosmos-border);
+    padding: 16px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .sidebar-section {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: var(--cosmos-text-dim);
+    padding: 16px 12px 6px;
+  }
+
+  .sidebar-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 12px;
+    font-size: 13px;
+    color: var(--cosmos-text-muted);
+    border-radius: var(--frax-radius-sm);
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .sidebar-item:hover {
+    background: rgba(83, 74, 183, 0.08);
+    color: var(--cosmos-text);
+  }
+  .sidebar-item.active {
+    background: rgba(83, 74, 183, 0.15);
+    color: var(--cosmos-purple-light);
+    border: 1px solid var(--cosmos-border);
+  }
+
+  .sidebar-item .icon {
+    width: 18px; height: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+  }
+
+  .sidebar-philosophy {
+    margin-top: auto;
+    padding: 16px;
+    text-align: center;
+  }
+
+  .sidebar-philosophy .sutra {
+    font-family: var(--font-serif);
+    font-size: 12px;
+    color: var(--cosmos-text-dim);
+    line-height: 1.8;
+    writing-mode: vertical-rl;
+    display: inline-block;
+    height: 140px;
+    letter-spacing: 3px;
+  }
+
+  /* ============ CENTER ============ */
+  .center-panel {
+    padding: 20px 24px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+  }
+
+  .greeting-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+  }
+
+  .greeting {
+    font-family: var(--font-serif);
+    font-size: 22px;
+    font-weight: 500;
+    color: var(--cosmos-purple-glow);
+  }
+
+  .greeting-sub {
+    font-size: 12px;
+    color: var(--cosmos-text-dim);
+    margin-top: 4px;
+    font-family: var(--font-serif);
+  }
+
+  .date-info {
+    font-size: 12px;
+    color: var(--cosmos-text-muted);
+    text-align: right;
+  }
+
+  /* Metric Cards */
+  .metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+  }
+
+  .metric-card {
+    background: var(--cosmos-surface);
+    border: 1px solid var(--cosmos-border);
+    border-radius: var(--frax-radius);
+    padding: 16px;
+    position: relative;
+    overflow: hidden;
+    transition: all 0.3s;
+  }
+  .metric-card:hover {
+    border-color: var(--cosmos-border-bright);
+    background: var(--cosmos-surface-hover);
+  }
+
+  .metric-card .shimmer {
+    position: absolute;
+    top: 0; left: -100%;
+    width: 100%; height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(127, 119, 221, 0.03), transparent);
+    animation: shimmer 4s ease-in-out infinite;
+  }
+  @keyframes shimmer { 0% { left: -100%; } 50% { left: 100%; } 100% { left: 100%; } }
+
+  .metric-label {
+    font-size: 11px;
+    color: var(--cosmos-text-dim);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 8px;
+  }
+
+  .metric-value {
+    font-size: 24px;
+    font-weight: 500;
+    color: var(--cosmos-text);
+  }
+
+  .metric-change {
+    font-size: 12px;
+    margin-top: 4px;
+  }
+  .metric-change.up { color: #F0997B; }
+  .metric-change.down { color: var(--cosmos-teal-light); }
+
+  .metric-icon {
+    position: absolute;
+    right: 14px;
+    top: 14px;
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    background: rgba(83, 74, 183, 0.1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* Chart Area */
+  .chart-section {
+    background: var(--cosmos-surface);
+    border: 1px solid var(--cosmos-border);
+    border-radius: var(--frax-radius);
+    padding: 18px;
+    position: relative;
+  }
+
+  .chart-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 14px;
+  }
+
+  .chart-title {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--cosmos-text);
+  }
+
+  .chart-tabs {
+    display: flex;
+    gap: 4px;
+  }
+
+  .chart-tab {
+    font-size: 11px;
+    padding: 4px 10px;
+    border-radius: 4px;
+    color: var(--cosmos-text-dim);
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .chart-tab.active {
+    background: rgba(83, 74, 183, 0.2);
+    color: var(--cosmos-purple-light);
+  }
+
+  .chart-area {
+    height: 180px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .chart-line {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+  }
+
+  /* Fragment Flow - 心念碎片流 */
+  .fragment-flow {
+    background: var(--cosmos-surface);
+    border: 1px solid var(--cosmos-border);
+    border-radius: var(--frax-radius);
+    padding: 18px;
+  }
+
+  .fragment-flow-title {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--cosmos-text);
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .fragment-flow-title .philosophy-tag {
+    font-family: var(--font-serif);
+    font-size: 10px;
+    color: var(--cosmos-purple);
+    padding: 2px 8px;
+    border-radius: 10px;
+    background: rgba(83, 74, 183, 0.1);
+    border: 1px solid rgba(83, 74, 183, 0.2);
+  }
+
+  .fragment-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .fragment-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 14px;
+    border-radius: var(--frax-radius-sm);
+    background: rgba(10, 10, 26, 0.6);
+    border: 1px solid var(--cosmos-border);
+    transition: all 0.3s;
+    cursor: pointer;
+  }
+  .fragment-item:hover {
+    background: rgba(83, 74, 183, 0.08);
+    border-color: var(--cosmos-border-bright);
+  }
+
+  .fragment-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .fragment-dot.buy { background: #F0997B; box-shadow: 0 0 6px rgba(240, 153, 123, 0.3); }
+  .fragment-dot.sell { background: var(--cosmos-teal-light); box-shadow: 0 0 6px rgba(93, 202, 165, 0.3); }
+  .fragment-dot.hold { background: var(--cosmos-amber); box-shadow: 0 0 6px rgba(239, 159, 39, 0.3); }
+
+  .fragment-info {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .fragment-stock {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--cosmos-text);
+  }
+
+  .fragment-reason {
+    font-size: 11px;
+    color: var(--cosmos-text-dim);
+    margin-top: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .fragment-confidence {
+    font-size: 12px;
+    font-weight: 500;
+    flex-shrink: 0;
+  }
+
+  /* ============ RIGHT PANEL ============ */
+  .right-panel {
+    background: rgba(6, 6, 15, 0.5);
+    backdrop-filter: blur(10px);
+    border-left: 1px solid var(--cosmos-border);
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .panel-card {
+    background: var(--cosmos-surface);
+    border: 1px solid var(--cosmos-border);
+    border-radius: var(--frax-radius);
+    padding: 14px;
+  }
+
+  .panel-title {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--cosmos-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 10px;
+  }
+
+  /* Mind Map / 内观宇宙 */
+  .mind-universe {
+    width: 100%;
+    aspect-ratio: 1;
+    position: relative;
+    background: radial-gradient(circle at center, rgba(83, 74, 183, 0.08) 0%, transparent 70%);
+    border-radius: 50%;
+  }
+
+  .mind-orbit {
+    position: absolute;
+    border: 1px solid rgba(83, 74, 183, 0.15);
+    border-radius: 50%;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+  }
+
+  .mind-node {
+    position: absolute;
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+  }
+
+  .mind-core {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    background: var(--cosmos-purple);
+    box-shadow: 0 0 15px rgba(127, 119, 221, 0.5);
+  }
+
+  .mind-core-label {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, 18px);
+    font-family: var(--font-serif);
+    font-size: 10px;
+    color: var(--cosmos-purple-light);
+    white-space: nowrap;
+  }
+
+  /* Agent discussion */
+  .agent-discussion {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .agent-bubble {
+    padding: 8px 10px;
+    border-radius: var(--frax-radius-sm);
+    font-size: 11px;
+    line-height: 1.5;
+    position: relative;
+  }
+
+  .agent-bubble.bull {
+    background: rgba(216, 90, 48, 0.08);
+    border: 1px solid rgba(216, 90, 48, 0.2);
+    color: #F0997B;
+  }
+
+  .agent-bubble.bear {
+    background: rgba(29, 158, 117, 0.08);
+    border: 1px solid rgba(29, 158, 117, 0.2);
+    color: var(--cosmos-teal-light);
+  }
+
+  .agent-bubble.neutral {
+    background: rgba(83, 74, 183, 0.08);
+    border: 1px solid rgba(83, 74, 183, 0.2);
+    color: var(--cosmos-purple-light);
+  }
+
+  .agent-name {
+    font-size: 10px;
+    font-weight: 500;
+    margin-bottom: 3px;
+    opacity: 0.7;
+  }
+
+  /* Experience Library */
+  .exp-entry {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 0;
+    border-bottom: 1px solid rgba(83, 74, 183, 0.1);
+    font-size: 11px;
+  }
+  .exp-entry:last-child { border-bottom: none; }
+
+  .exp-icon {
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    flex-shrink: 0;
+  }
+  .exp-icon.learned { background: rgba(29, 158, 117, 0.15); color: var(--cosmos-teal-light); }
+  .exp-icon.warning { background: rgba(239, 159, 39, 0.15); color: var(--cosmos-amber); }
+  .exp-icon.insight { background: rgba(127, 119, 221, 0.15); color: var(--cosmos-purple-light); }
+
+  .exp-text {
+    color: var(--cosmos-text-muted);
+    flex: 1;
+    line-height: 1.4;
+  }
+
+  .exp-time {
+    font-size: 10px;
+    color: var(--cosmos-text-dim);
+    flex-shrink: 0;
+  }
+
+  /* ============ FOOTER SUTRA ============ */
+  .footer-sutra {
+    text-align: center;
+    padding: 10px;
+    font-family: var(--font-serif);
+    font-size: 11px;
+    color: var(--cosmos-text-dim);
+    letter-spacing: 4px;
+    background: rgba(6, 6, 15, 0.5);
+    border-top: 1px solid var(--cosmos-border);
+  }
+
+  /* ============ ANIMATIONS ============ */
+  @keyframes float {
+    0%, 100% { transform: translateY(0px); }
+    50% { transform: translateY(-4px); }
+  }
+
+  @keyframes pulse-glow {
+    0%, 100% { box-shadow: 0 0 5px rgba(127, 119, 221, 0.3); }
+    50% { box-shadow: 0 0 15px rgba(127, 119, 221, 0.6); }
+  }
+
+  .float-anim { animation: float 3s ease-in-out infinite; }
+  .pulse-anim { animation: pulse-glow 2s ease-in-out infinite; }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: rgba(83, 74, 183, 0.3); border-radius: 2px; }
+  ::-webkit-scrollbar-thumb:hover { background: rgba(83, 74, 183, 0.5); }
+</style>
+</head>
+<body>
+
+<canvas id="particle-canvas"></canvas>
+
+<div class="app-shell">
+
+  <!-- ===== TOP NAV ===== -->
+  <nav class="top-nav">
+    <div class="brand">
+      <div class="brand-icon">
+        <div class="orbit orbit-1"></div>
+        <div class="orbit orbit-2"></div>
+        <div class="orbit orbit-3"></div>
+        <div class="core"></div>
+        <div class="fragment" style="top: 2px; left: 18px;"></div>
+        <div class="fragment" style="top: 22px; left: 3px;"></div>
+        <div class="fragment" style="top: 28px; left: 26px;"></div>
+      </div>
+      <div class="brand-name">
+        碎片宇宙<span>FraxVerse</span>
+      </div>
+    </div>
+
+    <div class="nav-links">
+      <div class="nav-link active">总览</div>
+      <div class="nav-link">策略</div>
+      <div class="nav-link">持仓</div>
+      <div class="nav-link">回测</div>
+      <div class="nav-link">经验库</div>
+      <div class="nav-link">内观</div>
+    </div>
+
+    <div class="nav-right">
+      <div class="market-badge">震荡 · 温和</div>
+      <div class="user-avatar">观</div>
+    </div>
+  </nav>
+
+  <!-- ===== MAIN ===== -->
+  <div class="main-content">
+
+    <!-- ===== SIDEBAR ===== -->
+    <aside class="sidebar">
+      <div class="sidebar-section">导航</div>
+      <div class="sidebar-item active">
+        <div class="icon">&#9673;</div> 宇宙总览
+      </div>
+      <div class="sidebar-item">
+        <div class="icon">&#9733;</div> 策略引擎
+      </div>
+      <div class="sidebar-item">
+        <div class="icon">&#9670;</div> 持仓星图
+      </div>
+      <div class="sidebar-item">
+        <div class="icon">&#9674;</div> 心念碎片
+      </div>
+
+      <div class="sidebar-section">洞察</div>
+      <div class="sidebar-item">
+        <div class="icon">&#9688;</div> 经验宇宙
+      </div>
+      <div class="sidebar-item">
+        <div class="icon">&#9788;</div> 内观冥想
+      </div>
+      <div class="sidebar-item">
+        <div class="icon">&#9830;</div> 回测时光
+      </div>
+
+      <div class="sidebar-section">系统</div>
+      <div class="sidebar-item">
+        <div class="icon">&#9881;</div> 设置
+      </div>
+      <div class="sidebar-item">
+        <div class="icon">&#9776;</div> 日志
+      </div>
+
+      <div class="sidebar-philosophy">
+        <div class="sutra">交易修心 心念为碎片 宇宙为心之投影</div>
+      </div>
+    </aside>
+
+    <!-- ===== CENTER ===== -->
+    <main class="center-panel">
+
+      <!-- Greeting -->
+      <div class="greeting-bar">
+        <div>
+          <div class="greeting">内观自在，心念如星</div>
+          <div class="greeting-sub">每一笔交易，都是与内心的对话</div>
+        </div>
+        <div class="date-info">
+          2026-05-01 周五<br>A股交易日 · 盘中
+        </div>
+      </div>
+
+      <!-- Metrics -->
+      <div class="metrics-grid">
+        <div class="metric-card">
+          <div class="shimmer"></div>
+          <div class="metric-label">总资产</div>
+          <div class="metric-value">¥1,285,640</div>
+          <div class="metric-change up">+3.28% 本月</div>
+          <div class="metric-icon" style="color: var(--cosmos-purple-light);">&#9733;</div>
+        </div>
+        <div class="metric-card">
+          <div class="shimmer" style="animation-delay: 1s;"></div>
+          <div class="metric-label">今日盈亏</div>
+          <div class="metric-value" style="color: #F0997B;">+¥12,350</div>
+          <div class="metric-change up">+0.97%</div>
+          <div class="metric-icon" style="color: #F0997B;">&#9650;</div>
+        </div>
+        <div class="metric-card">
+          <div class="shimmer" style="animation-delay: 2s;"></div>
+          <div class="metric-label">胜率</div>
+          <div class="metric-value">68.5%</div>
+          <div class="metric-change up">+2.1% 近30日</div>
+          <div class="metric-icon" style="color: var(--cosmos-teal-light);">&#9673;</div>
+        </div>
+        <div class="metric-card">
+          <div class="shimmer" style="animation-delay: 3s;"></div>
+          <div class="metric-label">经验碎片</div>
+          <div class="metric-value">1,247</div>
+          <div class="metric-change" style="color: var(--cosmos-purple-light);">成长期</div>
+          <div class="metric-icon" style="color: var(--cosmos-purple);">&#9674;</div>
+        </div>
+      </div>
+
+      <!-- Chart -->
+      <div class="chart-section">
+        <div class="chart-header">
+          <div class="chart-title">资产星轨</div>
+          <div class="chart-tabs">
+            <div class="chart-tab">1周</div>
+            <div class="chart-tab active">1月</div>
+            <div class="chart-tab">3月</div>
+            <div class="chart-tab">1年</div>
+          </div>
+        </div>
+        <div class="chart-area">
+          <svg class="chart-line" viewBox="0 0 600 180" preserveAspectRatio="none">
+            <defs>
+              <linearGradient id="lineGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#7F77DD" stop-opacity="0.3"/>
+                <stop offset="100%" stop-color="#7F77DD" stop-opacity="0"/>
+              </linearGradient>
+            </defs>
+            <path d="M0,140 L40,130 L80,135 L120,120 L160,100 L200,110 L240,85 L280,90 L320,70 L360,75 L400,55 L440,60 L480,45 L520,50 L560,35 L600,30" fill="none" stroke="#7F77DD" stroke-width="2"/>
+            <path d="M0,140 L40,130 L80,135 L120,120 L160,100 L200,110 L240,85 L280,90 L320,70 L360,75 L400,55 L440,60 L480,45 L520,50 L560,35 L600,30 L600,180 L0,180Z" fill="url(#lineGrad)"/>
+            <circle cx="600" cy="30" r="4" fill="#7F77DD"/>
+            <circle cx="600" cy="30" r="8" fill="none" stroke="#7F77DD" stroke-width="1" opacity="0.4">
+              <animate attributeName="r" from="8" to="16" dur="1.5s" repeatCount="indefinite"/>
+              <animate attributeName="opacity" from="0.4" to="0" dur="1.5s" repeatCount="indefinite"/>
+            </circle>
+          </svg>
+        </div>
+      </div>
+
+      <!-- Fragment Flow -->
+      <div class="fragment-flow">
+        <div class="fragment-flow-title">
+          心念碎片流
+          <span class="philosophy-tag">念起即觉</span>
+        </div>
+        <div class="fragment-list">
+          <div class="fragment-item">
+            <div class="fragment-dot buy"></div>
+            <div class="fragment-info">
+              <div class="fragment-stock">贵州茅台 600519</div>
+              <div class="fragment-reason">周期底部量能异动 · 缩量回踩20日均线</div>
+            </div>
+            <div class="fragment-confidence" style="color: #F0997B;">买入 87%</div>
+          </div>
+          <div class="fragment-item">
+            <div class="fragment-dot hold"></div>
+            <div class="fragment-info">
+              <div class="fragment-stock">宁德时代 300750</div>
+              <div class="fragment-reason">趋势动量持续 · 持仓观望中</div>
+            </div>
+            <div class="fragment-confidence" style="color: var(--cosmos-amber);">持有 72%</div>
+          </div>
+          <div class="fragment-item">
+            <div class="fragment-dot sell"></div>
+            <div class="fragment-info">
+              <div class="fragment-stock">比亚迪 002594</div>
+              <div class="fragment-reason">动量衰减 · 触及止盈线</div>
+            </div>
+            <div class="fragment-confidence" style="color: var(--cosmos-teal-light);">卖出 81%</div>
+          </div>
+          <div class="fragment-item">
+            <div class="fragment-dot buy"></div>
+            <div class="fragment-info">
+              <div class="fragment-stock">中芯国际 688981</div>
+              <div class="fragment-reason">底部放量突破 · 量价配合良好</div>
+            </div>
+            <div class="fragment-confidence" style="color: #F0997B;">买入 74%</div>
+          </div>
+        </div>
+      </div>
+
+    </main>
+
+    <!-- ===== RIGHT PANEL ===== -->
+    <aside class="right-panel">
+
+      <!-- Mind Universe / 内观宇宙 -->
+      <div class="panel-card">
+        <div class="panel-title">内观宇宙</div>
+        <div class="mind-universe">
+          <div class="mind-orbit" style="width: 85%; height: 85%; animation: spin 20s linear infinite;"></div>
+          <div class="mind-orbit" style="width: 62%; height: 62%; animation: spin 14s linear infinite reverse;"></div>
+          <div class="mind-orbit" style="width: 38%; height: 38%; animation: spin 8s linear infinite;"></div>
+          <div class="mind-node" style="top: 15%; left: 55%; background: #F0997B; box-shadow: 0 0 8px rgba(240,153,123,0.4);"></div>
+          <div class="mind-node" style="top: 40%; left: 85%; background: var(--cosmos-teal-light); box-shadow: 0 0 8px rgba(93,202,165,0.4);"></div>
+          <div class="mind-node" style="top: 75%; left: 70%; background: var(--cosmos-amber); box-shadow: 0 0 8px rgba(239,159,39,0.4);"></div>
+          <div class="mind-node" style="top: 65%; left: 20%; background: var(--cosmos-purple-light); box-shadow: 0 0 8px rgba(175,169,236,0.4);"></div>
+          <div class="mind-node" style="top: 25%; left: 30%; background: var(--cosmos-purple); box-shadow: 0 0 8px rgba(127,119,221,0.4);"></div>
+          <div class="mind-core pulse-anim"></div>
+          <div class="mind-core-label">修心</div>
+        </div>
+      </div>
+
+      <!-- Agent Discussion -->
+      <div class="panel-card">
+        <div class="panel-title">Agent 共识 · 碎片聚合</div>
+        <div class="agent-discussion">
+          <div class="agent-bubble bull">
+            <div class="agent-name">趋势观察者</div>
+            上证突破3350压力位，量能配合，短期偏多。
+          </div>
+          <div class="agent-bubble bear">
+            <div class="agent-name">风险守望者</div>
+            外围不确定性增加，建议仓位控制在60%以下。
+          </div>
+          <div class="agent-bubble neutral">
+            <div class="agent-name">价值评估者</div>
+            当前估值中性，精选个股优于择时。
+          </div>
+        </div>
+      </div>
+
+      <!-- Experience Library -->
+      <div class="panel-card" style="flex: 1; overflow-y: auto;">
+        <div class="panel-title">经验碎片库 · 心之投影</div>
+        <div class="exp-entry">
+          <div class="exp-icon learned">&#10003;</div>
+          <div class="exp-text">缩量回踩后放量突破的胜率(73%)高于直接追高(41%)</div>
+          <div class="exp-time">3天前</div>
+        </div>
+        <div class="exp-entry">
+          <div class="exp-icon warning">&#9888;</div>
+          <div class="exp-text">尾盘急拉次日高开低走概率68%，不宜追入</div>
+          <div class="exp-time">1周前</div>
+        </div>
+        <div class="exp-entry">
+          <div class="exp-icon insight">&#9670;</div>
+          <div class="exp-text">市场震荡期降低仓位至40%可减少最大回撤12%</div>
+          <div class="exp-time">2周前</div>
+        </div>
+        <div class="exp-entry">
+          <div class="exp-icon learned">&#10003;</div>
+          <div class="exp-text">经验碎片达100条后，策略胜率提升5.2%</div>
+          <div class="exp-time">1月前</div>
+        </div>
+      </div>
+
+    </aside>
+
+  </div>
+
+  <!-- ===== FOOTER ===== -->
+  <div class="footer-sutra">
+    万千心念皆碎片 · 一怀内观即宇宙
+  </div>
+
+</div>
+
+<script>
+// ============ PARTICLE SYSTEM ============
+const canvas = document.getElementById('particle-canvas');
+const ctx = canvas.getContext('2d');
+
+let W, H;
+const particles = [];
+const PARTICLE_COUNT = 150;
+const CONNECTION_DIST = 150;
+
+function resize() {
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+}
+resize();
+window.addEventListener('resize', resize);
+
+class Particle {
+  constructor() {
+    this.reset();
+  }
+  reset() {
+    this.x = Math.random() * W;
+    this.y = Math.random() * H;
+    this.vx = (Math.random() - 0.5) * 0.4;
+    this.vy = (Math.random() - 0.5) * 0.4;
+    this.r = Math.random() * 2.0 + 0.5;
+    this.baseAlpha = Math.random() * 0.5 + 0.2;
+    this.pulseSpeed = Math.random() * 0.02 + 0.005;
+    this.pulsePhase = Math.random() * Math.PI * 2;
+    this.hue = Math.random() > 0.7 ? 240 : (Math.random() > 0.5 ? 255 : 260);
+  }
+  update(t) {
+    this.x += this.vx;
+    this.y += this.vy;
+    if (this.x < 0 || this.x > W) this.vx *= -1;
+    if (this.y < 0 || this.y > H) this.vy *= -1;
+    this.currentAlpha = this.baseAlpha * (0.7 + 0.3 * Math.sin(t * this.pulseSpeed + this.pulsePhase));
+  }
+  draw() {
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, this.r, 0, Math.PI * 2);
+    ctx.fillStyle = `hsla(${this.hue}, 55%, 72%, ${this.currentAlpha})`;
+    ctx.fill();
+    if (this.r > 1.2) {
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, this.r * 3, 0, Math.PI * 2);
+      ctx.fillStyle = `hsla(${this.hue}, 55%, 72%, ${this.currentAlpha * 0.15})`;
+      ctx.fill();
+    }
+  }
+}
+
+for (let i = 0; i < PARTICLE_COUNT; i++) {
+  particles.push(new Particle());
+}
+
+let t = 0;
+function animate() {
+  ctx.clearRect(0, 0, W, H);
+  t++;
+
+  for (const p of particles) {
+    p.update(t);
+    p.draw();
+  }
+
+  // Draw connections
+  for (let i = 0; i < particles.length; i++) {
+    for (let j = i + 1; j < particles.length; j++) {
+      const dx = particles[i].x - particles[j].x;
+      const dy = particles[i].y - particles[j].y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist < CONNECTION_DIST) {
+        const alpha = (1 - dist / CONNECTION_DIST) * 0.15;
+        ctx.beginPath();
+        ctx.moveTo(particles[i].x, particles[i].y);
+        ctx.lineTo(particles[j].x, particles[j].y);
+        ctx.strokeStyle = `rgba(127, 119, 221, ${alpha})`;
+        ctx.lineWidth = 0.6;
+        ctx.stroke();
+      }
+    }
+  }
+
+  requestAnimationFrame(animate);
+}
+animate();
+
+// ============ SIDEBAR CLICK ============
+document.querySelectorAll('.sidebar-item').forEach(item => {
+  item.addEventListener('click', function() {
+    document.querySelectorAll('.sidebar-item').forEach(i => i.classList.remove('active'));
+    this.classList.add('active');
+  });
+});
+
+document.querySelectorAll('.nav-link').forEach(item => {
+  item.addEventListener('click', function() {
+    document.querySelectorAll('.nav-link').forEach(i => i.classList.remove('active'));
+    this.classList.add('active');
+  });
+});
+</script>
+
+</body>
+</html>
