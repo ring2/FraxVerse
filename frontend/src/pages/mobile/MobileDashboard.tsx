@@ -135,7 +135,7 @@ function MobileDashboard() {
                   总资产
                 </span>
               }
-              value={summary?.total_asset ?? "--"}
+              value={summary?.total_asset != null ? `¥${Number(summary.total_asset).toLocaleString()}` : "--"}
               valueStyle={{
                 fontSize: 14,
                 fontWeight: 600,
@@ -187,7 +187,7 @@ function MobileDashboard() {
                   日盈亏
                 </span>
               }
-              value={summary?.daily_pnl ?? "--"}
+              value={summary?.daily_pnl != null ? `¥${Number(summary.daily_pnl).toLocaleString()}` : "--"}
               valueStyle={{
                 fontSize: 14,
                 fontWeight: 600,
@@ -280,7 +280,7 @@ function MobileDashboard() {
               color: colors.text,
             }}
           >
-            {summary?.available_cash ?? "--"}
+            {summary?.available_cash != null ? `¥${Number(summary.available_cash).toLocaleString()}` : "--"}
           </div>
           <div style={{ color: colors.dimmed, fontSize: 11 }}>
             仓位 {summary?.total_position_pct ?? "--"}%
