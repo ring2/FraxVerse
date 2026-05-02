@@ -16,18 +16,49 @@ const MobileSectionCard: React.FC<SectionCardProps> = ({
   showLink,
   onClickLink,
 }) => {
-  const { colors } = useTheme();
+  const { colors, mode } = useTheme();
   const [actionHovered, setActionHovered] = useState(false);
+  const [cardHovered, setCardHovered] = useState(false);
+  const isLight = mode === "light";
 
   return (
     <div
+      className="card-hover"
+      onMouseEnter={() => setCardHovered(true)}
+      onMouseLeave={() => setCardHovered(false)}
       style={{
-        background: colors.bg.surface,
-        border: `1px solid ${colors.border.light}`,
-        borderRadius: colors.radius.lg + "px",
+        background: isLight
+          ? "rgba(255,255,255,0.75)"
+          : "rgba(18,18,42,0.7)",
+        backdropFilter: "blur(12px) saturate(1.3)",
+        WebkitBackdropFilter: "blur(12px) saturate(1.3)",
+        border: isLight
+          ? "1px solid rgba(255,255,255,0.5)"
+          : "1px solid rgba(127,119,221,0.15)",
+        borderRadius: 16,
         overflow: "hidden",
+        position: "relative",
+        transition: "background 0.35s, box-shadow 0.25s, border-color 0.25s",
+        boxShadow: cardHovered
+          ? isLight
+            ? "0 4px 20px rgba(0,0,0,0.05), 0 0 0 1px rgba(127,119,221,0.08)"
+            : "0 4px 20px rgba(0,0,0,0.25), 0 0 0 1px rgba(127,119,221,0.12)"
+          : "none",
       }}
     >
+      {/* Top accent bar */}
+      <div
+        style={{
+          position: "absolute",
+          top: 0,
+          left: 0,
+          right: 0,
+          height: 2,
+          background: "linear-gradient(90deg, transparent, #9B93E4, #7F77DD, #9B93E4, transparent)",
+          opacity: 0.4,
+        }}
+      />
+
       <div
         style={{
           display: "flex",
@@ -44,13 +75,15 @@ const MobileSectionCard: React.FC<SectionCardProps> = ({
             gap: 8,
           }}
         >
-          <span
+          <div
             style={{
               width: 6,
               height: 6,
               borderRadius: "50%",
               backgroundColor: colors.purple[400],
               flexShrink: 0,
+              transition: "transform 0.2s",
+              transform: cardHovered ? "scale(1.3)" : "scale(1)",
             }}
           />
           <span
@@ -78,7 +111,7 @@ const MobileSectionCard: React.FC<SectionCardProps> = ({
               background: actionHovered ? colors.purple[50] : "transparent",
               userSelect: "none",
               lineHeight: 1.3,
-              transition: "background 0.15s ease",
+              transition: "background 0.15s ease, color 0.15s",
             }}
           >
             {action.text}
@@ -95,6 +128,13 @@ const MobileSectionCard: React.FC<SectionCardProps> = ({
               borderRadius: colors.radius.sm + "px",
               userSelect: "none",
               lineHeight: 1.3,
+              transition: "background 0.15s",
+            }}
+            onMouseEnter={(e) => {
+              (e.currentTarget as HTMLElement).style.background = colors.purple[50];
+            }}
+            onMouseLeave={(e) => {
+              (e.currentTarget as HTMLElement).style.background = "transparent";
             }}
           >
             查看全部 →

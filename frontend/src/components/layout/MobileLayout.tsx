@@ -20,6 +20,7 @@ const MobileLayout: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { colors, mode } = useTheme();
+  const isLight = mode === "light";
 
   return (
     <div
@@ -34,6 +35,7 @@ const MobileLayout: React.FC = () => {
     >
       {/* Content area */}
       <div
+        className="page-enter"
         style={{
           flex: 1,
           overflowY: "auto",
@@ -44,12 +46,18 @@ const MobileLayout: React.FC = () => {
         <Outlet />
       </div>
 
-      {/* Bottom tab bar */}
+      {/* Bottom tab bar — frosted glass */}
       <div
         style={{
           display: "flex",
-          background: mode === "dark" ? colors.bg.sidebar : colors.bg.surface,
-          borderTop: `1px solid ${colors.border.light}`,
+          background: isLight
+            ? "rgba(255,255,255,0.8)"
+            : "rgba(10,10,26,0.85)",
+          backdropFilter: "blur(16px) saturate(1.4)",
+          WebkitBackdropFilter: "blur(16px) saturate(1.4)",
+          borderTop: isLight
+            ? "1px solid rgba(255,255,255,0.4)"
+            : "1px solid rgba(127,119,221,0.12)",
           paddingBottom: "env(safe-area-inset-bottom, 0px)",
           flexShrink: 0,
           height: `calc(56px + env(safe-area-inset-bottom, 0px))`,
@@ -73,10 +81,9 @@ const MobileLayout: React.FC = () => {
                 cursor: "pointer",
                 color: isActive ? colors.purple[500] : colors.text.tertiary,
                 fontSize: 10,
-                transition: "color 0.2s, opacity 0.1s",
+                transition: "color 0.25s ease",
                 userSelect: "none",
                 position: "relative",
-                opacity: 1,
               }}
               onMouseDown={(e) => {
                 (e.currentTarget as HTMLElement).style.opacity = "0.5";
@@ -88,22 +95,41 @@ const MobileLayout: React.FC = () => {
                 (e.currentTarget as HTMLElement).style.opacity = "1";
               }}
             >
-              <span style={{ fontSize: 20, marginBottom: 2, lineHeight: 1 }}>
-                {item.icon}
-              </span>
-              <span style={{ fontSize: 10, lineHeight: 1.4 }}>{item.title}</span>
+              {/* Active indicator dot */}
               {isActive && (
                 <div
                   style={{
                     position: "absolute",
                     top: 0,
-                    width: 24,
-                    height: 2,
-                    background: colors.purple[500],
-                    borderRadius: 1,
+                    width: 20,
+                    height: 2.5,
+                    background: isLight
+                      ? colors.purple[500]
+                      : "linear-gradient(90deg, #7F77DD, #AFA9EC)",
+                    borderRadius: "0 0 3px 3px",
+                    animation: "tabIndicatorIn 0.3s ease-out",
                   }}
                 />
               )}
+              <span
+                style={{
+                  fontSize: 20,
+                  marginBottom: 2,
+                  lineHeight: 1,
+                  transition: "transform 0.2s ease",
+                }}
+              >
+                {item.icon}
+              </span>
+              <span
+                style={{
+                  fontSize: 10,
+                  lineHeight: 1.4,
+                  fontWeight: isActive ? 500 : 400,
+                }}
+              >
+                {item.title}
+              </span>
             </div>
           );
         })}

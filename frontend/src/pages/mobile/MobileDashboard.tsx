@@ -108,7 +108,6 @@ function MobileDashboard() {
 
   const handleRefresh = useCallback(() => {
     message.info("刷新数据中...");
-    // TODO: 重新拉取 dashboard 所有数据
     setLoading(true);
     Promise.all([
       portfolioService.getSummary().catch(() => MOCK_SUMMARY),
@@ -139,41 +138,10 @@ function MobileDashboard() {
   const signals = MOCK_SIGNALS;
   const discussions = MOCK_AGENT_DISCUSSIONS;
 
-  const marketTag = marketState
-    ? marketState.current_state === "bull"
-      ? { label: "🐂 牛市", color: colors.semantic.up }
-      : marketState.current_state === "bear"
-      ? { label: "🐻 熊市", color: colors.semantic.down }
-      : { label: "⚖️ 震荡", color: colors.semantic.amber }
-    : { label: "⏳ 加载中", color: colors.text.tertiary };
-
   const mode = tradeMode?.current_mode ?? "SIMULATION";
-  const modeTagColor =
-    mode === "LIVE"
-      ? colors.semantic.up
-      : mode === "PAPER"
-      ? colors.semantic.amber
-      : colors.purple[500];
-
-  if (loading) {
-    return (
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "center",
-          alignItems: "center",
-          minHeight: 200,
-        }}
-      >
-        <span style={{ color: colors.text.tertiary, fontSize: 14 }}>
-          加载中...
-        </span>
-      </div>
-    );
-  }
 
   return (
-    <div>
+    <div className="page-enter">
       {/* ===== 标题栏 ===== */}
       <div
         style={{
@@ -185,234 +153,278 @@ function MobileDashboard() {
           marginBottom: 14,
           lineHeight: 1.3,
         }}
+      >
+        <span
+          style={{
+            background: "linear-gradient(135deg, #7F77DD, #9B93E4)",
+            WebkitBackgroundClip: "text",
+            WebkitTextFillColor: "transparent",
+            backgroundClip: "text",
+          }}
         >
           看盘
-          <div
+        </span>
+        <div
+          style={{
+            marginLeft: "auto",
+            display: "flex",
+            gap: 6,
+            alignItems: "center",
+          }}
+        >
+          {/* 刷新按钮 */}
+          <button
+            onClick={handleRefresh}
             style={{
-              marginLeft: "auto",
-              display: "flex",
-              gap: 6,
+              display: "inline-flex",
               alignItems: "center",
+              justifyContent: "center",
+              width: 32,
+              height: 32,
+              borderRadius: 10,
+              cursor: "pointer",
+              border: "none",
+              outline: "none",
+              background: "transparent",
+              color: colors.text.secondary,
+              transition: "all 0.2s ease",
+              fontSize: 16,
+              lineHeight: 1,
+              padding: 0,
+            }}
+            onMouseEnter={(e) => {
+              (e.currentTarget as HTMLElement).style.background = colors.purple[50];
+              (e.currentTarget as HTMLElement).style.color = colors.purple[500];
+            }}
+            onMouseLeave={(e) => {
+              (e.currentTarget as HTMLElement).style.background = "transparent";
+              (e.currentTarget as HTMLElement).style.color = colors.text.secondary;
+            }}
+            title="刷新数据"
+          >
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <polyline points="23 4 23 10 17 10" />
+              <polyline points="1 20 1 14 7 14" />
+              <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+            </svg>
+          </button>
+          {/* 交易模式标签 */}
+          <span
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              fontSize: 11,
+              fontWeight: 500,
+              lineHeight: 1.3,
+              padding: "3px 10px",
+              borderRadius: 20,
+              backgroundColor: colors.semantic.upBg,
+              color: colors.purple[500],
+              gap: 4,
             }}
           >
-            <button
-              onClick={handleRefresh}
+            <span style={{ width: 5, height: 5, borderRadius: "50%", background: colors.purple[500], display: "inline-block" }} />
+            {mode}
+          </span>
+          {/* 市场状态标签 */}
+          {marketState && (
+            <span
               style={{
                 display: "inline-flex",
                 alignItems: "center",
-                justifyContent: "center",
-                width: 32,
-                height: 32,
-                borderRadius: `${colors.radius.sm}px`,
-                cursor: "pointer",
-                border: "none",
-                outline: "none",
-                background: "transparent",
-                color: colors.text.secondary,
-                transition: "all 0.2s ease",
-                fontSize: 16,
-                lineHeight: 1,
-                padding: 0,
+                fontSize: 11,
+                fontWeight: 500,
+                lineHeight: 1.3,
+                padding: "3px 10px",
+                borderRadius: 20,
+                backgroundColor: colors.semantic.upBg,
+                color: colors.semantic.up,
+                gap: 4,
               }}
-              title="刷新数据"
             >
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <polyline points="23 4 23 10 17 10" />
-                <polyline points="1 20 1 14 7 14" />
-                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
-              </svg>
-            </button>
-          <span
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              fontSize: 11,
-              fontWeight: 500,
-              lineHeight: 1.3,
-              padding: "3px 10px",
-              borderRadius: 20,
-              backgroundColor: colors.semantic.upBg,
-              color: modeTagColor,
-            }}
-          >
-            {mode}
-          </span>
-          <span
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              fontSize: 11,
-              fontWeight: 500,
-              lineHeight: 1.3,
-              padding: "3px 10px",
-              borderRadius: 20,
-              backgroundColor: colors.semantic.upBg,
-              color: marketTag.color,
-            }}
-          >
-            {marketTag.label}
-          </span>
+              🐂 {marketState.main_line_sector || "牛市"}
+            </span>
+          )}
         </div>
       </div>
 
-      {/* ===== 指标卡片网格 (2列) ===== */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "1fr 1fr",
-          gap: 12,
-          marginBottom: 16,
-        }}
-      >
-        <MobileMetricCard
-          label="总资产"
-          value={`¥${summary?.total_asset != null ? Number(summary.total_asset).toLocaleString() : "1,284,350"}`}
-          change={{ text: "+2.3% 今日", type: "up" }}
-        />
-        <MobileMetricCard
-          label="今日盈亏"
-          value={`+¥${summary?.daily_pnl != null ? Number(summary.daily_pnl).toLocaleString() : "28,940"}`}
-          change={{ text: "+1.8%", type: "up" }}
-          valueColor={colors.semantic.up}
-        />
-        <MobileMetricCard
-          label="活跃信号"
-          value="12"
-          change={{ text: "3 待审", type: "neutral" }}
-          valueColor={colors.purple[500]}
-        />
-        <MobileMetricCard
-          label="经验库"
-          value="247"
-          change={{ text: "2 失败经验", type: "down" }}
-        />
-      </div>
+      {loading ? (
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+            minHeight: 200,
+          }}
+        >
+          <span style={{ color: colors.text.tertiary, fontSize: 14 }}>
+            加载中...
+          </span>
+        </div>
+      ) : (
+        <>
+          {/* ===== 指标卡片网格 (2列) ===== */}
+          <div
+            className="stagger"
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr",
+              gap: 12,
+              marginBottom: 16,
+            }}
+          >
+            <MobileMetricCard
+              label="总资产"
+              value={`¥${summary?.total_asset != null ? Number(summary.total_asset).toLocaleString() : "1,284,350"}`}
+              change={{ text: "+2.3% 今日", type: "up" }}
+            />
+            <MobileMetricCard
+              label="今日盈亏"
+              value={`+¥${summary?.daily_pnl != null ? Number(summary.daily_pnl).toLocaleString() : "28,940"}`}
+              change={{ text: "+1.8%", type: "up" }}
+              valueColor={colors.semantic.up}
+            />
+            <MobileMetricCard
+              label="活跃信号"
+              value="12"
+              change={{ text: "3 待审", type: "neutral" }}
+              valueColor={colors.purple[500]}
+            />
+            <MobileMetricCard
+              label="经验库"
+              value="247"
+              change={{ text: "2 失败经验", type: "down" }}
+            />
+          </div>
 
-      {/* ===== 今日交易信号 ===== */}
-      <div style={{ marginBottom: 16 }}>
-        <MobileSectionCard title="今日交易信号" showLink onClickLink={handleViewAllSignals}>
-          {signals.map((sig, idx) => (
-            <div
-              key={idx}
-              onClick={handleSignalClick}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                padding: "12px 14px",
-                cursor: "pointer",
-                borderBottom:
-                  idx < signals.length - 1
-                    ? `1px solid ${colors.border.light}`
-                    : "none",
-                transition: "background 0.15s ease",
-              }}
-              onMouseEnter={(e) => {
-                (e.currentTarget as HTMLElement).style.background =
-                  colors.bg.subtle;
-              }}
-              onMouseLeave={(e) => {
-                (e.currentTarget as HTMLElement).style.background = "transparent";
-              }}
-            >
-              {/* 左侧：代码 + 名称 */}
-              <div style={{ minWidth: 0, flex: 1 }}>
+          {/* ===== 今日交易信号 ===== */}
+          <div style={{ marginBottom: 16 }}>
+            <MobileSectionCard title="今日交易信号" showLink onClickLink={handleViewAllSignals}>
+              {signals.map((sig, idx) => (
                 <div
+                  key={idx}
+                  onClick={handleSignalClick}
                   style={{
-                    fontSize: 13,
-                    fontWeight: 500,
-                    color: colors.text.primary,
-                    lineHeight: 1.4,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    padding: "12px 14px",
+                    cursor: "pointer",
+                    borderBottom:
+                      idx < signals.length - 1
+                        ? `1px solid ${colors.border.light}`
+                        : "none",
+                    transition: "background 0.2s ease",
+                  }}
+                  onMouseEnter={(e) => {
+                    (e.currentTarget as HTMLElement).style.background =
+                      colors.bg.subtle;
+                  }}
+                  onMouseLeave={(e) => {
+                    (e.currentTarget as HTMLElement).style.background =
+                      "transparent";
                   }}
                 >
-                  {sig.code}
-                  <span
-                    style={{
-                      fontSize: 12,
-                      color: colors.text.tertiary,
-                      marginLeft: 6,
-                    }}
-                  >
-                    {sig.name}
-                  </span>
-                </div>
-                <div style={{ marginTop: 4 }}>
-                  <span
-                    style={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      fontSize: 11,
-                      fontWeight: 500,
-                      lineHeight: 1.3,
-                      padding: "2px 8px",
-                      borderRadius: 20,
-                      backgroundColor: colors.semantic.amberBg,
-                      color: colors.semantic.amber,
-                    }}
-                  >
-                    {sig.strategy}
-                  </span>
-                </div>
-              </div>
+                  {/* 左侧：代码 + 名称 */}
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div
+                      style={{
+                        fontSize: 13,
+                        fontWeight: 500,
+                        color: colors.text.primary,
+                        lineHeight: 1.4,
+                      }}
+                    >
+                      {sig.code}
+                      <span
+                        style={{
+                          fontSize: 12,
+                          color: colors.text.tertiary,
+                          marginLeft: 6,
+                        }}
+                      >
+                        {sig.name}
+                      </span>
+                    </div>
+                    <div style={{ marginTop: 4 }}>
+                      <span
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          fontSize: 11,
+                          fontWeight: 500,
+                          lineHeight: 1.3,
+                          padding: "2px 8px",
+                          borderRadius: 20,
+                          backgroundColor: colors.semantic.amberBg,
+                          color: colors.semantic.amber,
+                        }}
+                      >
+                        {sig.strategy}
+                      </span>
+                    </div>
+                  </div>
 
-              {/* 右侧：评分 + 现价 + 涨跌 */}
-              <div style={{ textAlign: "right", flexShrink: 0 }}>
-                <div
-                  style={{
-                    fontSize: 13,
-                    fontWeight: 500,
-                    color: colors.text.primary,
-                    lineHeight: 1.4,
-                  }}
-                >
-                  评分 {sig.score}
+                  {/* 右侧：评分 + 现价 + 涨跌 */}
+                  <div style={{ textAlign: "right", flexShrink: 0 }}>
+                    <div
+                      style={{
+                        fontSize: 13,
+                        fontWeight: 500,
+                        color: colors.text.primary,
+                        lineHeight: 1.4,
+                      }}
+                    >
+                      评分 {sig.score}
+                    </div>
+                    <div
+                      style={{
+                        fontSize: 12,
+                        color: colors.text.secondary,
+                        lineHeight: 1.3,
+                        marginTop: 2,
+                      }}
+                    >
+                      {sig.price}
+                      <span
+                        style={{
+                          marginLeft: 4,
+                          color: sig.changeUp
+                            ? colors.semantic.up
+                            : colors.semantic.down,
+                        }}
+                      >
+                        {sig.change}
+                      </span>
+                    </div>
+                  </div>
                 </div>
-                <div
-                  style={{
-                    fontSize: 12,
-                    color: colors.text.secondary,
-                    lineHeight: 1.3,
-                    marginTop: 2,
-                  }}
-                >
-                  {sig.price}
-                  <span
-                    style={{
-                      marginLeft: 4,
-                      color: sig.changeUp
-                        ? colors.semantic.up
-                        : colors.semantic.down,
-                    }}
-                  >
-                    {sig.change}
-                  </span>
-                </div>
-              </div>
-            </div>
-          ))}
-        </MobileSectionCard>
-      </div>
+              ))}
+            </MobileSectionCard>
+          </div>
 
-      {/* ===== AI 分析·最新讨论 ===== */}
-      <MobileSectionCard title="AI 分析·最新讨论" showLink onClickLink={handleViewAllDiscussion}>
-        {discussions.map((d, idx) => (
-          <MobileAgentBubble
-            key={idx}
-            agent={d.agent}
-            name={d.name}
-            text={d.text}
-          />
-        ))}
-      </MobileSectionCard>
+          {/* ===== AI 分析·最新讨论 ===== */}
+          <MobileSectionCard title="AI 分析·最新讨论" showLink onClickLink={handleViewAllDiscussion}>
+            {discussions.map((d, idx) => (
+              <MobileAgentBubble
+                key={idx}
+                agent={d.agent}
+                name={d.name}
+                text={d.text}
+              />
+            ))}
+          </MobileSectionCard>
+        </>
+      )}
     </div>
   );
 }
