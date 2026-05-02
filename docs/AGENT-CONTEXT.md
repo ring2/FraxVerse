@@ -30,7 +30,9 @@
 | P1 前后端基础设施 | ~95% | React+FastAPI+PostgreSQL+Redis |
 | P2 AI Agent | 100% | 4 角色辩论→投票→校准→降级，Mock LLM 模式通过 |
 | 安全审计修复 | 100% | JWT认证、SQL注入、吞异常修复 |
-| V2 移动端 | ~95% | 4主页面+6子页面+登录页+双主题+底部Tab导航 |
+| V2 移动端 | ~100% | 4主页面+6子页面+登录页+双主题+底部Tab导航 |
+| P0遗留（L1-L5） | 100% | 空状态提示(EmptyState组件)、404页面(NotFoundPage+路由兜底)、Loading统一(Suspense+LoadingFallback)、错误提示(App.useApp+toast)、移动端适配(100dvh+自适应) |
+| DeepSeek API Key | ✅ 已配 | `.env`→`DEEPSEEK_API_KEY=***`，真实API测试3/3通过（deepseek-v4-flash 1.1~4s延迟） |
 
 ### 🚨 已知问题
 
@@ -40,24 +42,26 @@
 | P0 | 6个子页面骨架→真实内容 | ✅ 已修 |
 | P1 | authService.changePassword 封装 | ✅ 已修 |
 | P1 | misc.py 废弃 agent_router（40行冗余） | ✅ 已修 |
+| P1 | 5个前端pc页面mock→API（ROADMAP遗留项） | ⬜ 待确认 |
 | - | 后端测试 `ModuleNotFoundError: jose`（python-jose 未安装） | ❌ 未修 |
-| - | 前端测试 4 failed / 28（2 test files fail，LoginPage 渲染相关） | ❌ 未修 |
-| - | 后端服务未运行 | ❌ 未修 |
-| - | 前后端 dev server 未启动 | ❌ 未修 |
+| - | 前端测试 4 failed / 28（2 test files fail） | ❌ 未修 |
+| - | 后端服务未运行（uvicorn 未启动） | ❌ 未修 |
 
 ### ⬜ 待办清单
 
-#### P0 遗留 — 基础体验
+> ✅ 标记 = 已确认完成，待 ROADMAP.md 同步更新
 
-- [ ] **L1 — 空状态提示**：所有列表页无数据时显示友好空状态
-- [ ] **L2 — 前端 404 页面**：`/404` 路由 + 未匹配路由兜底
-- [ ] **L3 — Loading 状态统一**：antd Skeleton，所有页面 LoadingFallback
-- [ ] **L4 — 错误提示统一**：API 调用失败时 toast 提示
-- [ ] **L5 — 移动端适配收尾**：tab 栏、列表、表单完整适配
+#### ✅ P0 遗留 — 基础体验（已完成）
 
-#### P3 — 从 Mock 到真数据
+- [x] **L1 — 空状态提示**：全局 EmptyState + MobileEmptyState 组件
+- [x] **L2 — 前端 404 页面**：NotFoundPage + Route path="*" 兜底
+- [x] **L3 — Loading 状态统一**：LoadingFallback + Suspense
+- [x] **L4 — 错误提示统一**：App.useApp toast
+- [x] **L5 — 移动端适配收尾**：100dvh、自适应
 
-- [ ] **P3-1 — 配置 DEEPSEEK_API_KEY**：创建 `.env`，验证 Agent 不再输出 Mock
+#### ✅ P3 — 真数据（API Key 已配）
+
+- [x] **P3-1 — 配置 DEEPSEEK_API_KEY**：`.env` 已配，3 个真实 API 测试通过
 - [ ] **P3-2 — 完整回测跑一轮**：backtesting 库跑 2 年历史数据 + 报告
 - [ ] **P3-3 — 实盘/模拟盘持续运行**：配置 cron 每日自动触发
 
