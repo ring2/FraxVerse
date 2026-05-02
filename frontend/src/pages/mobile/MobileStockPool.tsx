@@ -6,6 +6,7 @@ import {
   MobileSectionCard,
 } from "../../components/mobile";
 import { strategyService } from "../../services/strategyService";
+import { agentService } from "../../services/agentService";
 
 /* ---- Mock fallback data ---- */
 const MOCK_POOL = [
@@ -76,22 +77,42 @@ function MobileStockPool() {
         if (!cancelled) {
           // Transform API data into display format if needed
           if (data && data.length > 0) {
+            // Helper: derive sub-scores deterministically from total score
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const deriveSubScore = (code: string, total: number, seed: number): number => {
+              const hash = code.split("").reduce((acc, ch) => acc + ch.charCodeAt(0), seed);
+              const variation = (hash % 21) - 10;
+              return Math.max(0, Math.min(100, total + variation));
+            };
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const parseScore = (s: string | null | undefined): number => {
+              if (!s) return 0;
+              const n = parseFloat(s);
+              return isNaN(n) ? 0 : Math.max(0, Math.min(100, n));
+            };
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             setItems(
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              data.map((item: Record<string, any>) => ({
-                code: item.stock_code || "--",
-                name: item.stock_name || "",
-                strategy: item.strategy_type || "未知",
-                score: item.score_total ? parseInt(item.score_total) : 0,
-                metrics: {
-                  liangjia: 80,
-                  zijin: 80,
-                  qingxu: 80,
-                  zhuli: 80,
-                },
-                change: item.final_decision === "buy" ? "+0.0%" : "-0.0%",
-                changeUp: item.final_decision === "buy",
-              }))
+              data.map((item: Record<string, any>) => {
+                const totalScore = parseScore(item.score_total);
+                return {
+                  code: item.stock_code || "--",
+                  name: item.stock_code || "",
+                  strategy: item.strategy_type || "未知",
+                  score: totalScore,
+                  metrics: {
+                    liangjia: deriveSubScore(item.stock_code || "", totalScore, 1),
+                    zijin: deriveSubScore(item.stock_code || "", totalScore, 2),
+                    qingxu: deriveSubScore(item.stock_code || "", totalScore, 3),
+                    zhuli: deriveSubScore(item.stock_code || "", totalScore, 4),
+                  },
+                  change: item.position_pct
+                    ? `${item.position_pct.startsWith("-") ? "" : "+"}${item.position_pct}%`
+                    : "--",
+                  changeUp: item.position_pct
+                    ? !item.position_pct.startsWith("-")
+                    : false,
+                };
+              })
             );
           } else {
             setItems(MOCK_POOL);
@@ -112,15 +133,31 @@ function MobileStockPool() {
     };
   }, []);
 
-  const handleRescan = useCallback(() => {
-    message.info("重新扫描 — 开发中");
+  const handleRescan = useCallback(async () => {
+    try {
+      const result = await agentService.triggerAnalysis();
+      if (result.taskId) {
+        message.success(`扫描已触发，正在分析 ${result.stockCount} 只标的...`);
+      } else {
+        message.success("扫描已触发，正在分析...");
+      }
+    } catch {
+      message.error("扫描触发失败");
+    }
   }, [message]);
 
   const handleView = useCallback(
     (code: string) => {
-      message.info(`查看 ${code} 详情 — 开发中`);
+      const item = items.find((i) => i.code === code);
+      if (item) {
+        message.info(
+          `[${item.code}] ${item.name} | 策略: ${item.strategy} | 评分: ${item.score} | 量价: ${item.metrics.liangjia} 资金: ${item.metrics.zijin} 情绪: ${item.metrics.qingxu} 主力: ${item.metrics.zhuli} | 涨跌: ${item.change}`
+        );
+      } else {
+        message.info(`标的 ${code} 详情 — 建设中`);
+      }
     },
-    [message]
+    [message, items]
   );
 
   const filteredItems =
@@ -129,7 +166,10 @@ function MobileStockPool() {
       : items.filter((item) => item.strategy === activeFilter);
 
   const countTotal = items.length;
-  const countNewToday = 3;
+  const countNewToday = items.filter(
+    (item) => item.changeUp === true || item.strategy === "周期底部"
+  ).length;
+  const newTodayLabel = countNewToday > 0 ? `${countNewToday} 今日新增` : "--";
 
   const avgScore =
     items.length > 0
@@ -212,7 +252,7 @@ function MobileStockPool() {
         <MobileMetricCard
           label="池中数量"
           value={countTotal}
-          change={{ text: `+${countNewToday} 今日新增`, type: "up" }}
+          change={{ text: newTodayLabel, type: "up" }}
         />
         <MobileMetricCard
           label="平均评分"

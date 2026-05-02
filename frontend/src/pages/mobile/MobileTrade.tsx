@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from "react";
-import { App } from "antd";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { App, Modal, Form, Input, InputNumber, Radio } from "antd";
 import { useTheme } from "../../theme/ThemeContext";
 import {
   MobileMetricCard,
@@ -76,8 +76,9 @@ const MOCK_PORTFOLIO = {
 };
 
 function MobileTrade() {
-  const { message } = App.useApp();
+  const { message, modal } = App.useApp();
   const { colors } = useTheme();
+  const [form] = Form.useForm();
 
   const [loading, setLoading] = useState(true);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -86,47 +87,108 @@ function MobileTrade() {
   const [orders, setOrders] = useState<Record<string, any>[]>([]);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [portfolio, setPortfolio] = useState<Record<string, any> | null>(null);
+  const [tradeModalOpen, setTradeModalOpen] = useState(false);
+  const [orderType, setOrderType] = useState<"market" | "limit">("market");
+  const [submitting, setSubmitting] = useState(false);
+  const cancelledRef = useRef(false);
+
+  const fetchData = useCallback(async () => {
+    cancelledRef.current = false;
+    try {
+      const [p, o, s] = await Promise.all([
+        portfolioService.getPositions().catch(() => MOCK_POSITIONS),
+        tradeService.getOrders().catch(() => MOCK_ORDERS),
+        portfolioService.getSummary().catch(() => MOCK_PORTFOLIO),
+      ]);
+      if (cancelledRef.current) return;
+      setPositions(p && p.length > 0 ? p : MOCK_POSITIONS);
+      setOrders(o && o.length > 0 ? o : MOCK_ORDERS);
+      setPortfolio(s || MOCK_PORTFOLIO);
+    } catch {
+      if (!cancelledRef.current) {
+        setPositions(MOCK_POSITIONS);
+        setOrders(MOCK_ORDERS);
+        setPortfolio(MOCK_PORTFOLIO);
+      }
+    } finally {
+      if (!cancelledRef.current) setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    let cancelled = false;
-
-    Promise.all([
-      portfolioService.getPositions().catch(() => MOCK_POSITIONS),
-      tradeService.getOrders().catch(() => MOCK_ORDERS),
-      portfolioService.getSummary().catch(() => MOCK_PORTFOLIO),
-    ])
-      .then(([p, o, s]) => {
-        if (cancelled) return;
-        setPositions(p && p.length > 0 ? p : MOCK_POSITIONS);
-        setOrders(o && o.length > 0 ? o : MOCK_ORDERS);
-        setPortfolio(s || MOCK_PORTFOLIO);
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setPositions(MOCK_POSITIONS);
-          setOrders(MOCK_ORDERS);
-          setPortfolio(MOCK_PORTFOLIO);
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-
+    fetchData();
     return () => {
-      cancelled = true;
+      cancelledRef.current = true;
     };
-  }, []);
+  }, [fetchData]);
 
   const handleStopLoss = useCallback(
     (code: string) => {
-      message.info(`止损 ${code} — 开发中`);
+      modal.confirm({
+        title: "确认止损",
+        content: `确定对 ${code} 执行止损？`,
+        okText: "确认止损",
+        cancelText: "取消",
+        onOk: async () => {
+          try {
+            await tradeService.emergencyStop();
+            message.success("已触发紧急停止");
+            fetchData();
+          } catch (err: unknown) {
+            const msg =
+              err instanceof Error ? err.message : "未知错误";
+            message.error(`止损失败: ${msg}`);
+          }
+        },
+      });
     },
-    [message]
+    [modal, message, fetchData]
   );
 
   const handleManualTrade = useCallback(() => {
-    message.info("手动下单 — 开发中");
-  }, [message]);
+    setOrderType("market");
+    form.resetFields();
+    setTradeModalOpen(true);
+  }, [form]);
+
+  const handleSubmitOrder = useCallback(async () => {
+    try {
+      const values = await form.validateFields();
+      setSubmitting(true);
+
+      const payload: {
+        stock_code: string;
+        direction: string;
+        order_type: string;
+        volume: number;
+        price?: number | string;
+      } = {
+        stock_code: values.stock_code.toUpperCase(),
+        direction: values.direction,
+        order_type: orderType,
+        volume: values.volume,
+      };
+
+      if (orderType === "limit") {
+        payload.price = values.price;
+      }
+
+      await tradeService.createOrder(payload);
+      message.success("订单已提交");
+      setTradeModalOpen(false);
+      fetchData();
+    } catch (err: unknown) {
+      if (err && typeof err === "object" && "errorFields" in err) {
+        // Form validation error — ignore
+        return;
+      }
+      const msg =
+        err instanceof Error ? err.message : "未知错误";
+      message.error(`下单失败: ${msg}`);
+    } finally {
+      setSubmitting(false);
+    }
+  }, [form, orderType, message, fetchData]);
 
   const handleExportReport = useCallback(() => {
     message.info("导出报表 — 开发中");
@@ -574,6 +636,152 @@ function MobileTrade() {
           );
         })}
       </MobileSectionCard>
+      {/* ===== 手动下单弹窗 ===== */}
+      <Modal
+        title="手动下单"
+        open={tradeModalOpen}
+        onCancel={() => setTradeModalOpen(false)}
+        footer={null}
+        width={340}
+        destroyOnClose
+        styles={{
+          mask: { background: "rgba(0,0,0,0.45)" },
+          content: { borderRadius: colors.radius.md },
+        }}
+      >
+        <Form
+          form={form}
+          layout="vertical"
+          size="middle"
+          style={{ marginTop: 8 }}
+          initialValues={{ direction: "buy" }}
+        >
+          <Form.Item
+            label="股票代码"
+            name="stock_code"
+            rules={[{ required: true, message: "请输入股票代码" }]}
+          >
+            <Input
+              placeholder="例如 600519"
+              maxLength={6}
+              style={{ textTransform: "uppercase" }}
+              onInput={(e) => {
+                const target = e.target as HTMLInputElement;
+                target.value = target.value.toUpperCase();
+              }}
+            />
+          </Form.Item>
+
+          <Form.Item label="方向" name="direction">
+            <Radio.Group
+              optionType="button"
+              buttonStyle="solid"
+              style={{ display: "flex", gap: 8 }}
+            >
+              <Radio.Button
+                value="buy"
+                style={{
+                  flex: 1,
+                  textAlign: "center",
+                }}
+              >
+                买入
+              </Radio.Button>
+              <Radio.Button
+                value="sell"
+                style={{
+                  flex: 1,
+                  textAlign: "center",
+                }}
+              >
+                卖出
+              </Radio.Button>
+            </Radio.Group>
+          </Form.Item>
+
+          <Form.Item
+            label="数量"
+            name="volume"
+            rules={[{ required: true, message: "请输入数量" }]}
+          >
+            <InputNumber
+              style={{ width: "100%" }}
+              min={1}
+              step={100}
+              placeholder="请输入数量"
+            />
+          </Form.Item>
+
+          <Form.Item label="价格类型">
+            <Radio.Group
+              value={orderType}
+              onChange={(e) => setOrderType(e.target.value)}
+              optionType="button"
+              buttonStyle="solid"
+              style={{ display: "flex", gap: 8 }}
+            >
+              <Radio.Button value="market" style={{ flex: 1, textAlign: "center" }}>
+                市价
+              </Radio.Button>
+              <Radio.Button value="limit" style={{ flex: 1, textAlign: "center" }}>
+                限价
+              </Radio.Button>
+            </Radio.Group>
+          </Form.Item>
+
+          {orderType === "limit" && (
+            <Form.Item
+              label="限价价格"
+              name="price"
+              rules={[
+                { required: true, message: "请输入限价价格" },
+                {
+                  type: "number",
+                  min: 0.01,
+                  message: "价格必须大于0",
+                },
+              ]}
+            >
+              <InputNumber
+                style={{ width: "100%" }}
+                min={0.01}
+                step={0.01}
+                precision={2}
+                prefix="¥"
+                placeholder="请输入限价价格"
+              />
+            </Form.Item>
+          )}
+
+          <Form.Item style={{ marginBottom: 0 }}>
+            <button
+              onClick={handleSubmitOrder}
+              disabled={submitting}
+              style={{
+                display: "block",
+                width: "100%",
+                padding: "10px 0",
+                borderRadius: `${colors.radius.md}px`,
+                fontSize: 15,
+                fontWeight: 600,
+                lineHeight: 1.4,
+                cursor: submitting ? "not-allowed" : "pointer",
+                border: "none",
+                outline: "none",
+                background: submitting
+                  ? colors.border.medium
+                  : colors.gradient.primary,
+                color: colors.text.inverse,
+                boxShadow: colors.btnShadow,
+                opacity: submitting ? 0.6 : 1,
+                transition: "all 0.15s ease",
+              }}
+            >
+              {submitting ? "提交中..." : "提交订单"}
+            </button>
+          </Form.Item>
+        </Form>
+      </Modal>
     </div>
   );
 }

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { App } from "antd";
 import { useTheme } from "../../theme/ThemeContext";
 import {
@@ -9,8 +10,10 @@ import {
 import { portfolioService } from "../../services/portfolioService";
 import { tradeService } from "../../services/tradeService";
 import { marketService } from "../../services/marketService";
+import { agentService } from "../../services/agentService";
+import type { AgentDecisionItemEx, AgentDiscussionItemEx } from "../../services/agentService";
 
-/* ---- Mock fallback data ---- */
+/* ---- Mock fallback data (仅用于 portfolio/trade/market) ---- */
 const MOCK_SUMMARY = {
   total_asset: 1284350,
   available_cash: 298930,
@@ -24,45 +27,50 @@ const MOCK_TRADE_MODE = { current_mode: "SIMULATION" };
 
 const MOCK_MARKET_STATE = { current_state: "bull", main_line_sector: "消费电子" };
 
-const MOCK_SIGNALS = [
-  {
-    code: "600519",
-    name: "贵州茅台",
-    strategy: "周期底部",
-    score: 92,
-    price: "1,680.50",
-    change: "+3.2%",
-    changeUp: true,
-  },
-  {
-    code: "300750",
-    name: "宁德时代",
-    strategy: "趋势低吸",
-    score: 87,
-    price: "218.30",
-    change: "+2.1%",
-    changeUp: true,
-  },
-  {
-    code: "000858",
-    name: "五粮液",
-    strategy: "周期底部",
-    score: 74,
-    price: "156.80",
-    change: "+1.5%",
-    changeUp: true,
-  },
-];
+/* ---- Signal display helper ---- */
+interface SignalItem {
+  code: string;
+  name: string;
+  strategy: string;
+  score: number;
+  price: string;
+  change: string;
+  changeUp: boolean;
+}
 
-const MOCK_AGENT_DISCUSSIONS = [
-  { agent: "hunter" as const, name: "Hunter 猎手", text: "茅台量能放大，突破前高压力位，短线动能充足" },
-  { agent: "detector" as const, name: "Detector 侦探", text: "北向资金连续3日净流入，偏好消费板块" },
-  { agent: "judge" as const, name: "Judge 法官", text: "综合评分92，周期底部确认，建议纳入观察" },
-];
+/** 将后端 Decision 转为前端展示格式（暂缺 name/price/change，后端没返回） */
+function decisionToSignal(d: AgentDecisionItemEx): SignalItem {
+  return {
+    code: d.stockCode,
+    name: d.stockCode,            // 后端未返回 name，暂时显示 code
+    strategy: d.decisionReason.slice(0, 12) || d.decision,
+    score: d.totalScore,
+    price: "--",
+    change: d.decision === "buy" ? "建议买入" : "观望/卖出",
+    changeUp: d.decision === "buy",
+  };
+}
+
+/** 将后端 Discussion 转为 AgentBubble 格式 */
+function discussionToBubble(d: AgentDiscussionItemEx) {
+  const agent = d.agentName.toLowerCase();
+  const agentType = agent.includes("hunter")
+    ? "hunter"
+    : agent.includes("detector")
+      ? "detector"
+      : "judge";
+  const reasons = [...d.buyReasons, ...d.againstReasons];
+  return {
+    agent: agentType as "hunter" | "detector" | "judge",
+    name: d.agentName,
+    text: reasons.length > 0 ? reasons.join("；") : `评分 ${d.score ?? "--"}，信心 ${(d.confidence * 100).toFixed(0)}%`,
+  };
+}
 
 function MobileDashboard() {
   const { message } = App.useApp();
   const { colors } = useTheme();
+  const navigate = useNavigate();
 
   const [loading, setLoading] = useState(true);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -71,72 +79,77 @@ function MobileDashboard() {
   const [tradeMode, setTradeMode] = useState<Record<string, any> | null>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [marketState, setMarketState] = useState<Record<string, any> | null>(null);
+  const [signals, setSignals] = useState<SignalItem[]>([]);
+  const [discussions, setDiscussions] = useState<Array<{
+    agent: "hunter" | "detector" | "judge";
+    name: string;
+    text: string;
+  }>>([]);
+
+  const loadData = useCallback(async () => {
+    const results = await Promise.all([
+      portfolioService.getSummary().catch(() => MOCK_SUMMARY),
+      tradeService.getMode().catch(() => MOCK_TRADE_MODE),
+      marketService.getMarketState().catch(() => MOCK_MARKET_STATE),
+      agentService.getDecisions({ pageSize: 3 }).catch(() => null),
+      agentService.getDiscussions({ pageSize: 3 }).catch(() => null),
+    ]);
+
+    const [s, m, ms, decisionsResult, discussionsResult] = results;
+    setSummary(s);
+    setTradeMode(m);
+    setMarketState(ms);
+
+    if (decisionsResult && decisionsResult.decisions.length > 0) {
+      setSignals(decisionsResult.decisions.map(decisionToSignal));
+    } else {
+      setSignals([]);
+    }
+
+    if (discussionsResult && discussionsResult.items.length > 0) {
+      setDiscussions(discussionsResult.items.map(discussionToBubble));
+    } else {
+      setDiscussions([]);
+    }
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
 
-    Promise.all([
-      portfolioService.getSummary().catch(() => MOCK_SUMMARY),
-      tradeService.getMode().catch(() => MOCK_TRADE_MODE),
-      marketService.getMarketState().catch(() => MOCK_MARKET_STATE),
-    ])
-      .then(([s, m, ms]) => {
-        if (cancelled) return;
-        setSummary(s);
-        setTradeMode(m);
-        setMarketState(ms);
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setSummary(MOCK_SUMMARY);
-          setTradeMode(MOCK_TRADE_MODE);
-          setMarketState(MOCK_MARKET_STATE);
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
+    loadData().finally(() => {
+      if (!cancelled) setLoading(false);
+    });
 
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [loadData]);
 
-  const handleSignalClick = useCallback(() => {
-    message.info("查看详情 — 开发中");
-  }, [message]);
+  const handleSignalClick = useCallback(
+    (code: string) => {
+      const sig = signals.find((s) => s.code === code);
+      if (sig) {
+        message.info(`${code} · 评分 ${sig.score} · ${sig.change}`);
+      } else {
+        message.info(`${code} — 查看详情`);
+      }
+    },
+    [message, signals],
+  );
 
   const handleRefresh = useCallback(() => {
     message.info("刷新数据中...");
     setLoading(true);
-    Promise.all([
-      portfolioService.getSummary().catch(() => MOCK_SUMMARY),
-      tradeService.getMode().catch(() => MOCK_TRADE_MODE),
-      marketService.getMarketState().catch(() => MOCK_MARKET_STATE),
-    ])
-      .then(([s, m, ms]) => {
-        setSummary(s);
-        setTradeMode(m);
-        setMarketState(ms);
-      })
-      .catch(() => {
-        setSummary(MOCK_SUMMARY);
-        setTradeMode(MOCK_TRADE_MODE);
-        setMarketState(MOCK_MARKET_STATE);
-      })
-      .finally(() => setLoading(false));
-  }, [message]);
+    loadData().finally(() => setLoading(false));
+  }, [message, loadData]);
 
   const handleViewAllSignals = useCallback(() => {
-    message.info("查看全部信号 — 开发中");
-  }, [message]);
+    navigate("/m/stock-pool");
+  }, [navigate]);
 
   const handleViewAllDiscussion = useCallback(() => {
-    message.info("AI 分析详情 — 开发中");
-  }, [message]);
-
-  const signals = MOCK_SIGNALS;
-  const discussions = MOCK_AGENT_DISCUSSIONS;
+    navigate("/m/ai");
+  }, [navigate]);
 
   const mode = tradeMode?.current_mode ?? "SIMULATION";
 
@@ -295,7 +308,7 @@ function MobileDashboard() {
             />
             <MobileMetricCard
               label="活跃信号"
-              value="12"
+              value={`${signals.length}`}
               change={{ text: "3 待审", type: "neutral" }}
               valueColor={colors.purple[500]}
             />
@@ -312,7 +325,7 @@ function MobileDashboard() {
               {signals.map((sig, idx) => (
                 <div
                   key={idx}
-                  onClick={handleSignalClick}
+                  onClick={() => handleSignalClick(sig.code)}
                   style={{
                     display: "flex",
                     alignItems: "center",
