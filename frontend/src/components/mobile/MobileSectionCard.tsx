@@ -5,12 +5,16 @@ interface SectionCardProps {
   title: string;
   action?: { text: string; onClick: () => void };
   children: React.ReactNode;
+  showLink?: boolean;
+  onClickLink?: () => void;
 }
 
 const MobileSectionCard: React.FC<SectionCardProps> = ({
   title,
   action,
   children,
+  showLink,
+  onClickLink,
 }) => {
   const { colors } = useTheme();
   const [actionHovered, setActionHovered] = useState(false);
@@ -78,6 +82,22 @@ const MobileSectionCard: React.FC<SectionCardProps> = ({
             }}
           >
             {action.text}
+          </span>
+        )}
+        {showLink && !action && (
+          <span
+            onClick={onClickLink}
+            style={{
+              fontSize: 12,
+              color: colors.purple[500],
+              cursor: "pointer",
+              padding: "3px 7px",
+              borderRadius: colors.radius.sm + "px",
+              userSelect: "none",
+              lineHeight: 1.3,
+            }}
+          >
+            查看全部 →
           </span>
         )}
       </div>

@@ -106,6 +106,36 @@ function MobileDashboard() {
     message.info("查看详情 — 开发中");
   }, [message]);
 
+  const handleRefresh = useCallback(() => {
+    message.info("刷新数据中...");
+    // TODO: 重新拉取 dashboard 所有数据
+    setLoading(true);
+    Promise.all([
+      portfolioService.getSummary().catch(() => MOCK_SUMMARY),
+      tradeService.getMode().catch(() => MOCK_TRADE_MODE),
+      marketService.getMarketState().catch(() => MOCK_MARKET_STATE),
+    ])
+      .then(([s, m, ms]) => {
+        setSummary(s);
+        setTradeMode(m);
+        setMarketState(ms);
+      })
+      .catch(() => {
+        setSummary(MOCK_SUMMARY);
+        setTradeMode(MOCK_TRADE_MODE);
+        setMarketState(MOCK_MARKET_STATE);
+      })
+      .finally(() => setLoading(false));
+  }, [message]);
+
+  const handleViewAllSignals = useCallback(() => {
+    message.info("查看全部信号 — 开发中");
+  }, [message]);
+
+  const handleViewAllDiscussion = useCallback(() => {
+    message.info("AI 分析详情 — 开发中");
+  }, [message]);
+
   const signals = MOCK_SIGNALS;
   const discussions = MOCK_AGENT_DISCUSSIONS;
 
@@ -155,16 +185,52 @@ function MobileDashboard() {
           marginBottom: 14,
           lineHeight: 1.3,
         }}
-      >
-        看盘
-        <div
-          style={{
-            marginLeft: "auto",
-            display: "flex",
-            gap: 6,
-            alignItems: "center",
-          }}
         >
+          看盘
+          <div
+            style={{
+              marginLeft: "auto",
+              display: "flex",
+              gap: 6,
+              alignItems: "center",
+            }}
+          >
+            <button
+              onClick={handleRefresh}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                width: 32,
+                height: 32,
+                borderRadius: `${colors.radius.sm}px`,
+                cursor: "pointer",
+                border: "none",
+                outline: "none",
+                background: "transparent",
+                color: colors.text.secondary,
+                transition: "all 0.2s ease",
+                fontSize: 16,
+                lineHeight: 1,
+                padding: 0,
+              }}
+              title="刷新数据"
+            >
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <polyline points="23 4 23 10 17 10" />
+                <polyline points="1 20 1 14 7 14" />
+                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+              </svg>
+            </button>
           <span
             style={{
               display: "inline-flex",
@@ -233,7 +299,7 @@ function MobileDashboard() {
 
       {/* ===== 今日交易信号 ===== */}
       <div style={{ marginBottom: 16 }}>
-        <MobileSectionCard title="今日交易信号">
+        <MobileSectionCard title="今日交易信号" showLink onClickLink={handleViewAllSignals}>
           {signals.map((sig, idx) => (
             <div
               key={idx}
@@ -337,7 +403,7 @@ function MobileDashboard() {
       </div>
 
       {/* ===== AI 分析·最新讨论 ===== */}
-      <MobileSectionCard title="AI 分析·最新讨论">
+      <MobileSectionCard title="AI 分析·最新讨论" showLink onClickLink={handleViewAllDiscussion}>
         {discussions.map((d, idx) => (
           <MobileAgentBubble
             key={idx}

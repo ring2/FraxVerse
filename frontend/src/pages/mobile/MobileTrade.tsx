@@ -128,6 +128,10 @@ function MobileTrade() {
     message.info("手动下单 — 开发中");
   }, [message]);
 
+  const handleExportReport = useCallback(() => {
+    message.info("导出报表 — 开发中");
+  }, [message]);
+
   const portfolioValue = portfolio?.total_market_value ?? 985420;
   const portfolioPnl = portfolio?.total_pnl ?? 32180;
   const portfolioPnlPct = portfolio?.total_pnl_pct ?? 3.38;
@@ -166,7 +170,28 @@ function MobileTrade() {
         }}
       >
         交易
-        <div style={{ marginLeft: "auto" }}>
+        <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
+          <button
+            onClick={handleExportReport}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 4,
+              padding: "6px 14px",
+              borderRadius: `${colors.radius.md}px`,
+              fontSize: 13,
+              fontWeight: 500,
+              lineHeight: 1.4,
+              cursor: "pointer",
+              border: `1px solid ${colors.border.medium}`,
+              outline: "none",
+              background: "transparent",
+              color: colors.text.secondary,
+              transition: "all 0.15s ease",
+            }}
+          >
+            导出报表
+          </button>
           <button
             onClick={handleManualTrade}
             style={{
