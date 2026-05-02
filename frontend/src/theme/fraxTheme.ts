@@ -1,19 +1,19 @@
 import type { ThemeConfig } from "antd";
 
-// Ant Design 5.x theme tokens for FraxVerse Cosmic theme
-export const fraxTheme: ThemeConfig = {
+// FraxVerse Ant Design theme tokens — light mode
+export const fraxLightTheme: ThemeConfig = {
   token: {
-    colorPrimary: "#6b5ce7",
-    colorBgContainer: "#12122a",
-    colorBgElevated: "#1a1a3a",
-    colorBorder: "#2a2a4a",
-    colorText: "#e0e0f0",
-    colorTextSecondary: "#8887a8",
-    colorTextTertiary: "#555577",
-    colorSuccess: "#2ed573",
-    colorWarning: "#ffa502",
-    colorError: "#ff4757",
-    colorInfo: "#4a9eff",
+    colorPrimary: "#7F77DD",
+    colorBgContainer: "#FFFFFF",
+    colorBgElevated: "#FFFFFF",
+    colorBorder: "#E5E3DC",
+    colorText: "#1A1A1A",
+    colorTextSecondary: "#6B6B6B",
+    colorTextTertiary: "#999999",
+    colorSuccess: "#4DB899",
+    colorWarning: "#E8A840",
+    colorError: "#E8735A",
+    colorInfo: "#7F77DD",
     borderRadius: 8,
     fontSize: 14,
     fontFamily:
@@ -21,34 +21,47 @@ export const fraxTheme: ThemeConfig = {
   },
   components: {
     Button: {
-      borderRadius: 8,
-      controlHeight: 38,
+      borderRadius: 10,
+      controlHeight: 44,
     },
     Card: {
       paddingLG: 20,
     },
-    Table: {
-      headerBg: "transparent",
-      rowHoverBg: "rgba(107, 92, 231, 0.08)",
+    Input: {
+      borderRadius: 10,
     },
-    Menu: {
-      itemBg: "transparent",
-      itemColor: "#8887a8",
+  },
+};
+
+// Dark mode
+export const fraxDarkTheme: ThemeConfig = {
+  token: {
+    colorPrimary: "#6C5CE7",
+    colorBgContainer: "#1A1A3A",
+    colorBgElevated: "#12122A",
+    colorBorder: "#2A2A4A",
+    colorText: "#E0E0F0",
+    colorTextSecondary: "#8887A8",
+    colorTextTertiary: "#555577",
+    colorSuccess: "#5CC4A6",
+    colorWarning: "#F0A86B",
+    colorError: "#F0856E",
+    colorInfo: "#6C5CE7",
+    borderRadius: 8,
+    fontSize: 14,
+    fontFamily:
+      '"Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif',
+  },
+  components: {
+    Button: {
+      borderRadius: 10,
+      controlHeight: 44,
+    },
+    Card: {
+      paddingLG: 20,
     },
     Input: {
-      colorBgContainer: "#12122a",
-      colorBorder: "#2a2a4a",
-    },
-    Modal: {
-      contentBg: "#1a1a3a",
-      headerBg: "#1a1a3a",
-    },
-    Drawer: {
-      colorBgElevated: "#1a1a3a",
-    },
-    Select: {
-      colorBgContainer: "#12122a",
-      colorBorder: "#2a2a4a",
+      borderRadius: 10,
     },
   },
 };

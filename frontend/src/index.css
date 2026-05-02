@@ -3,18 +3,33 @@
 @tailwind utilities;
 
 :root {
+  --cosmos-bg: #faf9f7;
+  --cosmos-surface: #ffffff;
+  --cosmos-card: #ffffff;
+  --cosmos-border: #e5e3dc;
+  --cosmos-text: #1a1a1a;
+  --cosmos-muted: #6b6b6b;
+  --cosmos-nebula: #7f77dd;
+  --cosmos-shard: #6c5ce7;
+  --cosmos-gold: #e8a840;
+  --cosmos-amber: #e8a840;
+  --cosmos-danger: #e8735a;
+  --cosmos-success: #4db899;
+}
+
+[data-theme="dark"] {
   --cosmos-bg: #0a0a1a;
   --cosmos-surface: #12122a;
   --cosmos-card: #1a1a3a;
   --cosmos-border: #2a2a4a;
-  --cosmos-nebula: #6b5ce7;
-  --cosmos-gold: #f0c040;
-  --cosmos-shard: #4a9eff;
-  --cosmos-amber: #ef9f27;
-  --cosmos-danger: #ff4757;
-  --cosmos-success: #2ed573;
   --cosmos-text: #e0e0f0;
   --cosmos-muted: #8887a8;
+  --cosmos-nebula: #6c5ce7;
+  --cosmos-shard: #4a9eff;
+  --cosmos-gold: #f0c040;
+  --cosmos-amber: #ef9f27;
+  --cosmos-danger: #f0856e;
+  --cosmos-success: #5cc4a6;
 }
 
 * {
@@ -37,6 +52,7 @@ body {
   color: var(--cosmos-text);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  transition: background 0.35s, color 0.35s;
 }
 
 /* Scrollbar styling */
@@ -57,81 +73,61 @@ body {
   background: var(--cosmos-nebula);
 }
 
-/* Ant Design overrides for dark cosmos theme */
-.ant-table {
-  background: transparent !important;
+/* ===== Login Page Animations ===== */
+
+@keyframes driftOrb {
+  0% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(-30px, 20px) scale(1.05); }
+  100% { transform: translate(20px, -15px) scale(0.95); }
 }
 
-.ant-table-thead > tr > th {
-  background: var(--cosmos-surface) !important;
-  color: var(--cosmos-muted) !important;
-  border-bottom: 1px solid var(--cosmos-border) !important;
+@keyframes driftOrb2 {
+  0% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(20px, -15px) scale(1.08); }
+  100% { transform: translate(-15px, 10px) scale(0.92); }
 }
 
-.ant-table-tbody > tr > td {
-  background: transparent !important;
-  border-bottom: 1px solid var(--cosmos-border) !important;
-  color: var(--cosmos-text) !important;
+@keyframes spinGlow {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
 }
 
-.ant-table-tbody > tr:hover > td {
-  background: rgba(107, 92, 231, 0.08) !important;
+@keyframes breatheGlow {
+  0% { box-shadow: 0 4px 16px rgba(127,119,221,0.25); }
+  50% { box-shadow: 0 4px 28px rgba(127,119,221,0.45); }
+  100% { box-shadow: 0 4px 16px rgba(127,119,221,0.25); }
 }
 
-.ant-card {
-  background: var(--cosmos-card) !important;
-  border: 1px solid var(--cosmos-border) !important;
-  border-radius: 12px !important;
+/* Input focus glow */
+.frax-input:hover {
+  border-color: #9B93E4 !important;
+}
+.ant-input-affix-wrapper-focused .frax-input {
+  border-color: #7F77DD !important;
+  box-shadow: 0 0 0 3px rgba(206,203,246,0.4) !important;
+}
+.ant-input-affix-wrapper:not(.ant-input-affix-wrapper-focused):focus-within .frax-input {
+  border-color: #7F77DD !important;
+  box-shadow: 0 0 0 3px rgba(206,203,246,0.4) !important;
+}
+[data-theme="dark"] .frax-input:hover {
+  border-color: #AFA9EC !important;
+}
+[data-theme="dark"] .ant-input-affix-wrapper-focused .frax-input {
+  box-shadow: 0 0 0 3px rgba(83,74,183,0.4) !important;
+  border-color: #AFA9EC !important;
 }
 
-.ant-card-head {
-  border-bottom: 1px solid var(--cosmos-border) !important;
-  color: var(--cosmos-text) !important;
+/* Login button hover */
+.frax-btn:hover {
+  filter: brightness(1.05);
+  transform: translateY(-1px);
+}
+.frax-btn:active {
+  transform: translateY(1px) !important;
 }
 
-.ant-btn-primary {
-  background: linear-gradient(135deg, var(--cosmos-nebula), var(--cosmos-shard)) !important;
-  border: none !important;
-  box-shadow: 0 2px 8px rgba(107, 92, 231, 0.3) !important;
-}
-
-.ant-btn-primary:hover {
-  opacity: 0.9 !important;
-  box-shadow: 0 4px 16px rgba(107, 92, 231, 0.5) !important;
-}
-
-.ant-input {
-  background: var(--cosmos-surface) !important;
-  border-color: var(--cosmos-border) !important;
-  color: var(--cosmos-text) !important;
-}
-
-.ant-input:hover,
-.ant-input:focus {
-  border-color: var(--cosmos-nebula) !important;
-}
-
-.ant-typography {
-  color: var(--cosmos-text) !important;
-}
-
-.ant-menu {
-  background: transparent !important;
-  border-inline-end: none !important;
-}
-
-.ant-menu-item {
-  color: var(--cosmos-muted) !important;
-}
-
-.ant-menu-item-selected {
-  background: rgba(107, 92, 231, 0.15) !important;
-  color: var(--cosmos-nebula) !important;
-}
-
-.ant-menu-item:hover {
-  color: var(--cosmos-shard) !important;
-}
+/* ===== End Login Animations ===== */
 
 /* Smooth transitions */
 .fade-enter {

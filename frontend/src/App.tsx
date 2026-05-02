@@ -1,6 +1,8 @@
 import { lazy, Suspense } from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
-import { ThemeProvider } from "./theme/ThemeContext";
+import { ConfigProvider, App as AntApp } from "antd";
+import { ThemeProvider, useTheme } from "./theme/ThemeContext";
+import { fraxLightTheme, fraxDarkTheme } from "./theme/fraxTheme";
 import PcLayout from "./components/layout/PcLayout";
 import MobileLayout from "./components/layout/MobileLayout";
 import ProtectedRoute from "./components/common/ProtectedRoute";
@@ -262,11 +264,15 @@ const NotFoundPage = lazy(() => import("./pages/not-found/NotFoundPage"));
 const RootRedirect = () => <Navigate to="/login" replace />;
 
 function AppContent() {
+  const { mode } = useTheme();
+  const antTheme = mode === "light" ? fraxLightTheme : fraxDarkTheme;
+
   return (
-    <ThemeProvider>
-      <Suspense fallback={<LoadingFallback />}>
-        <Routes>
-          <Route path="/login" element={<LoginPage />} />
+    <ConfigProvider theme={antTheme}>
+      <AntApp>
+        <Suspense fallback={<LoadingFallback />}>
+          <Routes>
+            <Route path="/login" element={<LoginPage />} />
 
           {/* PC routes */}
           <Route
@@ -319,12 +325,17 @@ function AppContent() {
           <Route path="*" element={<NotFoundPage />} />
         </Routes>
       </Suspense>
-    </ThemeProvider>
+      </AntApp>
+    </ConfigProvider>
   );
 }
 
 function App() {
-  return <AppContent />;
+  return (
+    <ThemeProvider>
+      <AppContent />
+    </ThemeProvider>
+  );
 }
 
 export default App;
