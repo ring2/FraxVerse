@@ -400,10 +400,70 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * List Agent Discussions
-         * @description 查询Agent讨论记录
+         * Query Discussions
+         * @description 查询讨论记录 [DD-04 3.2节]
          */
-        get: operations["list_agent_discussions_api_v1_agent_discussions_get"];
+        get: operations["query_discussions_api_v1_agent_discussions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent/discussions/{dt}/{code}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Query Discussion Detail
+         * @description 查询某日某标讨论详情 [DD-04 3.2节]
+         */
+        get: operations["query_discussion_detail_api_v1_agent_discussions__dt___code__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent/decisions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Query Decisions
+         * @description 查询决策记录 [DD-04 3.3节]
+         */
+        get: operations["query_decisions_api_v1_agent_decisions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent/decisions/{dt}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Query Decisions By Date
+         * @description 查询某日决策 [DD-04 3.3节]
+         */
+        get: operations["query_decisions_by_date_api_v1_agent_decisions__dt__get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -420,11 +480,135 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Get Agent Weights
-         * @description 查询Agent权重
+         * Query Weights
+         * @description 查询当前权重配置 [DD-04 3.4节]
          */
-        get: operations["get_agent_weights_api_v1_agent_weights_get"];
+        get: operations["query_weights_api_v1_agent_weights_get"];
+        /**
+         * Update Weights
+         * @description 更新基准权重 [DD-04 3.5节]
+         */
+        put: operations["update_weights_api_v1_agent_weights_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent/trigger": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
         put?: never;
+        /**
+         * Trigger Analysis
+         * @description 手动触发Agent分析 [DD-04 3.6节]
+         */
+        post: operations["trigger_analysis_api_v1_agent_trigger_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent/calibration": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Query Calibration
+         * @description 查询校准面板数据 [DD-04 3.7节]
+         */
+        get: operations["query_calibration_api_v1_agent_calibration_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent/llm-usage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Query Llm Usage
+         * @description 查询LLM用量统计 [DD-04 3.8节]
+         */
+        get: operations["query_llm_usage_api_v1_agent_llm_usage_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent/llm-budget": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Update Llm Budget
+         * @description 设置Token预算
+         */
+        put: operations["update_llm_budget_api_v1_agent_llm_budget_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent/prompts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Query Prompts
+         * @description 查询提示词列表
+         */
+        get: operations["query_prompts_api_v1_agent_prompts_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent/prompts/{prompt_id}/activate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Activate Prompt
+         * @description 激活提示词版本
+         */
+        put: operations["activate_prompt_api_v1_agent_prompts__prompt_id__activate_put"];
         post?: never;
         delete?: never;
         options?: never;
@@ -616,54 +800,6 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
-        /** AgentDiscussionItem */
-        AgentDiscussionItem: {
-            /** Id */
-            id: number;
-            /**
-             * Date
-             * Format: date
-             */
-            date: string;
-            /** Stock Code */
-            stock_code: string;
-            /** Agent Name */
-            agent_name: string;
-            /** Round Num */
-            round_num: number;
-            /** Score */
-            score?: number | null;
-            /** Confidence */
-            confidence?: number | null;
-            /**
-             * Buy Reasons
-             * @default []
-             */
-            buy_reasons: string[];
-            /**
-             * Against Reasons
-             * @default []
-             */
-            against_reasons: string[];
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-        };
-        /** AgentWeightItem */
-        AgentWeightItem: {
-            /** Agent Name */
-            agent_name: string;
-            /** Market State */
-            market_state: string;
-            /** Base Weight */
-            base_weight: number;
-            /** Effective Weight */
-            effective_weight: number;
-            /** Win Rate */
-            win_rate?: number | null;
-        };
         /** BacktestResultItem */
         BacktestResultItem: {
             /** Id */
@@ -1725,12 +1861,17 @@ export interface operations {
             };
         };
     };
-    list_agent_discussions_api_v1_agent_discussions_get: {
+    query_discussions_api_v1_agent_discussions_get: {
         parameters: {
             query?: {
+                /** @description 讨论日期(YYYY-MM-DD) */
+                date?: string | null;
+                /** @description 股票代码 */
                 stock_code?: string | null;
-                date_str?: string | null;
-                limit?: number;
+                /** @description Agent名称 */
+                agent_name?: string | null;
+                page?: number;
+                page_size?: number;
             };
             header?: never;
             path?: never;
@@ -1744,7 +1885,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["AgentDiscussionItem"][];
+                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */
@@ -1758,7 +1899,104 @@ export interface operations {
             };
         };
     };
-    get_agent_weights_api_v1_agent_weights_get: {
+    query_discussion_detail_api_v1_agent_discussions__dt___code__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                dt: string;
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    query_decisions_api_v1_agent_decisions_get: {
+        parameters: {
+            query?: {
+                /** @description 决策日期(YYYY-MM-DD) */
+                date?: string | null;
+                page?: number;
+                page_size?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    query_decisions_by_date_api_v1_agent_decisions__dt__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                dt: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    query_weights_api_v1_agent_weights_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -1773,7 +2011,218 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["AgentWeightItem"][];
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    update_weights_api_v1_agent_weights_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    trigger_analysis_api_v1_agent_trigger_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    query_calibration_api_v1_agent_calibration_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    query_llm_usage_api_v1_agent_llm_usage_get: {
+        parameters: {
+            query?: {
+                /** @description 开始日期(YYYY-MM-DD) */
+                start_date?: string | null;
+                /** @description 结束日期(YYYY-MM-DD) */
+                end_date?: string | null;
+                group_by?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_llm_budget_api_v1_agent_llm_budget_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    query_prompts_api_v1_agent_prompts_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    activate_prompt_api_v1_agent_prompts__prompt_id__activate_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                prompt_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

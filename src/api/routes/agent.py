@@ -29,6 +29,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import text
 
 from src.db.session import get_session
+from src.api.deps import get_current_user_id
 from src.agent.models import DegradeLevel
 from src.agent.orchestrator import AgentOrchestrator
 from src.agent.budget import get_budget_status, check_budget_and_degrade_if_needed
@@ -124,33 +125,38 @@ def _make_get_agent_history(session: Session):
 def _make_save_decisions(session: Session):
     def fn(dt: str, decisions: list[Any]) -> None:
         for d in decisions:
-            session.execute(
-                text("INSERT INTO agent_decisions (date, stock_code, total_score, "
-                     "buy_score_sum, against_score_sum, net_score, decision, decision_reason, "
-                     "agent_votes_json, risk_veto, risk_veto_reason, convergence_rounds, "
-                     "convergence_method, created_at, updated_at) "
-                     "VALUES (:date, :stock_code, :total_score, :buy_score_sum, :against_score_sum, "
-                     ":net_score, :decision, :decision_reason, :agent_votes, :risk_veto, "
-                     ":risk_veto_reason, :convergence_rounds, :convergence_method, NOW(), NOW()) "
-                     "ON CONFLICT (date, stock_code) DO UPDATE SET "
-                     "total_score = EXCLUDED.total_score, decision = EXCLUDED.decision, "
-                     "updated_at = NOW()"),
-                {
-                    "date": dt,
-                    "stock_code": d.stock_code,
-                    "total_score": d.total_score,
-                    "buy_score_sum": d.buy_score_sum,
-                    "against_score_sum": d.against_score_sum,
-                    "net_score": d.net_score,
-                    "decision": d.decision.value,
-                    "decision_reason": d.decision_reason,
-                    "agent_votes": json.dumps(d.agent_votes, ensure_ascii=False),
-                    "risk_veto": d.risk_veto,
-                    "risk_veto_reason": d.risk_veto_reason,
-                    "convergence_rounds": 0,
-                    "convergence_method": d.convergence_method,
-                },
-            )
+            try:
+                session.execute(
+                    text("INSERT INTO agent_decisions (date, stock_code, total_score, "
+                         "buy_score_sum, against_score_sum, net_score, decision, decision_reason, "
+                         "agent_votes_json, risk_veto, risk_veto_reason, convergence_rounds, "
+                         "convergence_method, created_at, updated_at) "
+                         "VALUES (:date, :stock_code, :total_score, :buy_score_sum, :against_score_sum, "
+                         ":net_score, :decision, :decision_reason, :agent_votes, :risk_veto, "
+                         ":risk_veto_reason, :convergence_rounds, :convergence_method, NOW(), NOW()) "
+                         "ON CONFLICT (date, stock_code) DO UPDATE SET "
+                         "total_score = EXCLUDED.total_score, decision = EXCLUDED.decision, "
+                         "updated_at = NOW()"),
+                    {
+                        "date": dt,
+                        "stock_code": d.stock_code,
+                        "total_score": d.total_score,
+                        "buy_score_sum": d.buy_score_sum,
+                        "against_score_sum": d.against_score_sum,
+                        "net_score": d.net_score,
+                        "decision": d.decision.value,
+                        "decision_reason": d.decision_reason,
+                        "agent_votes": json.dumps(d.agent_votes, ensure_ascii=False),
+                        "risk_veto": d.risk_veto,
+                        "risk_veto_reason": d.risk_veto_reason,
+                        "convergence_rounds": 0,
+                        "convergence_method": d.convergence_method,
+                    },
+                )
+            except Exception as e:
+                logger.exception("写入决策 %s/%s 失败: %s", dt, d.stock_code, e)
+                session.rollback()
+                raise
         session.commit()
     return fn
 
@@ -159,28 +165,34 @@ def _make_save_discussions(session: Session):
     def fn(dt: str, stock_code: str, round_outputs: list[list[Any]]) -> None:
         for round_num, outputs in enumerate(round_outputs, 1):
             for output in outputs:
-                session.execute(
-                    text("INSERT INTO agent_discussions "
-                         "(date, stock_code, round_num, agent_name, score, buy_reasons, "
-                         "against_reasons, confidence, predicted_outcome, is_valid, "
-                         "invalid_reason, created_at, updated_at) "
-                         "VALUES (:date, :stock_code, :round_num, :agent_name, :score, "
-                         ":buy_reasons, :against_reasons, :confidence, :predicted_outcome, "
-                         ":is_valid, :invalid_reason, NOW(), NOW())"),
-                    {
-                        "date": dt,
-                        "stock_code": stock_code,
-                        "round_num": round_num,
-                        "agent_name": output.agent_name.value,
-                        "score": output.score,
-                        "buy_reasons": json.dumps(list(output.buy_reasons), ensure_ascii=False),
-                        "against_reasons": json.dumps(list(output.against_reasons), ensure_ascii=False),
-                        "confidence": output.confidence,
-                        "predicted_outcome": output.predicted_outcome.value,
-                        "is_valid": True,
-                        "invalid_reason": None,
-                    },
-                )
+                try:
+                    session.execute(
+                        text("INSERT INTO agent_discussions "
+                             "(date, stock_code, round_num, agent_name, score, buy_reasons, "
+                             "against_reasons, confidence, predicted_outcome, is_valid, "
+                             "invalid_reason, created_at, updated_at) "
+                             "VALUES (:date, :stock_code, :round_num, :agent_name, :score, "
+                             ":buy_reasons, :against_reasons, :confidence, :predicted_outcome, "
+                             ":is_valid, :invalid_reason, NOW(), NOW())"),
+                        {
+                            "date": dt,
+                            "stock_code": stock_code,
+                            "round_num": round_num,
+                            "agent_name": output.agent_name.value,
+                            "score": output.score,
+                            "buy_reasons": json.dumps(list(output.buy_reasons), ensure_ascii=False),
+                            "against_reasons": json.dumps(list(output.against_reasons), ensure_ascii=False),
+                            "confidence": output.confidence,
+                            "predicted_outcome": output.predicted_outcome.value,
+                            "is_valid": True,
+                            "invalid_reason": None,
+                        },
+                    )
+                except Exception as e:
+                    logger.exception("写入讨论 %s/%s/第%d轮/%s 失败: %s",
+                                     dt, stock_code, round_num, output.agent_name.value, e)
+                    session.rollback()
+                    raise
         session.commit()
     return fn
 
@@ -291,27 +303,28 @@ def query_discussions(
     stock_code: str | None = Query(None, description="股票代码"),
     agent_name: str | None = Query(None, description="Agent名称"),
     page: int = Query(1, ge=1),
+    user_id: int = Depends(get_current_user_id),
     page_size: int = Query(20, ge=1, le=100),
     session: Session = Depends(_get_sync_session),
 ):
     """查询讨论记录 [DD-04 3.2节]"""
     dt = date_param or date.today().isoformat()
 
-    conditions = ["date = :date"]
+    where_parts = ["date = :date"]
     params: dict[str, Any] = {"date": dt}
 
     if stock_code:
-        conditions.append("stock_code = :stock_code")
+        where_parts.append("stock_code = :stock_code")
         params["stock_code"] = stock_code
     if agent_name:
-        conditions.append("agent_name = :agent_name")
+        where_parts.append("agent_name = :agent_name")
         params["agent_name"] = agent_name
 
-    where = " AND ".join(conditions)
+    where_clause = " AND ".join(where_parts)
     offset = (page - 1) * page_size
 
     count = session.execute(
-        text(f"SELECT COUNT(*) FROM agent_discussions WHERE {where}"),
+        text(f"SELECT COUNT(*) FROM agent_discussions WHERE {where_clause}"),
         params,
     ).scalar() or 0
 
@@ -320,7 +333,7 @@ def query_discussions(
              f"buy_reasons, against_reasons, confidence, is_valid, "
              f"predicted_outcome, actual_outcome, prompt_tokens, "
              f"completion_tokens, model_name, created_at "
-             f"FROM agent_discussions WHERE {where} "
+             f"FROM agent_discussions WHERE {where_clause} "
              f"ORDER BY created_at DESC LIMIT :limit OFFSET :offset"),
         {**params, "limit": page_size, "offset": offset},
     ).fetchall()
@@ -365,6 +378,7 @@ def query_discussion_detail(
     dt: str,
     code: str,
     session: Session = Depends(_get_sync_session),
+    user_id: int = Depends(get_current_user_id),
 ):
     """查询某日某标讨论详情 [DD-04 3.2节]"""
     rows = session.execute(
@@ -417,6 +431,7 @@ def query_decisions(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     session: Session = Depends(_get_sync_session),
+    user_id: int = Depends(get_current_user_id),
 ):
     """查询决策记录 [DD-04 3.3节]"""
     dt = date_param or date.today().isoformat()
@@ -474,6 +489,7 @@ def query_decisions(
 def query_decisions_by_date(
     dt: str,
     session: Session = Depends(_get_sync_session),
+    user_id: int = Depends(get_current_user_id),
 ):
     """查询某日决策 [DD-04 3.3节]"""
     rows = session.execute(
@@ -516,6 +532,7 @@ def query_decisions_by_date(
 @router.get("/weights")
 def query_weights(
     session: Session = Depends(_get_sync_session),
+    user_id: int = Depends(get_current_user_id),
 ):
     """查询当前权重配置 [DD-04 3.4节]"""
     rows = session.execute(
@@ -558,6 +575,7 @@ def query_weights(
 def update_weights(
     body: dict[str, Any],
     session: Session = Depends(_get_sync_session),
+    user_id: int = Depends(get_current_user_id),
 ):
     """更新基准权重 [DD-04 3.5节]"""
     weights_data = body.get("weights", [])
@@ -604,6 +622,7 @@ def update_weights(
 def trigger_analysis(
     body: dict[str, Any],
     session: Session = Depends(_get_sync_session),
+    user_id: int = Depends(get_current_user_id),
 ):
     """手动触发Agent分析 [DD-04 3.6节]"""
     stock_codes = body.get("stockCodes")
@@ -634,6 +653,7 @@ def trigger_analysis(
 @router.get("/calibration")
 def query_calibration(
     session: Session = Depends(_get_sync_session),
+    user_id: int = Depends(get_current_user_id),
 ):
     """查询校准面板数据 [DD-04 3.7节]"""
     # 获取所有 Agent 的最新统计
@@ -699,6 +719,7 @@ def query_llm_usage(
     end_date: str | None = Query(None, description="结束日期(YYYY-MM-DD)"),
     group_by: str = Query("day", regex="^(day|agent|model)$"),
     session: Session = Depends(_get_sync_session),
+    user_id: int = Depends(get_current_user_id),
 ):
     """查询LLM用量统计 [DD-04 3.8节]"""
     from datetime import timedelta
@@ -777,6 +798,7 @@ def query_llm_usage(
 @router.put("/llm-budget")
 def update_llm_budget(
     body: dict[str, Any],
+    user_id: int = Depends(get_current_user_id),
 ):
     """设置Token预算"""
     # TODO: 持久化预算配置到数据库
@@ -791,6 +813,7 @@ def update_llm_budget(
 @router.get("/prompts")
 def query_prompts(
     session: Session = Depends(_get_sync_session),
+    user_id: int = Depends(get_current_user_id),
 ):
     """查询提示词列表"""
     rows = session.execute(
@@ -822,6 +845,7 @@ def query_prompts(
 def activate_prompt(
     prompt_id: int,
     session: Session = Depends(_get_sync_session),
+    user_id: int = Depends(get_current_user_id),
 ):
     """激活提示词版本"""
     # 检查版本是否存在

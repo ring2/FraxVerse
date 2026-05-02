@@ -373,12 +373,13 @@ class LLMResponse:
 LLM_PRICE_TABLE: dict[str, dict[str, float]] = {
     "deepseek-chat": {"prompt": 0.001, "completion": 0.002},
     "deepseek-v3": {"prompt": 0.001, "completion": 0.002},
+    "deepseek-v4-flash": {"prompt": 0.001, "completion": 0.002},
     "glm-4-flash": {"prompt": 0.001, "completion": 0.002},
     "claude-sonnet": {"prompt": 0.021, "completion": 0.105},
     "gpt-4o": {"prompt": 0.0175, "completion": 0.07},
 }
 
-DEFAULT_MODEL = "deepseek-chat"
+DEFAULT_MODEL = "deepseek-v4-flash"
 
 # 系统提示词：要求 LLM 输出结构化 JSON
 STRUCTURED_OUTPUT_SYSTEM = (
@@ -461,6 +462,8 @@ def call_llm_api(
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
     }
+    # 仅当 prompt 包含 "json" 关键词时才用 json_object 模式（DeepSeek 要求）
+    use_json = "json" in (system_prompt + user_prompt).lower()
     payload = {
         "model": model,
         "messages": [
@@ -469,8 +472,9 @@ def call_llm_api(
         ],
         "temperature": 0.7,
         "max_tokens": 2048,
-        "response_format": {"type": "json_object"},
     }
+    if use_json:
+        payload["response_format"] = {"type": "json_object"}
 
     last_error = None
     for attempt in range(max_retries + 1):

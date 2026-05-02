@@ -1,11 +1,10 @@
 import { useEffect, useState } from "react";
-import { App, Row, Col, Card, Typography, Tag, Space, Spin } from "antd";
+import { Row, Col, Card, Typography, Tag, Space, Spin } from "antd";
 import {
   CheckCircleOutlined,
   CloseCircleOutlined,
 } from "@ant-design/icons";
 import { colors } from "../../theme/colors";
-import { agentService } from "../../services/agentService";
 import type { ExperienceItem } from "../../types/api-extended";
 
 const { Title, Text, Paragraph } = Typography;
@@ -42,20 +41,13 @@ function buildSummary(exp: ExperienceItem): string {
 // ─── Component ───────────────────────────────────────────────────────────────
 
 const ExperiencePage: React.FC = () => {
-  const { message } = App.useApp();
   const [experiences, setExperiences] = useState<ExperienceItem[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    agentService.getExperiences()
-      .then((data) => {
-        setExperiences(data);
-      })
-      .catch((err) => {
-        console.error("Failed to load experiences:", err);
-        message.error("加载经验数据失败，使用演示数据");
-      })
-      .finally(() => setLoading(false));
+    // 后端暂未提供 getExperiences 接口，使用 mock 数据
+    setExperiences(fallbackExperiences);
+    setLoading(false);
   }, []);
 
   if (loading) {
@@ -76,7 +68,7 @@ const ExperiencePage: React.FC = () => {
 
       {items.length === 0 ? (
         <div style={{ textAlign: "center", paddingTop: 40, color: colors.dimmed }}>
-          暂无经验数据
+          <Text style={{ color: colors.dimmed, fontSize: 13 }}>暂无经验数据——完成交易后经验将自动沉淀</Text>
         </div>
       ) : (
         <Row gutter={[16, 16]}>

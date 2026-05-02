@@ -19,6 +19,17 @@ from src.db.session import get_session
 # 密码上下文
 pwd_context = CryptContext(schemes=["bcrypt"], bcrypt__rounds=settings.BCRYPT_ROUNDS)
 
+# 启动时检查 JWT Secret 是否已配置
+if not settings.JWT_SECRET_KEY or settings.JWT_SECRET_KEY == "change_this_in_production_fraxverse_2026":
+    import warnings
+    warnings.warn(
+        "⚠️  JWT_SECRET_KEY 未配置或使用了默认值！"
+        "请在 .env 中设置一个随机密钥，否则 token 可被伪造。"
+        "生成命令: python -c \"import secrets; print(secrets.token_hex(32))\"",
+        RuntimeWarning,
+        stacklevel=2,
+    )
+
 # Bearer Token 安全方案
 bearer_scheme = HTTPBearer(auto_error=False)
 

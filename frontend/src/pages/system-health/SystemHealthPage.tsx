@@ -131,7 +131,7 @@ const SystemHealthPage: React.FC = () => {
             ? // 空状态
               (
                 <Col span={24}>
-                  <Text style={{ color: colors.muted }}>暂无服务数据</Text>
+                  <Text style={{ color: colors.dimmed, fontSize: 13 }}>暂无服务数据——系统可能未完全启动</Text>
                 </Col>
               )
             : services.map((svc) => (
@@ -209,7 +209,7 @@ const SystemHealthPage: React.FC = () => {
       >
         {recentEvents.length === 0 ? (
           <Text style={{ color: colors.dimmed, fontSize: 13 }}>
-            暂无事件记录
+            <Text style={{ color: colors.dimmed, fontSize: 13 }}>暂无事件记录</Text>
           </Text>
         ) : (
           <List
@@ -290,7 +290,7 @@ const SystemHealthPage: React.FC = () => {
           </Row>
         ) : (
           <Text style={{ color: colors.dimmed, fontSize: 13 }}>
-            暂无资源数据（后端可能缺少 psutil）
+            <Text style={{ color: colors.dimmed, fontSize: 13 }}>暂无资源数据（后端可能缺少 psutil）</Text>
           </Text>
         )}
       </Card>

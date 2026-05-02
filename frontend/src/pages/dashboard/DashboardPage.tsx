@@ -5,7 +5,11 @@ import {
   ThunderboltOutlined,
   RiseOutlined,
   SafetyOutlined,
+  StockOutlined,
+  RobotOutlined,
+  HistoryOutlined,
 } from "@ant-design/icons";
+import { useNavigate } from "react-router-dom";
 import { colors } from "../../theme/colors";
 import { portfolioService } from "../../services/portfolioService";
 import { tradeService } from "../../services/tradeService";
@@ -30,6 +34,7 @@ const styles: Record<string, React.CSSProperties> = {
 
 const DashboardPage: React.FC = () => {
   const { message } = App.useApp();
+  const navigate = useNavigate();
 
   const [loading, setLoading] = useState(true);
   const [summary, setSummary] = useState<PortfolioSummary | null>(null);
@@ -176,15 +181,77 @@ const DashboardPage: React.FC = () => {
         <Col xs={24} lg={12}>
           <Card title="最近交易">
             <div style={{ padding: 40, textAlign: "center" }}>
-              <Text style={{ color: colors.muted }}>暂无交易数据</Text>
+              <Text style={{ color: colors.dimmed, fontSize: 13 }}>暂无交易数据——完成首次下单后将在此显示</Text>
             </div>
           </Card>
         </Col>
         <Col xs={24} lg={12}>
           <Card title="股票池概览">
             <div style={{ padding: 40, textAlign: "center" }}>
-              <Text style={{ color: colors.muted }}>暂无候选数据</Text>
+              <Text style={{ color: colors.dimmed, fontSize: 13 }}>暂无候选数据——运行每日策略筛选后将在此显示</Text>
             </div>
+          </Card>
+        </Col>
+      </Row>
+
+      {/* ⚡ 快捷操作 */}
+      <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
+        <Col xs={24}>
+          <Card
+            title="快捷操作"
+            styles={{ header: { borderBottom: `1px solid ${colors.border}`, marginBottom: 0 } }}
+            style={{ background: colors.card, borderColor: colors.border }}
+          >
+            <Row gutter={[16, 16]}>
+              <Col xs={12} sm={6}>
+                <Card
+                  hoverable
+                  size="small"
+                  style={{ background: colors.surface, borderColor: colors.border, textAlign: "center", cursor: "pointer" }}
+                  onClick={() => navigate("/agent-discussion")}
+                >
+                  <RobotOutlined style={{ fontSize: 24, color: colors.nebula }} />
+                  <div style={{ marginTop: 8, color: colors.text, fontSize: 13 }}>Agent 分析</div>
+                  <div style={{ color: colors.dimmed, fontSize: 11 }}>触发辩论 · 查看观点</div>
+                </Card>
+              </Col>
+              <Col xs={12} sm={6}>
+                <Card
+                  hoverable
+                  size="small"
+                  style={{ background: colors.surface, borderColor: colors.border, textAlign: "center", cursor: "pointer" }}
+                  onClick={() => navigate("/stock-pool")}
+                >
+                  <StockOutlined style={{ fontSize: 24, color: colors.shard }} />
+                  <div style={{ marginTop: 8, color: colors.text, fontSize: 13 }}>今日候选</div>
+                  <div style={{ color: colors.dimmed, fontSize: 11 }}>策略筛选 · 评分排名</div>
+                </Card>
+              </Col>
+              <Col xs={12} sm={6}>
+                <Card
+                  hoverable
+                  size="small"
+                  style={{ background: colors.surface, borderColor: colors.border, textAlign: "center", cursor: "pointer" }}
+                  onClick={() => navigate("/trade")}
+                >
+                  <HistoryOutlined style={{ fontSize: 24, color: colors.gold }} />
+                  <div style={{ marginTop: 8, color: colors.text, fontSize: 13 }}>交易记录</div>
+                  <div style={{ color: colors.dimmed, fontSize: 11 }}>订单 · 持仓 · 盈亏</div>
+                </Card>
+              </Col>
+              <Col xs={12} sm={6}>
+                <Card
+                  hoverable
+                  size="small"
+                  style={{ background: colors.surface, borderColor: colors.border, textAlign: "center", cursor: "pointer" }}
+                  onClick={() => navigate("/system-health")}
+                >
+                  <SafetyOutlined style={{ fontSize: 24, color: colors.amber }} />
+                  <div style={{ marginTop: 8, color: colors.text, fontSize: 13 }}>系统状态</div>
+                  <div style={{ color: colors.dimmed, fontSize: 11 }}>服务 · 资源 · 运行</div>
+                </Card>
+              </Col>
+            </Row>
           </Card>
         </Col>
       </Row>
@@ -193,7 +260,7 @@ const DashboardPage: React.FC = () => {
         <Col xs={24}>
           <Card title="最新风控事件">
             <div style={{ padding: 40, textAlign: "center" }}>
-              <Text style={{ color: colors.muted }}>暂无风控事件</Text>
+              <Text style={{ color: colors.dimmed, fontSize: 13 }}>暂无风控事件——系统运行正常</Text>
             </div>
           </Card>
         </Col>

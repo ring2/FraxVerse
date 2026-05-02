@@ -14,15 +14,16 @@ from sqlalchemy.orm import Session
 
 from src.api.routes.auth import router as auth_router
 from src.api.routes.market import router as market_router
+# Agent 路由 — 12 个端点（DD-04 第3节），用独立的完整实现
+from src.api.routes.agent import router as agent_router
+from src.api.routes.trade import router as trade_router
 from src.api.routes.misc import (
-    agent_router,
     experience_router,
     monitor_router,
     notification_router,
     risk_router,
     strategy_router,
 )
-from src.api.routes.trade import router as trade_router
 from src.config import settings
 from src.db.models import AccountSyncLog, Positions
 from src.db.session import check_db_health, get_session

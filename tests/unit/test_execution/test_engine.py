@@ -246,6 +246,12 @@ class TestEmergencyStop:
                 price=Decimal("10"),
             )
 
+        # 恢复 emergency_stop 状态，避免污染其他测试
+        mode = db.query(TradeModeModel).first()
+        if mode:
+            mode.emergency_stop = False
+        db.commit()
+
 
 # ============================================================================
 # 错误处理测试

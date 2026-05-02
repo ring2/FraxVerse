@@ -176,7 +176,7 @@ class AgentOrchestrator:
             for code, rounds in all_discussions:
                 self.save_discussions(dt, code, rounds)
         except Exception as e:
-            logger.error("保存决策到数据库失败: %s", e)
+            logger.exception("保存决策到数据库失败: %s", e)
 
         logger.info("每日分析完成: %s, 共 %d 只标的", dt, len(all_decisions))
         return all_decisions

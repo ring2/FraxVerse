@@ -107,7 +107,7 @@ const NotificationPage: React.FC = () => {
             />
             <br />
             <Text style={{ color: colors.dimmed, fontSize: 14 }}>
-              暂无通知消息
+              <Text style={{ color: colors.dimmed, fontSize: 13 }}>暂无通知消息——有新消息时你将收到推送</Text>
             </Text>
           </div>
         ) : (

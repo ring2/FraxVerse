@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
-import { App, Card, Select, Tag, Typography, Row, Col, Table, Spin, Button, Space, Divider, Statistic, Badge, Modal, Tooltip, Alert } from "antd";
+import { App, Card, Select, Tag, Typography, Row, Col, Table, Spin, Button, Space, Divider, Statistic, Badge, Modal, Alert } from "antd";
 import {
   CheckCircleOutlined,
   CloseCircleOutlined,
@@ -17,7 +17,7 @@ import { colors } from "../../theme/colors";
 import { agentService } from "../../services/agentService";
 import type { AgentDiscussionItemEx, AgentWeightItemEx, AgentDecisionItemEx } from "../../services/agentService";
 
-const { Title, Text, Paragraph } = Typography;
+const { Title, Text } = Typography;
 
 // ─── Agent 显示名称映射 ─────────────────────────────────────────────────────────
 
@@ -300,6 +300,15 @@ const AgentDiscussionPage: React.FC = () => {
                 </Text>
               }
             />
+            <Button
+              type="primary"
+              icon={<PlayCircleOutlined />}
+              onClick={handleTrigger}
+              loading={triggerLoading}
+              size="small"
+            >
+              触发分析
+            </Button>
             <Button icon={<ReloadOutlined />} onClick={loadData} size="small">
               刷新
             </Button>
@@ -361,7 +370,7 @@ const AgentDiscussionPage: React.FC = () => {
 
       {opinions.length === 0 ? (
         <div style={{ textAlign: "center", paddingTop: 40, color: colors.dimmed }}>
-          暂无讨论数据
+          <Text style={{ color: colors.dimmed, fontSize: 13 }}>暂无讨论数据——请先触发 Agent 分析</Text>
         </div>
       ) : (
         <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>

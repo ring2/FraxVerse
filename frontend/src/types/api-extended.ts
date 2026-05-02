@@ -40,9 +40,9 @@ export type MarketStateResponse = components["schemas"]["MarketStateResponse"];
 export type KlineItem = components["schemas"]["KlineItem"];
 export type SectorItem = components["schemas"]["SectorItem"];
 export type NewsItem = components["schemas"]["NewsItem"];
-export type AgentDiscussionItem = components["schemas"]["AgentDiscussionItem"];
-export type AgentWeightItem = components["schemas"]["AgentWeightItem"];
 export type BacktestResultItem = components["schemas"]["BacktestResultItem"];
+// Agent types are defined inline in agentService.ts (AgentDiscussionItemEx etc.)
+// Keep types that exist in the backend OpenAPI schema:
 export type ExperienceItem = components["schemas"]["ExperienceItem"];
 export type NotificationItem = components["schemas"]["NotificationItem"];
 export type RiskEventItem = components["schemas"]["RiskEventItem"];
