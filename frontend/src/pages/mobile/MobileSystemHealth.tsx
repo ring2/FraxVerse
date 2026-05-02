@@ -23,32 +23,11 @@ const MOCK_RESOURCES: SystemResource = {
 };
 
 /* ---- Helpers ---- */
-function getStatusColor(status: string): string {
-  const m: Record<string, string> = {
-    healthy: colors.semantic.down,
-    degraded: colors.semantic.amber,
-    down: colors.semantic.up,
-  };
-  return m[status] ?? colors.text.tertiary;
-}
-
-function getStatusBg(status: string): string {
-  const m: Record<string, string> = {
-    healthy: colors.semantic.downBg,
-    degraded: colors.semantic.amberBg,
-    down: colors.semantic.upBg,
-  };
-  return m[status] ?? colors.bg.subtle;
-}
-
-function getStatusLabel(status: string): string {
-  const m: Record<string, string> = {
-    healthy: "正常",
-    degraded: "降级",
-    down: "宕机",
-  };
-  return m[status] ?? status;
-}
+const STATUS_LABELS: Record<string, string> = {
+  healthy: "正常",
+  degraded: "降级",
+  down: "宕机",
+};
 
 function formatUptime(seconds: number | null | undefined): string {
   if (!seconds && seconds !== 0) return "-";
@@ -56,12 +35,6 @@ function formatUptime(seconds: number | null | undefined): string {
   const hours = Math.floor((seconds % 86400) / 3600);
   if (days > 0) return `${days}d ${hours}h`;
   return `${hours}h`;
-}
-
-function resourceBarColor(pct: number): string {
-  if (pct >= 80) return colors.semantic.up;
-  if (pct >= 60) return colors.semantic.amber;
-  return colors.semantic.down;
 }
 
 function MobileSystemHealth() {
@@ -149,7 +122,7 @@ function MobileSystemHealth() {
                   style={{
                     fontSize: 12,
                     fontWeight: 600,
-                    color: resourceBarColor(resources.cpu_percent),
+                    color: resources.cpu_percent >= 80 ? colors.semantic.up : resources.cpu_percent >= 60 ? colors.semantic.amber : colors.semantic.down,
                   }}
                 >
                   {resources.cpu_percent}%
@@ -167,7 +140,7 @@ function MobileSystemHealth() {
                   style={{
                     width: `${resources.cpu_percent}%`,
                     height: "100%",
-                    background: resourceBarColor(resources.cpu_percent),
+                    background: resources.cpu_percent >= 80 ? colors.semantic.up : resources.cpu_percent >= 60 ? colors.semantic.amber : colors.semantic.down,
                     borderRadius: 2,
                     transition: "width 0.3s ease",
                   }}
@@ -191,7 +164,7 @@ function MobileSystemHealth() {
                   style={{
                     fontSize: 12,
                     fontWeight: 600,
-                    color: resourceBarColor(resources.memory_percent),
+                    color: resources.memory_percent >= 80 ? colors.semantic.up : resources.memory_percent >= 60 ? colors.semantic.amber : colors.semantic.down,
                   }}
                 >
                   {resources.memory_percent}%
@@ -209,7 +182,7 @@ function MobileSystemHealth() {
                   style={{
                     width: `${resources.memory_percent}%`,
                     height: "100%",
-                    background: resourceBarColor(resources.memory_percent),
+                    background: resources.memory_percent >= 80 ? colors.semantic.up : resources.memory_percent >= 60 ? colors.semantic.amber : colors.semantic.down,
                     borderRadius: 2,
                     transition: "width 0.3s ease",
                   }}
@@ -231,7 +204,7 @@ function MobileSystemHealth() {
                   style={{
                     fontSize: 12,
                     fontWeight: 600,
-                    color: resourceBarColor(resources.disk_percent),
+                    color: resources.disk_percent >= 80 ? colors.semantic.up : resources.disk_percent >= 60 ? colors.semantic.amber : colors.semantic.down,
                   }}
                 >
                   {resources.disk_percent}%
@@ -249,7 +222,7 @@ function MobileSystemHealth() {
                   style={{
                     width: `${resources.disk_percent}%`,
                     height: "100%",
-                    background: resourceBarColor(resources.disk_percent),
+                    background: resources.disk_percent >= 80 ? colors.semantic.up : resources.disk_percent >= 60 ? colors.semantic.amber : colors.semantic.down,
                     borderRadius: 2,
                     transition: "width 0.3s ease",
                   }}
@@ -315,7 +288,7 @@ function MobileSystemHealth() {
                       width: 8,
                       height: 8,
                       borderRadius: "50%",
-                      backgroundColor: getStatusColor(svc.status),
+                      backgroundColor: svc.status === "healthy" ? colors.semantic.down : svc.status === "degraded" ? colors.semantic.amber : colors.semantic.up,
                       flexShrink: 0,
                     }}
                   />
@@ -339,14 +312,14 @@ function MobileSystemHealth() {
                   <span
                     style={{
                       fontSize: 11,
-                      color: getStatusColor(svc.status),
-                      background: getStatusBg(svc.status),
+                      color: svc.status === "healthy" ? colors.semantic.down : svc.status === "degraded" ? colors.semantic.amber : colors.semantic.up,
+                      background: svc.status === "healthy" ? colors.semantic.downBg : svc.status === "degraded" ? colors.semantic.amberBg : colors.semantic.upBg,
                       padding: "1px 7px",
                       borderRadius: colors.radius.sm + "px",
                       fontWeight: 500,
                     }}
                   >
-                    {getStatusLabel(svc.status)}
+                    {STATUS_LABELS[svc.status] ?? svc.status}
                   </span>
                   <span
                     style={{

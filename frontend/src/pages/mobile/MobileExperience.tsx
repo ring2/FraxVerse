@@ -50,12 +50,6 @@ function mapOperation(op: string): string {
   return m[op] ?? op;
 }
 
-function getResultColor(result: string): string {
-  return result === "success" ? colors.semantic.up : colors.semantic.down;
-}
-
-// need colors from theme — we'll inline in component
-
 function MobileExperience() {
   const { message } = App.useApp();
   const { colors } = useTheme();

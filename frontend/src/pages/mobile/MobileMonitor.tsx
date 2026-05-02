@@ -47,34 +47,6 @@ const MOCK_METRICS: RiskMetricsItem[] = [
   },
 ];
 
-/* ---- Helpers ---- */
-function getLevelColor(level: string): string {
-  const m: Record<string, string> = {
-    critical: colors.semantic.up,
-    warning: colors.semantic.amber,
-    info: colors.text.secondary,
-  };
-  return m[level] ?? colors.text.secondary;
-}
-
-function getLevelBg(level: string): string {
-  const m: Record<string, string> = {
-    critical: colors.semantic.upBg,
-    warning: colors.semantic.amberBg,
-    info: colors.bg.subtle,
-  };
-  return m[level] ?? colors.bg.subtle;
-}
-
-function getLevelLabel(level: string): string {
-  const m: Record<string, string> = {
-    critical: "严重",
-    warning: "警告",
-    info: "提示",
-  };
-  return m[level] ?? level;
-}
-
 function MobileMonitor() {
   const { message } = App.useApp();
   const { colors } = useTheme();
@@ -111,6 +83,34 @@ function MobileMonitor() {
       cancelled = true;
     };
   }, [message]);
+
+  /* ---- Inline helpers (use colors from useTheme) ---- */
+  const getLevelColor = (level: string): string => {
+    const m: Record<string, string> = {
+      critical: colors.semantic.up,
+      warning: colors.semantic.amber,
+      info: colors.text.secondary,
+    };
+    return m[level] ?? colors.text.secondary;
+  };
+
+  const getLevelBg = (level: string): string => {
+    const m: Record<string, string> = {
+      critical: colors.semantic.upBg,
+      warning: colors.semantic.amberBg,
+      info: colors.bg.subtle,
+    };
+    return m[level] ?? colors.bg.subtle;
+  };
+
+  const getLevelLabel = (level: string): string => {
+    const m: Record<string, string> = {
+      critical: "严重",
+      warning: "警告",
+      info: "提示",
+    };
+    return m[level] ?? level;
+  };
 
   if (loading) {
     return (

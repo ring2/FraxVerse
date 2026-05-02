@@ -3,7 +3,6 @@ import { App } from "antd";
 import { useNavigate } from "react-router-dom";
 import { useTheme } from "../../theme/ThemeContext";
 import { useAuthStore } from "../../stores/useAuthStore";
-import { authService } from "../../services/authService";
 
 /* ===================================================================
    MobileSettings — 12 大分类 50+ 项参数
@@ -449,7 +448,7 @@ function MobileSettings() {
       </CollapseCard>
 
       {/* 6. 交易配置 */}
-      <CollapseCard title="交易配置" dotColor={colors.amber}>
+      <CollapseCard title="交易配置" dotColor={colors.semantic.amber}>
         <Row label="当前模式" right={<Badge label="SIMULATION" />} />
         <Row
           label="确认模式"
@@ -475,7 +474,7 @@ function MobileSettings() {
       <GroupLabel label="数据与推送" />
 
       {/* 7. 数据源 */}
-      <CollapseCard title="数据源" dotColor={colors.amber}>
+      <CollapseCard title="数据源" dotColor={colors.semantic.amber}>
         <Row
           label="AKShare 数据源"
           desc="免费 A 股行情数据"
@@ -493,7 +492,7 @@ function MobileSettings() {
       </CollapseCard>
 
       {/* 8. 新闻配置 */}
-      <CollapseCard title="新闻配置" dotColor={colors.amber}>
+      <CollapseCard title="新闻配置" dotColor={colors.semantic.amber}>
         <Row
           label="华尔街见闻"
           desc="全球财经快讯"
@@ -510,7 +509,7 @@ function MobileSettings() {
       </CollapseCard>
 
       {/* 9. 推送通知 */}
-      <CollapseCard title="推送通知" dotColor={colors.amber}>
+      <CollapseCard title="推送通知" dotColor={colors.semantic.amber}>
         <Row label="🔔 风控告警" desc="告警类型、当前值、阈值" right={<Toggle checked={pushStates.risk} onChange={() => togglePush("risk")} />} />
         <Row label="🤖 Agent 精选结果" desc="每日策略运行报告" right={<Toggle checked={pushStates.agentResult} onChange={() => togglePush("agentResult")} />} />
         <Row label="📈 开仓推送" desc="标的、成交价、仓位" right={<Toggle checked={pushStates.open} onChange={() => togglePush("open")} />} />
@@ -552,7 +551,7 @@ function MobileSettings() {
 
       {/* 12. 系统配置 */}
       <CollapseCard title="系统配置" dotColor={colors.text.tertiary}>
-        <Row label="日志级别" right={<Badge label="INFO" color={colors.amber} />} />
+        <Row label="日志级别" right={<Badge label="INFO" color={colors.semantic.amber} />} />
         <Row label="API 端口" right={<span style={{ fontSize: 12, color: colors.text.secondary, fontFamily: "monospace" }}>8000</span>} />
         <Row label="全局限流" right={<span style={{ fontSize: 12, color: colors.text.secondary }}>5 次/秒/IP</span>} />
         <Row label="备份时间" right={<InputField defaultValue="03:00" />} />
