@@ -23,7 +23,7 @@ const MobileLayout: React.FC = () => {
       style={{
         display: "flex",
         flexDirection: "column",
-        height: "100vh",
+        height: "100dvh",
         background: colors.bg,
         overflow: "hidden",
       }}
@@ -43,8 +43,6 @@ const MobileLayout: React.FC = () => {
       <div
         style={{
           display: "flex",
-          position: "sticky",
-          bottom: 0,
           background: "rgba(6, 6, 15, 0.95)",
           borderTop: `1px solid ${colors.border}`,
           paddingBottom: "env(safe-area-inset-bottom, 0)",
