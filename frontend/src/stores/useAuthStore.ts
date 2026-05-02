@@ -34,11 +34,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const res = await authService.login({ username, password });
       const tokens = res.data;
       localStorage.setItem("access_token", tokens.access_token);
-      if (rememberMe) {
-        localStorage.setItem("refresh_token", tokens.refresh_token);
-      } else {
-        sessionStorage.setItem("refresh_token", tokens.refresh_token);
-      }
+      localStorage.setItem("refresh_token", tokens.refresh_token);
       // Fetch user profile
       const profileRes = await authService.getProfile();
       set({

@@ -67,7 +67,7 @@ function MobileSettings() {
           borderRadius: 10,
           marginBottom: 10,
         }}
-        bodyStyle={{ padding: 14 }}
+        styles={{ body: { padding: 14 } }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <div
@@ -107,7 +107,7 @@ function MobileSettings() {
           borderRadius: 10,
           marginBottom: 10,
         }}
-        bodyStyle={{ padding: 14 }}
+        styles={{ body: { padding: 14 } }}
       >
         <div
           style={{
@@ -195,7 +195,7 @@ function MobileSettings() {
           border: "none",
           textAlign: "center",
         }}
-        bodyStyle={{ padding: "12px 0" }}
+        styles={{ body: { padding: "12px 0" } }}
       >
         <div
           style={{

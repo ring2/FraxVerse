@@ -103,7 +103,7 @@ function MobileTrade() {
               borderRadius: 10,
               marginBottom: 6,
             }}
-            bodyStyle={{ padding: "10px 12px" }}
+            styles={{ body: { padding: "10px 12px" } }}
           >
             <div
               style={{
@@ -166,7 +166,7 @@ function MobileTrade() {
           border: `1px solid ${colors.border}`,
           borderRadius: 10,
         }}
-        bodyStyle={{ padding: 14 }}
+        styles={{ body: { padding: 14 } }}
       >
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           {/* Stock Code */}

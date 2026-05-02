@@ -63,7 +63,7 @@ function MobileStockPool() {
             border: `1px solid ${colors.border}`,
             borderRadius: 10,
           }}
-          bodyStyle={{ padding: "10px", textAlign: "center" }}
+          styles={{ body: { padding: "10px", textAlign: "center" } }}
         >
           <div style={{ color: colors.muted, fontSize: 11 }}>候选总数</div>
           <div style={{ color: colors.shard, fontSize: 22, fontWeight: 700 }}>
@@ -77,7 +77,7 @@ function MobileStockPool() {
             border: `1px solid ${colors.border}`,
             borderRadius: 10,
           }}
-          bodyStyle={{ padding: "10px", textAlign: "center" }}
+          styles={{ body: { padding: "10px", textAlign: "center" } }}
         >
           <div style={{ color: colors.muted, fontSize: 11 }}>
             <ExperimentOutlined style={{ marginRight: 3 }} />
@@ -94,7 +94,7 @@ function MobileStockPool() {
             border: `1px solid ${colors.border}`,
             borderRadius: 10,
           }}
-          bodyStyle={{ padding: "10px", textAlign: "center" }}
+          styles={{ body: { padding: "10px", textAlign: "center" } }}
         >
           <div style={{ color: colors.muted, fontSize: 11 }}>
             <BulbOutlined style={{ marginRight: 3 }} />

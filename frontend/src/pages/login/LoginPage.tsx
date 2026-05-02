@@ -3,6 +3,13 @@ import { UserOutlined, LockOutlined } from "@ant-design/icons";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuthStore } from "../../stores/useAuthStore";
+import { detectDevice } from "../../utils/deviceDetect";
+const getRedirectTarget = () => {
+  // Primary: UA-based detection. Fallback: screen width check.
+  if (detectDevice() === "mobile") return "/m/dashboard";
+  if (window.innerWidth < 768) return "/m/dashboard";
+  return "/dashboard";
+};
 import { colors } from "../../theme/colors";
 
 const { Title, Text } = Typography;
@@ -18,7 +25,9 @@ const LoginPage: React.FC = () => {
     try {
       await login(values.username, values.password, values.remember);
       message.success("登录成功");
-      navigate("/dashboard");
+      // Route based on device type — mobile goes to /m/dashboard, desktop to /dashboard
+      const target = getRedirectTarget();
+      navigate(target);
     } catch {
       message.error("用户名或密码错误");
     } finally {
@@ -36,6 +45,7 @@ const LoginPage: React.FC = () => {
         background: colors.bg,
         position: "relative",
         overflow: "hidden",
+        padding: 16,
       }}
     >
       {/* Background glow */}
@@ -56,6 +66,7 @@ const LoginPage: React.FC = () => {
       <Card
         style={{
           width: 400,
+          maxWidth: "100%",
           background: colors.card,
           border: `1px solid ${colors.border}`,
           borderRadius: 16,
