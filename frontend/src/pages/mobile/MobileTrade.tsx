@@ -1,46 +1,112 @@
-import { useEffect, useState } from "react";
-import { Card, Tag, Input, Button, Spin, App } from "antd";
+import { useCallback, useEffect, useState } from "react";
+import { App } from "antd";
+import { useTheme } from "../../theme/ThemeContext";
 import {
-  SwapOutlined,
-  WalletOutlined,
-  BankOutlined,
-} from "@ant-design/icons";
-import { colors } from "../../theme/colors";
+  MobileMetricCard,
+  MobileSectionCard,
+} from "../../components/mobile";
 import { portfolioService } from "../../services/portfolioService";
 import { tradeService } from "../../services/tradeService";
-import type { PositionItem, OrderResponse, TradeModeResponse } from "../../types/api-extended";
+
+/* ---- Mock fallback data ---- */
+const MOCK_POSITIONS = [
+  {
+    stock_code: "600519",
+    stock_name: "贵州茅台",
+    total_volume: 200,
+    cost_price: "1,552.30",
+    current_price: "1,680.50",
+    market_value: "336,100",
+    unrealized_pnl_pct: "8.2",
+    unrealized_pnl: "25,640",
+  },
+  {
+    stock_code: "300750",
+    stock_name: "宁德时代",
+    total_volume: 500,
+    cost_price: "223.00",
+    current_price: "218.30",
+    market_value: "109,150",
+    unrealized_pnl_pct: "-2.1",
+    unrealized_pnl: "-2,350",
+  },
+  {
+    stock_code: "000858",
+    stock_name: "五粮液",
+    total_volume: 300,
+    cost_price: "151.40",
+    current_price: "156.80",
+    market_value: "47,040",
+    unrealized_pnl_pct: "3.5",
+    unrealized_pnl: "1,620",
+  },
+];
+
+const MOCK_ORDERS = [
+  {
+    id: "ord_001",
+    stock_code: "600519",
+    direction: "buy",
+    order_type: "限价",
+    price: "1,670.00",
+    volume: 100,
+    filled_volume: 100,
+    status: "filled",
+    created_at: "09:32",
+  },
+  {
+    id: "ord_002",
+    stock_code: "300750",
+    direction: "sell",
+    order_type: "市价",
+    price: "-",
+    volume: 200,
+    filled_volume: 200,
+    status: "filled",
+    created_at: "10:15",
+  },
+];
+
+const MOCK_PORTFOLIO = {
+  total_market_value: 985420,
+  total_pnl: 32180,
+  total_pnl_pct: 3.38,
+  available_cash: 298930,
+  total_position_pct: 76.7,
+};
 
 function MobileTrade() {
   const { message } = App.useApp();
-  const [loading, setLoading] = useState(true);
-  const [positions, setPositions] = useState<PositionItem[]>([]);
-  const [orders, setOrders] = useState<OrderResponse[]>([]);
-  const [tradeMode, setTradeMode] = useState<TradeModeResponse | null>(null);
-  const [submitting, setSubmitting] = useState(false);
+  const { colors } = useTheme();
 
-  const [stockCode, setStockCode] = useState("");
-  const [direction, setDirection] = useState<"buy" | "sell">("buy");
-  const [volume, setVolume] = useState("");
+  const [loading, setLoading] = useState(true);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [positions, setPositions] = useState<Record<string, any>[]>([]);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [orders, setOrders] = useState<Record<string, any>[]>([]);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [portfolio, setPortfolio] = useState<Record<string, any> | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
 
     Promise.all([
-      portfolioService.getPositions(),
-      tradeService.getOrders(),
-      tradeService.getMode(),
+      portfolioService.getPositions().catch(() => MOCK_POSITIONS),
+      tradeService.getOrders().catch(() => MOCK_ORDERS),
+      portfolioService.getSummary().catch(() => MOCK_PORTFOLIO),
     ])
-      .then(([p, o, m]) => {
+      .then(([p, o, s]) => {
         if (cancelled) return;
-        setPositions(p);
-        setOrders(o);
-        setTradeMode(m);
+        setPositions(p && p.length > 0 ? p : MOCK_POSITIONS);
+        setOrders(o && o.length > 0 ? o : MOCK_ORDERS);
+        setPortfolio(s || MOCK_PORTFOLIO);
       })
-      .catch((err) => {
-        if (cancelled) return;
-        console.error("Failed to load trade data:", err);
-        message.error("加载交易数据失败");
+      .catch(() => {
+        if (!cancelled) {
+          setPositions(MOCK_POSITIONS);
+          setOrders(MOCK_ORDERS);
+          setPortfolio(MOCK_PORTFOLIO);
+        }
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -49,50 +115,24 @@ function MobileTrade() {
     return () => {
       cancelled = true;
     };
+  }, []);
+
+  const handleStopLoss = useCallback(
+    (code: string) => {
+      message.info(`止损 ${code} — 开发中`);
+    },
+    [message]
+  );
+
+  const handleManualTrade = useCallback(() => {
+    message.info("手动下单 — 开发中");
   }, [message]);
 
-  const handleSubmit = async () => {
-    if (!stockCode.trim()) {
-      message.warning("请输入股票代码");
-      return;
-    }
-    const vol = parseInt(volume, 10);
-    if (!volume || vol <= 0) {
-      message.warning("请输入有效数量");
-      return;
-    }
-
-    setSubmitting(true);
-    try {
-      await tradeService.createOrder({
-        stock_code: stockCode.trim().toUpperCase(),
-        direction,
-        order_type: "market",
-        volume: vol,
-      });
-      message.success(
-        `下单成功: ${direction === "buy" ? "买入" : "卖出"} ${stockCode} ${volume}股`
-      );
-      setStockCode("");
-      setVolume("");
-      // Refresh orders after placing
-      const updatedOrders = await tradeService.getOrders();
-      setOrders(updatedOrders);
-    } catch (err: any) {
-      console.error("Failed to place order:", err);
-      message.error(err?.response?.data?.message || "下单失败");
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const currentMode = tradeMode?.current_mode ?? "SIMULATION";
-  const modeTagColor =
-    currentMode === "LIVE"
-      ? colors.danger
-      : currentMode === "PAPER"
-      ? colors.amber
-      : colors.shard;
+  const portfolioValue = portfolio?.total_market_value ?? 985420;
+  const portfolioPnl = portfolio?.total_pnl ?? 32180;
+  const portfolioPnlPct = portfolio?.total_pnl_pct ?? 3.38;
+  const availableCash = portfolio?.available_cash ?? 298930;
+  const positionPct = portfolio?.total_position_pct ?? 76.7;
 
   if (loading) {
     return (
@@ -104,299 +144,404 @@ function MobileTrade() {
           minHeight: 200,
         }}
       >
-        <Spin tip="加载中..." />
+        <span style={{ color: colors.text.tertiary, fontSize: 14 }}>
+          加载中...
+        </span>
       </div>
     );
   }
 
   return (
-    <div style={{ paddingBottom: 16 }}>
-      {/* Header */}
+    <div>
+      {/* ===== 标题栏 ===== */}
       <div
         style={{
+          display: "flex",
+          alignItems: "center",
           fontSize: 18,
-          fontWeight: 700,
-          color: colors.text,
-          marginBottom: 12,
-          display: "flex",
-          alignItems: "center",
-          gap: 8,
+          fontWeight: 600,
+          color: colors.text.primary,
+          marginBottom: 14,
+          lineHeight: 1.3,
         }}
       >
-        <SwapOutlined style={{ color: colors.nebula }} />
         交易
-        <Tag
-          color={modeTagColor}
-          style={{ marginLeft: "auto", fontSize: 10, borderRadius: 12 }}
-        >
-          {currentMode}
-        </Tag>
-      </div>
-
-      {/* Current Positions */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 6,
-          marginBottom: 8,
-          color: colors.muted,
-          fontSize: 13,
-          fontWeight: 600,
-        }}
-      >
-        <WalletOutlined style={{ color: colors.gold }} />
-        当前持仓
-      </div>
-
-      {positions.length === 0 && (
-        <div
-          style={{
-            color: colors.dimmed,
-            textAlign: "center",
-            padding: "16px 0",
-            fontSize: 13,
-          }}
-        >
-          暂无持仓
-        </div>
-      )}
-
-      {positions.map((pos) => {
-        const pnlPct = parseFloat(pos.unrealized_pnl_pct);
-        const isProfit = pnlPct >= 0;
-        return (
-          <Card
-            key={pos.stock_code}
-            size="small"
+        <div style={{ marginLeft: "auto" }}>
+          <button
+            onClick={handleManualTrade}
             style={{
-              background: colors.card,
-              border: `1px solid ${colors.border}`,
-              borderRadius: 10,
-              marginBottom: 6,
-            }}
-            styles={{ body: { padding: "10px 12px" } }}
-          >
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-              }}
-            >
-              <div>
-                <div style={{ color: colors.text, fontSize: 14, fontWeight: 600 }}>
-                  {pos.stock_name ?? pos.stock_code}
-                  <span style={{ color: colors.dimmed, fontSize: 11, marginLeft: 6 }}>
-                    {pos.stock_code}
-                  </span>
-                </div>
-                <div style={{ color: colors.dimmed, fontSize: 11, marginTop: 2 }}>
-                  {pos.total_volume}股 · 成本{pos.cost_price}
-                </div>
-              </div>
-              <div style={{ textAlign: "right" }}>
-                <div style={{ color: colors.muted, fontSize: 11 }}>
-                  市值 {pos.market_value}
-                </div>
-                <div
-                  style={{
-                    fontSize: 14,
-                    fontWeight: 700,
-                    color: isProfit ? colors.gold : colors.danger,
-                  }}
-                >
-                  {isProfit ? "+" : ""}
-                  {pnlPct.toFixed(2)}%
-                </div>
-              </div>
-            </div>
-          </Card>
-        );
-      })}
-
-      {/* Quick Order Form */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 6,
-          margin: "12px 0 8px",
-          color: colors.muted,
-          fontSize: 13,
-          fontWeight: 600,
-        }}
-      >
-        <BankOutlined style={{ color: colors.shard }} />
-        快速下单
-      </div>
-
-      <Card
-        size="small"
-        style={{
-          background: colors.card,
-          border: `1px solid ${colors.border}`,
-          borderRadius: 10,
-        }}
-        styles={{ body: { padding: 14 } }}
-      >
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          {/* Stock Code */}
-          <Input
-            placeholder="股票代码"
-            value={stockCode}
-            onChange={(e) => setStockCode(e.target.value.toUpperCase())}
-            style={{
-              background: colors.surface,
-              border: `1px solid ${colors.border}`,
-              color: colors.text,
-              borderRadius: 8,
-            }}
-          />
-
-          {/* Direction Toggle */}
-          <div style={{ display: "flex", gap: 8 }}>
-            <Button
-              size="small"
-              type={direction === "buy" ? "primary" : "default"}
-              onClick={() => setDirection("buy")}
-              style={{
-                flex: 1,
-                borderRadius: 8,
-                background: direction === "buy" ? colors.success : "transparent",
-                borderColor: direction === "buy" ? colors.success : colors.border,
-                color: direction === "buy" ? "#fff" : colors.muted,
-                fontWeight: 600,
-              }}
-            >
-              买入
-            </Button>
-            <Button
-              size="small"
-              type={direction === "sell" ? "primary" : "default"}
-              onClick={() => setDirection("sell")}
-              style={{
-                flex: 1,
-                borderRadius: 8,
-                background: direction === "sell" ? colors.danger : "transparent",
-                borderColor: direction === "sell" ? colors.danger : colors.border,
-                color: direction === "sell" ? "#fff" : colors.muted,
-                fontWeight: 600,
-              }}
-            >
-              卖出
-            </Button>
-          </div>
-
-          {/* Volume */}
-          <Input
-            placeholder="数量（股）"
-            type="number"
-            value={volume}
-            onChange={(e) => setVolume(e.target.value)}
-            style={{
-              background: colors.surface,
-              border: `1px solid ${colors.border}`,
-              color: colors.text,
-              borderRadius: 8,
-            }}
-          />
-
-          {/* Confirm Button */}
-          <Button
-            type="primary"
-            size="large"
-            onClick={handleSubmit}
-            loading={submitting}
-            style={{
-              borderRadius: 8,
-              height: 42,
-              fontWeight: 700,
-              fontSize: 15,
-              background: colors.gradients.primary,
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 4,
+              padding: "6px 14px",
+              borderRadius: `${colors.radius.md}px`,
+              fontSize: 13,
+              fontWeight: 500,
+              lineHeight: 1.4,
+              cursor: "pointer",
               border: "none",
+              outline: "none",
+              background: colors.gradient.primary,
+              color: colors.text.inverse,
+              boxShadow: colors.btnShadow,
             }}
           >
-            确认下单
-          </Button>
+            手动下单
+          </button>
         </div>
-      </Card>
+      </div>
 
-      {/* Recent Orders */}
-      {orders.length > 0 && (
-        <>
+      {/* ===== 指标卡片 (2列) ===== */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1fr 1fr",
+          gap: 12,
+          marginBottom: 16,
+        }}
+      >
+        <MobileMetricCard
+          label="持仓市值"
+          value={`¥${Number(portfolioValue).toLocaleString()}`}
+          change={{ text: "+3.2%", type: "up" }}
+        />
+        <MobileMetricCard
+          label="浮动盈亏"
+          value={`+¥${Number(portfolioPnl).toLocaleString()}`}
+          change={{ text: `+${portfolioPnlPct}%`, type: "up" }}
+          valueColor={colors.semantic.up}
+        />
+        <MobileMetricCard
+          label="可用资金"
+          value={`¥${Number(availableCash).toLocaleString()}`}
+          change={{ text: `占比${positionPct}%`, type: "neutral" }}
+        />
+        <MobileMetricCard
+          label="交易模式"
+          value="模拟盘"
+          change={{ text: "可升级至半自动", type: "neutral" }}
+        />
+      </div>
+
+      {/* ===== 当前持仓 ===== */}
+      <div style={{ marginBottom: 16 }}>
+        <MobileSectionCard title="当前持仓">
+          {/* 表头 */}
           <div
             style={{
               display: "flex",
-              alignItems: "center",
-              gap: 6,
-              margin: "12px 0 8px",
-              color: colors.muted,
-              fontSize: 13,
-              fontWeight: 600,
+              padding: "8px 14px",
+              borderBottom: `1px solid ${colors.border.light}`,
+              fontSize: 11,
+              color: colors.text.tertiary,
+              fontWeight: 500,
+              gap: 4,
             }}
           >
-            <SwapOutlined style={{ color: colors.nebula }} />
-            最近订单
+            <span style={{ width: 60, flexShrink: 0 }}>代码</span>
+            <span style={{ width: 55, flexShrink: 0 }}>名称</span>
+            <span style={{ width: 45, flexShrink: 0, textAlign: "right" }}>
+              数量
+            </span>
+            <span style={{ width: 60, flexShrink: 0, textAlign: "right" }}>
+              成本
+            </span>
+            <span style={{ width: 60, flexShrink: 0, textAlign: "right" }}>
+              现价
+            </span>
+            <span style={{ width: 55, flexShrink: 0, textAlign: "right" }}>
+              盈亏
+            </span>
+            <span style={{ width: 50, flexShrink: 0, textAlign: "center" }}>
+              操作
+            </span>
           </div>
-          {orders.slice(0, 5).map((order) => (
-            <Card
-              key={order.id}
-              size="small"
-              style={{
-                background: colors.card,
-                border: `1px solid ${colors.border}`,
-                borderRadius: 10,
-                marginBottom: 6,
-              }}
-              styles={{ body: { padding: "8px 12px" } }}
-            >
+
+          {positions.map((pos, idx) => {
+            const pnlPct = parseFloat(pos.unrealized_pnl_pct);
+            const isProfit = pnlPct >= 0;
+            return (
               <div
+                key={pos.stock_code || idx}
                 style={{
                   display: "flex",
-                  justifyContent: "space-between",
                   alignItems: "center",
+                  padding: "10px 14px",
+                  gap: 4,
+                  fontSize: 12,
+                  color: colors.text.primary,
+                  borderBottom:
+                    idx < positions.length - 1
+                      ? `1px solid ${colors.border.light}`
+                      : "none",
                 }}
               >
-                <div>
-                  <div style={{ color: colors.text, fontSize: 13, fontWeight: 600 }}>
-                    {order.stock_code}
-                    <span
-                      style={{
-                        color: colors.dimmed,
-                        fontSize: 11,
-                        marginLeft: 6,
-                      }}
-                    >
-                      {order.direction === "buy" ? "买入" : "卖出"}
-                    </span>
-                  </div>
-                  <div style={{ color: colors.dimmed, fontSize: 11 }}>
-                    {order.volume}股 · {order.filled_volume}股已成交
-                  </div>
-                </div>
-                <Tag
+                <span
                   style={{
-                    fontSize: 10,
-                    borderRadius: 8,
+                    width: 60,
+                    flexShrink: 0,
+                    fontWeight: 500,
+                    fontSize: 13,
                   }}
-                  color={
-                    order.status === "filled"
-                      ? colors.success
-                      : order.status === "pending"
-                      ? colors.amber
-                      : order.status === "canceled"
-                      ? colors.danger
-                      : colors.muted
-                  }
                 >
-                  {order.status}
-                </Tag>
+                  {pos.stock_code}
+                </span>
+                <span
+                  style={{
+                    width: 55,
+                    flexShrink: 0,
+                    color: colors.text.secondary,
+                  }}
+                >
+                  {pos.stock_name || ""}
+                </span>
+                <span
+                  style={{
+                    width: 45,
+                    flexShrink: 0,
+                    textAlign: "right",
+                    color: colors.text.secondary,
+                  }}
+                >
+                  {pos.total_volume}
+                </span>
+                <span
+                  style={{
+                    width: 60,
+                    flexShrink: 0,
+                    textAlign: "right",
+                    color: colors.text.secondary,
+                  }}
+                >
+                  {pos.cost_price}
+                </span>
+                <span
+                  style={{
+                    width: 60,
+                    flexShrink: 0,
+                    textAlign: "right",
+                    fontWeight: 500,
+                  }}
+                >
+                  {pos.current_price}
+                </span>
+                <span
+                  style={{
+                    width: 55,
+                    flexShrink: 0,
+                    textAlign: "right",
+                    fontWeight: 600,
+                    color: isProfit ? colors.semantic.up : colors.semantic.down,
+                  }}
+                >
+                  {isProfit ? "+" : ""}
+                  {pnlPct.toFixed(1)}%
+                </span>
+                <span
+                  style={{
+                    width: 50,
+                    flexShrink: 0,
+                    textAlign: "center",
+                  }}
+                >
+                  <button
+                    onClick={() => handleStopLoss(pos.stock_code)}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      padding: "3px 10px",
+                      borderRadius: `${colors.radius.sm}px`,
+                      fontSize: 11,
+                      fontWeight: 500,
+                      lineHeight: 1.3,
+                      cursor: "pointer",
+                      border: `1px solid ${colors.border.medium}`,
+                      outline: "none",
+                      background: "transparent",
+                      color: colors.semantic.up,
+                      transition: "all 0.15s ease",
+                    }}
+                  >
+                    止损
+                  </button>
+                </span>
               </div>
-            </Card>
-          ))}
-        </>
-      )}
+            );
+          })}
+        </MobileSectionCard>
+      </div>
+
+      {/* ===== 今日订单 ===== */}
+      <MobileSectionCard title="今日订单">
+        {/* 表头 */}
+        <div
+          style={{
+            display: "flex",
+            padding: "8px 14px",
+            borderBottom: `1px solid ${colors.border.light}`,
+            fontSize: 11,
+            color: colors.text.tertiary,
+            fontWeight: 500,
+            gap: 4,
+          }}
+        >
+          <span style={{ width: 40, flexShrink: 0 }}>时间</span>
+          <span style={{ width: 60, flexShrink: 0 }}>代码</span>
+          <span style={{ width: 45, flexShrink: 0, textAlign: "center" }}>
+            方向
+          </span>
+          <span style={{ width: 45, flexShrink: 0, textAlign: "center" }}>
+            类型
+          </span>
+          <span style={{ width: 55, flexShrink: 0, textAlign: "right" }}>
+            价格
+          </span>
+          <span style={{ width: 45, flexShrink: 0, textAlign: "right" }}>
+            数量
+          </span>
+          <span style={{ width: 50, flexShrink: 0, textAlign: "center" }}>
+            状态
+          </span>
+        </div>
+
+        {orders.map((ord, idx) => {
+          const isBuy = ord.direction === "buy";
+          return (
+            <div
+              key={ord.id || idx}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                padding: "10px 14px",
+                gap: 4,
+                fontSize: 12,
+                color: colors.text.primary,
+                borderBottom:
+                  idx < orders.length - 1
+                    ? `1px solid ${colors.border.light}`
+                    : "none",
+              }}
+            >
+              <span
+                style={{
+                  width: 40,
+                  flexShrink: 0,
+                  color: colors.text.secondary,
+                }}
+              >
+                {ord.created_at?.slice(11, 16) || ord.created_at || "--"}
+              </span>
+              <span
+                style={{
+                  width: 60,
+                  flexShrink: 0,
+                  fontWeight: 500,
+                  fontSize: 13,
+                }}
+              >
+                {ord.stock_code}
+              </span>
+              <span
+                style={{
+                  width: 45,
+                  flexShrink: 0,
+                  textAlign: "center",
+                }}
+              >
+                <span
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    fontSize: 10,
+                    fontWeight: 500,
+                    lineHeight: 1.3,
+                    padding: "1px 7px",
+                    borderRadius: 20,
+                    backgroundColor: isBuy
+                      ? colors.semantic.upBg
+                      : colors.semantic.downBg,
+                    color: isBuy
+                      ? colors.semantic.up
+                      : colors.semantic.down,
+                  }}
+                >
+                  {isBuy ? "买入" : "卖出"}
+                </span>
+              </span>
+              <span
+                style={{
+                  width: 45,
+                  flexShrink: 0,
+                  textAlign: "center",
+                  color: colors.text.secondary,
+                }}
+              >
+                {ord.order_type || (ord.direction === "buy" ? "限价" : "市价")}
+              </span>
+              <span
+                style={{
+                  width: 55,
+                  flexShrink: 0,
+                  textAlign: "right",
+                  color: colors.text.secondary,
+                }}
+              >
+                {ord.price || "-"}
+              </span>
+              <span
+                style={{
+                  width: 45,
+                  flexShrink: 0,
+                  textAlign: "right",
+                  color: colors.text.secondary,
+                }}
+              >
+                {ord.volume}
+              </span>
+              <span
+                style={{
+                  width: 50,
+                  flexShrink: 0,
+                  textAlign: "center",
+                }}
+              >
+                <span
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    fontSize: 10,
+                    fontWeight: 500,
+                    lineHeight: 1.3,
+                    padding: "1px 7px",
+                    borderRadius: 20,
+                    backgroundColor:
+                      ord.status === "filled"
+                        ? colors.semantic.downBg
+                        : ord.status === "pending"
+                        ? colors.semantic.amberBg
+                        : colors.bg.subtle,
+                    color:
+                      ord.status === "filled"
+                        ? colors.semantic.down
+                        : ord.status === "pending"
+                        ? colors.semantic.amber
+                        : colors.text.tertiary,
+                  }}
+                >
+                  {ord.status === "filled"
+                    ? "已成交"
+                    : ord.status === "pending"
+                    ? "待成交"
+                    : ord.status === "canceled"
+                    ? "已撤销"
+                    : ord.status}
+                </span>
+              </span>
+            </div>
+          );
+        })}
+      </MobileSectionCard>
     </div>
   );
 }

@@ -1,5 +1,6 @@
 import { lazy, Suspense } from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
+import { ThemeProvider } from "./theme/ThemeContext";
 import PcLayout from "./components/layout/PcLayout";
 import MobileLayout from "./components/layout/MobileLayout";
 import ProtectedRoute from "./components/common/ProtectedRoute";
@@ -133,8 +134,73 @@ const MobileSettings = lazy(() =>
   }))
 );
 
-// Placeholder pages for remaining routes
-const Placeholder = ({ title }: { title: string }) => (
+// Mobile sub-pages
+const MobileMore = lazy(() =>
+  import("./pages/mobile/MobileMore").catch(() => ({
+    default: () => (
+      <div style={{ padding: 40, color: "#8887a8", textAlign: "center" }}>
+        更多
+      </div>
+    ),
+  }))
+);
+const MobileAi = lazy(() =>
+  import("./pages/mobile/MobileAi").catch(() => ({
+    default: () => (
+      <div style={{ padding: 40, color: "#8887a8", textAlign: "center" }}>
+        AI分析
+      </div>
+    ),
+  }))
+);
+const MobileExperience = lazy(() =>
+  import("./pages/mobile/MobileExperience").catch(() => ({
+    default: () => (
+      <div style={{ padding: 40, color: "#8887a8", textAlign: "center" }}>
+        经验库
+      </div>
+    ),
+  }))
+);
+const MobileNotifications = lazy(() =>
+  import("./pages/mobile/MobileNotifications").catch(() => ({
+    default: () => (
+      <div style={{ padding: 40, color: "#8887a8", textAlign: "center" }}>
+        通知
+      </div>
+    ),
+  }))
+);
+const MobileEquity = lazy(() =>
+  import("./pages/mobile/MobileEquity").catch(() => ({
+    default: () => (
+      <div style={{ padding: 40, color: "#8887a8", textAlign: "center" }}>
+        星轨
+      </div>
+    ),
+  }))
+);
+const MobileMonitor = lazy(() =>
+  import("./pages/mobile/MobileMonitor").catch(() => ({
+    default: () => (
+      <div style={{ padding: 40, color: "#8887a8", textAlign: "center" }}>
+        天眼
+      </div>
+    ),
+  }))
+);
+const MobileSystemHealth = lazy(() =>
+  import("./pages/mobile/MobileSystemHealth").catch(() => ({
+    default: () => (
+      <div style={{ padding: 40, color: "#8887a8", textAlign: "center" }}>
+        系统状态
+      </div>
+    ),
+  }))
+);
+
+// Placeholder for remaining PC routes
+const KlineSignalPage = () => (
   <div
     style={{
       display: "flex",
@@ -145,76 +211,115 @@ const Placeholder = ({ title }: { title: string }) => (
       fontSize: 18,
     }}
   >
-    {title} — 开发中
+    K线星象 — 开发中
+  </div>
+);
+const BacktestPage = () => (
+  <div
+    style={{
+      display: "flex",
+      justifyContent: "center",
+      alignItems: "center",
+      height: "60vh",
+      color: "#8887a8",
+      fontSize: 18,
+    }}
+  >
+    回测时光 — 开发中
+  </div>
+);
+const SettingsPage = () => (
+  <div
+    style={{
+      display: "flex",
+      justifyContent: "center",
+      alignItems: "center",
+      height: "60vh",
+      color: "#8887a8",
+      fontSize: 18,
+    }}
+  >
+    内观设置 — 开发中
+  </div>
+);
+const NewsPage = () => (
+  <div
+    style={{
+      display: "flex",
+      justifyContent: "center",
+      alignItems: "center",
+      height: "60vh",
+      color: "#8887a8",
+      fontSize: 18,
+    }}
+  >
+    心念潮汐 — 开发中
   </div>
 );
 
-const KlineSignalPage = () => <Placeholder title="K线星象" />;
-const BacktestPage = () => <Placeholder title="回测时光" />;
-const SettingsPage = () => <Placeholder title="内观设置" />;
-const NewsPage = () => <Placeholder title="心念潮汐" />;
+const NotFoundPage = lazy(() => import("./pages/not-found/NotFoundPage"));
 
-// Device-aware root redirect sends to login (device detection happens on login)
-const RootRedirect = () => {
-  return <Navigate to="/login" replace />;
-};
-
-// Catch-all
-const CatchAllRedirect = () => {
-  return <Navigate to="/login" replace />;
-};
+const RootRedirect = () => <Navigate to="/login" replace />;
 
 function AppContent() {
   return (
-    <Suspense fallback={<LoadingFallback />}>
-      <Routes>
-        {/* Login is shared across devices */}
-        <Route path="/login" element={<LoginPage />} />
+    <ThemeProvider>
+      <Suspense fallback={<LoadingFallback />}>
+        <Routes>
+          <Route path="/login" element={<LoginPage />} />
 
-        {/* PC routes */}
-        <Route
-          element={
-            <ProtectedRoute>
-              <PcLayout />
-            </ProtectedRoute>
-          }
-        >
-          <Route path="/dashboard" element={<DashboardPage />} />
-          <Route path="/account" element={<AccountPage />} />
-          <Route path="/stock-pool" element={<StockPoolPage />} />
-          <Route path="/agent-discussion" element={<AgentDiscussionPage />} />
-          <Route path="/trade" element={<TradePage />} />
-          <Route path="/kline-signal" element={<KlineSignalPage />} />
-          <Route path="/backtest" element={<BacktestPage />} />
-          <Route path="/strategy-perf" element={<StrategyPerfPage />} />
-          <Route path="/experience" element={<ExperiencePage />} />
-          <Route path="/notification" element={<NotificationPage />} />
-          <Route path="/system-health" element={<SystemHealthPage />} />
-          <Route path="/settings" element={<SettingsPage />} />
-          <Route path="/equity-curve" element={<EquityCurvePage />} />
-          <Route path="/data-monitor" element={<DataMonitorPage />} />
-          <Route path="/news" element={<NewsPage />} />
-        </Route>
+          {/* PC routes */}
+          <Route
+            element={
+              <ProtectedRoute>
+                <PcLayout />
+              </ProtectedRoute>
+            }
+          >
+            <Route path="/dashboard" element={<DashboardPage />} />
+            <Route path="/account" element={<AccountPage />} />
+            <Route path="/stock-pool" element={<StockPoolPage />} />
+            <Route path="/agent-discussion" element={<AgentDiscussionPage />} />
+            <Route path="/trade" element={<TradePage />} />
+            <Route path="/kline-signal" element={<KlineSignalPage />} />
+            <Route path="/backtest" element={<BacktestPage />} />
+            <Route path="/strategy-perf" element={<StrategyPerfPage />} />
+            <Route path="/experience" element={<ExperiencePage />} />
+            <Route path="/notification" element={<NotificationPage />} />
+            <Route path="/system-health" element={<SystemHealthPage />} />
+            <Route path="/settings" element={<SettingsPage />} />
+            <Route path="/equity-curve" element={<EquityCurvePage />} />
+            <Route path="/data-monitor" element={<DataMonitorPage />} />
+            <Route path="/news" element={<NewsPage />} />
+          </Route>
 
-        {/* Mobile routes */}
-        <Route
-          element={
-            <ProtectedRoute>
-              <MobileLayout />
-            </ProtectedRoute>
-          }
-        >
-          <Route path="/m/dashboard" element={<MobileDashboard />} />
-          <Route path="/m/stock-pool" element={<MobileStockPool />} />
-          <Route path="/m/trade" element={<MobileTrade />} />
-          <Route path="/m/settings" element={<MobileSettings />} />
-        </Route>
+          {/* Mobile routes */}
+          <Route
+            element={
+              <ProtectedRoute>
+                <MobileLayout />
+              </ProtectedRoute>
+            }
+          >
+            <Route path="/m/dashboard" element={<MobileDashboard />} />
+            <Route path="/m/stock-pool" element={<MobileStockPool />} />
+            <Route path="/m/trade" element={<MobileTrade />} />
+            <Route path="/m/more" element={<MobileMore />} />
+            <Route path="/m/settings" element={<MobileSettings />} />
+            {/* Mobile sub-pages (full screen, no tab bar) */}
+            <Route path="/m/ai" element={<MobileAi />} />
+            <Route path="/m/experience" element={<MobileExperience />} />
+            <Route path="/m/notifications" element={<MobileNotifications />} />
+            <Route path="/m/equity" element={<MobileEquity />} />
+            <Route path="/m/monitor" element={<MobileMonitor />} />
+            <Route path="/m/system" element={<MobileSystemHealth />} />
+          </Route>
 
-        {/* Device-aware redirects */}
-        <Route path="/" element={<RootRedirect />} />
-        <Route path="*" element={<CatchAllRedirect />} />
-      </Routes>
-    </Suspense>
+          <Route path="/" element={<RootRedirect />} />
+          <Route path="*" element={<NotFoundPage />} />
+        </Routes>
+      </Suspense>
+    </ThemeProvider>
   );
 }
 
