@@ -9,7 +9,11 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "gen:api": "curl -s http://localhost:8000/openapi.json > src/api-schema.json && npx openapi-typescript src/api-schema.json -o src/types/api-generated.ts",
+    "prebuild": "npm run gen:api",
+    "typecheck": "tsc --noEmit",
+    "ci": "npm run gen:api && npm run typecheck && npx vitest run && npx vite build"
   },
   "dependencies": {
     "@ant-design/icons": "5.5",
@@ -29,6 +33,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@testing-library/dom": "^10.4.1",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.1",
@@ -42,6 +47,7 @@
     "globals": "^17.5.0",
     "jsdom": "^29.1.1",
     "msw": "^2.14.2",
+    "openapi-typescript": "^7.13.0",
     "typescript": "~6.0.2",
     "typescript-eslint": "^8.58.2",
     "vite": "^8.0.10",

@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { authService } from "../services/authService";
-import type { User } from "../types/common";
+import type { User } from "../types/api-extended";
 
 interface AuthState {
   isAuthenticated: boolean;
@@ -12,7 +12,7 @@ interface AuthState {
   error: string | null;
 
   login: (username: string, password: string) => Promise<void>;
-  init: (username: string, password: string, email: string) => Promise<void>;
+  init: (username: string, password: string, deepseekApiKey: string) => Promise<void>;
   logout: () => Promise<void>;
   refreshAccessToken: () => Promise<boolean>;
   clearError: () => void;
@@ -95,10 +95,10 @@ export const useAuthStore = create<AuthState>((set, get) => {
       }
     },
 
-    init: async (username, password, email) => {
+    init: async (username, password, deepseekApiKey) => {
       set({ isLoading: true, error: null });
       try {
-        const res = await authService.init({ username, password, email });
+        const res = await authService.init({ username, password, deepseek_api_key: deepseekApiKey });
         const tokens = res.data;
         localStorage.setItem("access_token", tokens.access_token);
         localStorage.setItem("refresh_token", tokens.refresh_token);

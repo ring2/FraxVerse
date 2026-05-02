@@ -1,5 +1,5 @@
 import axios from "axios";
-import type { ApiResponse } from "../types/api";
+import type { ApiResponse } from "../types/api-extended";
 
 const api = axios.create({
   baseURL: "/api/v1",

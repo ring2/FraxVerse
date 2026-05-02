@@ -1,6 +1,5 @@
 import api from "./api";
-import type { ApiResponse } from "../types/api";
-import type { AuthTokens, InitRequest, LoginRequest } from "../types/common";
+import type { ApiResponse, TokenResponse, LoginRequest, SetupRequest } from "../types/api-extended";
 
 export const authService = {
   async checkInit(): Promise<ApiResponse<{ initialized: boolean }>> {
@@ -8,21 +7,21 @@ export const authService = {
     return { code: 0, message: "ok", data: { initialized: res.data?.initialized ?? false } };
   },
 
-  async init(payload: InitRequest): Promise<ApiResponse<AuthTokens>> {
+  async init(payload: SetupRequest): Promise<ApiResponse<TokenResponse>> {
     const res = await api.post("/auth/setup", payload);
     return {
       code: 0,
       message: "ok",
-      data: res.data as AuthTokens,
+      data: res.data as TokenResponse,
     };
   },
 
-  async login(payload: LoginRequest): Promise<ApiResponse<AuthTokens>> {
+  async login(payload: LoginRequest): Promise<ApiResponse<TokenResponse>> {
     const res = await api.post("/auth/login", payload);
     return {
       code: 0,
       message: "ok",
-      data: res.data as AuthTokens,
+      data: res.data as TokenResponse,
     };
   },
 
