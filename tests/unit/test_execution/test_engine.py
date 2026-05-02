@@ -220,27 +220,31 @@ class TestTradeEngine:
 
 class TestEmergencyStop:
 
-    def test_emergency_stop_blocks_order(self):
+    def test_emergency_stop_blocks_order(self, db):
         """紧急停止应阻止下单"""
-        session = get_session()
-        try:
-            mode = session.query(TradeModeModel).first()
-            mode.emergency_stop = True
-            session.commit()
+        from src.execution.engine import OrderExecutor
+        # 确保冷却是干净的
+        from src.db.models import Positions
+        db.query(Positions).filter_by(stock_code="000001.SZ").delete()
+        db.commit()
 
-            executor = OrderExecutor(session)
-            with pytest.raises(EmergencyStopError):
-                executor.execute_order(
-                    stock_code="000001.SZ",
-                    direction="buy",
-                    volume=10,
-                    price=Decimal("10"),
-                )
-        finally:
-            mode = session.query(TradeModeModel).first()
-            mode.emergency_stop = False
-            session.commit()
-            session.close()
+        # 直接设置 emergency_stop=True
+        from src.db.models import TradeMode as TradeModeModel
+        mode = db.query(TradeModeModel).first()
+        if mode:
+            mode.emergency_stop = True
+        else:
+            db.add(TradeModeModel(emergency_stop=True))
+        db.commit()
+
+        executor = OrderExecutor(db)
+        with pytest.raises(EmergencyStopError):
+            executor.execute_order(
+                stock_code="000001.SZ",
+                direction="buy",
+                volume=10,
+                price=Decimal("10"),
+            )
 
 
 # ============================================================================

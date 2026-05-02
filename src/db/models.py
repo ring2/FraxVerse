@@ -514,3 +514,70 @@ class StopLossConditions(Base):
     trigger_price_actual: Mapped[Decimal | None] = mapped_column(Numeric(18, 4))
     created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, server_default=text("NOW()"))
     updated_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, server_default=text("NOW()"))
+
+
+# ============================================================================
+# DD-04: AI-Agent 模块 — 补充3个模型（AgentDecisions/LlmUsage/AgentPrompt已有表但无反射模型）
+# 来源：DD-04-AI-Agent模块.md 第2.1~2.2节
+# ============================================================================
+# 注：agent_discussions 和 agent_weights 使用已有的 AgentDiscussions / AgentWeights 模型
+
+
+class AgentDecision(Base):
+    """最终加权投票决策 — 每日每只标的一条，含风控否决标记"""
+    __tablename__ = "agent_decisions"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    date: Mapped[datetime] = mapped_column(Date, nullable=False)
+    stock_code: Mapped[str] = mapped_column(String(10), ForeignKey("stocks.code"), nullable=False)
+    total_score: Mapped[Decimal | None] = mapped_column(Numeric(6, 2))
+    buy_score_sum: Mapped[Decimal | None] = mapped_column(Numeric(6, 2))
+    against_score_sum: Mapped[Decimal | None] = mapped_column(Numeric(6, 2))
+    net_score: Mapped[Decimal | None] = mapped_column(Numeric(6, 2))
+    decision: Mapped[str] = mapped_column(String(16), nullable=False)
+    decision_reason: Mapped[str | None] = mapped_column(Text)
+    agent_votes_json: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    risk_veto: Mapped[bool] = mapped_column(Boolean, default=False)
+    risk_veto_reason: Mapped[str | None] = mapped_column(String(128))
+    convergence_rounds: Mapped[int | None] = mapped_column(SmallInteger, default=0)
+    convergence_method: Mapped[str | None] = mapped_column(String(32))
+    created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, server_default=text("NOW()"))
+    updated_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, server_default=text("NOW()"))
+    __table_args__ = (
+        UniqueConstraint("date", "stock_code", name="uk_decision"),
+    )
+
+
+class LlmUsage(Base):
+    """LLM Token用量监控 — 每日每模型每Agent汇总一条"""
+    __tablename__ = "llm_usage"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    date: Mapped[datetime] = mapped_column(Date, nullable=False)
+    model: Mapped[str] = mapped_column(String(32), nullable=False)
+    agent_name: Mapped[str | None] = mapped_column(String(32))
+    prompt_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    completion_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    total_cost: Mapped[Decimal | None] = mapped_column(Numeric(10, 4), default=0)
+    call_count: Mapped[int] = mapped_column(Integer, default=1)
+    created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, server_default=text("NOW()"))
+    __table_args__ = (
+        UniqueConstraint("date", "model", "agent_name", name="uk_llm_usage"),
+    )
+
+
+class AgentPrompt(Base):
+    """Agent提示词版本管理 — 支持迭代式开发(V1→V4)"""
+    __tablename__ = "agent_prompts"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    agent_name: Mapped[str] = mapped_column(String(32), nullable=False)
+    version: Mapped[str] = mapped_column(String(16), nullable=False)
+    system_prompt: Mapped[str] = mapped_column(Text, nullable=False)
+    user_prompt_template: Mapped[str] = mapped_column(Text, nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    change_note: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, server_default=text("NOW()"))
+    __table_args__ = (
+        UniqueConstraint("agent_name", "version", name="uk_agent_prompt_version"),
+    )
