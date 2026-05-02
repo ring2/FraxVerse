@@ -5,13 +5,12 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "npm run gen:api && tsc --noEmit --project tsconfig.build.json && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
     "gen:api": "curl -s http://localhost:8000/openapi.json > src/api-schema.json && npx openapi-typescript src/api-schema.json -o src/types/api-generated.ts",
-    "prebuild": "npm run gen:api",
     "typecheck": "tsc --noEmit",
     "ci": "npm run gen:api && npm run typecheck && npx vitest run && npx vite build"
   },

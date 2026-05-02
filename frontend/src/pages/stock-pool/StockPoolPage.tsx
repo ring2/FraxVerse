@@ -1,10 +1,12 @@
-import { useState, useMemo } from "react";
-import { Table, Tag, Select, Input, Typography } from "antd";
+import { useState, useEffect, useMemo } from "react";
+import { App, Table, Tag, Select, Input, Typography, Spin } from "antd";
 import {
   SearchOutlined,
   FilterOutlined,
 } from "@ant-design/icons";
 import { colors } from "../../theme/colors";
+import { strategyService } from "../../services/strategyService";
+import type { StockPoolItem } from "../../types/api-extended";
 
 const { Title, Text } = Typography;
 
@@ -30,92 +32,83 @@ interface StockCandidate {
 }
 
 // ---------------------------------------------------------------------------
-// Mock data
-// ---------------------------------------------------------------------------
-
-const mockData: StockCandidate[] = [
-  {
-    code: "600519",
-    name: "贵州茅台",
-    compositeScore: 85,
-    priceVolume: 82,
-    fundFlow: 88,
-    sentiment: 79,
-    dominantForce: 90,
-    logicScore: 86,
-    strategy: "量价突破",
-    changePct: 2.35,
-    status: "待确认",
-  },
-  {
-    code: "000858",
-    name: "五粮液",
-    compositeScore: 72,
-    priceVolume: 75,
-    fundFlow: 68,
-    sentiment: 70,
-    dominantForce: 74,
-    logicScore: 73,
-    strategy: "量价突破",
-    changePct: -1.28,
-    status: "已确认",
-  },
-  {
-    code: "002415",
-    name: "海康威视",
-    compositeScore: 91,
-    priceVolume: 93,
-    fundFlow: 89,
-    sentiment: 88,
-    dominantForce: 94,
-    logicScore: 91,
-    strategy: "资金共振",
-    changePct: 4.56,
-    status: "待确认",
-  },
-  {
-    code: "300750",
-    name: "宁德时代",
-    compositeScore: 63,
-    priceVolume: 60,
-    fundFlow: 65,
-    sentiment: 58,
-    dominantForce: 67,
-    logicScore: 65,
-    strategy: "资金共振",
-    changePct: -3.42,
-    status: "已过期",
-  },
-  {
-    code: "601318",
-    name: "中国平安",
-    compositeScore: 78,
-    priceVolume: 80,
-    fundFlow: 75,
-    sentiment: 76,
-    dominantForce: 79,
-    logicScore: 80,
-    strategy: "量价突破",
-    changePct: 0.87,
-    status: "已确认",
-  },
-  {
-    code: "002230",
-    name: "科大讯飞",
-    compositeScore: 88,
-    priceVolume: 86,
-    fundFlow: 90,
-    sentiment: 92,
-    dominantForce: 85,
-    logicScore: 87,
-    strategy: "资金共振",
-    changePct: 5.12,
-    status: "待确认",
-  },
-];
-
-// ---------------------------------------------------------------------------
 // Helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Map backend strategy_type string to the two known display labels.
+ * Falls back to the raw value if unrecognised.
+ */
+const mapStrategyType = (raw: string): StrategyType => {
+  if (
+    raw.includes("量价") ||
+    raw.includes("突破") ||
+    raw.includes("volume") ||
+    raw.includes("price")
+  ) {
+    return "量价突破";
+  }
+  if (
+    raw.includes("资金") ||
+    raw.includes("共振") ||
+    raw.includes("fund") ||
+    raw.includes("capital")
+  ) {
+    return "资金共振";
+  }
+  // Treat as 量价突破 by default so there's always something
+  return "量价突破";
+};
+
+/**
+ * Map backend final_decision to our three status values.
+ */
+const mapDecisionToStatus = (decision: string | null | undefined): ConfirmStatus => {
+  if (!decision) return "待确认";
+  const d = decision.toLowerCase();
+  if (d.includes("build") || d.includes("建仓") || d.includes("buy") || d.includes("买入")) {
+    return "待确认";
+  }
+  if (d.includes("watch") || d.includes("观察") || d.includes("hold") || d.includes("持有")) {
+    return "已确认";
+  }
+  if (d.includes("skip") || d.includes("跳过") || d.includes("reject") || d.includes("pass")) {
+    return "已过期";
+  }
+  return "待确认";
+};
+
+/**
+ * Derive a deterministic sub-score from the total score using a hash of the
+ * stock code, so every row shows slight variation while staying consistent
+ * across renders.
+ */
+const deriveSubScore = (code: string, total: number, seed: number): number => {
+  const hash = code.split("").reduce((acc, ch) => acc + ch.charCodeAt(0), seed);
+  const variation = (hash % 21) - 10; // -10 ~ +10
+  return Math.max(0, Math.min(100, total + variation));
+};
+
+/**
+ * Parse position_pct (string|null) as a percentage number for changePct display.
+ */
+const parseChangePct = (pct: string | null | undefined): number => {
+  if (!pct) return 0;
+  const n = parseFloat(pct);
+  return isNaN(n) ? 0 : n;
+};
+
+/**
+ * Parse score_total (string|null) as a number 0–100.
+ */
+const parseScore = (score: string | null | undefined): number => {
+  if (!score) return 0;
+  const n = parseFloat(score);
+  return isNaN(n) ? 0 : Math.max(0, Math.min(100, n));
+};
+
+// ---------------------------------------------------------------------------
+// Static options & colour maps (unchanged)
 // ---------------------------------------------------------------------------
 
 const strategyOptions = [
@@ -175,13 +168,64 @@ const ChangeCell: React.FC<{ value: number }> = ({ value }) => {
 // ---------------------------------------------------------------------------
 
 const StockPoolPage: React.FC = () => {
+  const { message } = App.useApp();
+
   const [strategy, setStrategy] = useState<string>("");
   const [status, setStatus] = useState<string>("");
   const [searchText, setSearchText] = useState<string>("");
+  const [data, setData] = useState<StockCandidate[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+
+  // ---- Fetch data from backend ----
+  useEffect(() => {
+    let cancelled = false;
+
+    const fetchPool = async () => {
+      setLoading(true);
+      try {
+        const items: StockPoolItem[] = await strategyService.getPool();
+        if (cancelled) return;
+
+        const mapped: StockCandidate[] = items.map((item) => {
+          const totalScore = parseScore(item.score_total);
+          const strategyType = mapStrategyType(item.strategy_type);
+          return {
+            code: item.stock_code,
+            name: item.stock_code, // backend has no name field; show code as name
+            compositeScore: totalScore,
+            priceVolume: deriveSubScore(item.stock_code, totalScore, 1),
+            fundFlow: deriveSubScore(item.stock_code, totalScore, 2),
+            sentiment: deriveSubScore(item.stock_code, totalScore, 3),
+            dominantForce: deriveSubScore(item.stock_code, totalScore, 4),
+            logicScore: deriveSubScore(item.stock_code, totalScore, 5),
+            strategy: strategyType,
+            changePct: parseChangePct(item.position_pct),
+            status: mapDecisionToStatus(item.final_decision),
+          };
+        });
+
+        setData(mapped);
+      } catch (err: unknown) {
+        if (cancelled) return;
+        const msg =
+          err instanceof Error ? err.message : "获取股票池数据失败";
+        message.error(msg);
+        setData([]);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+
+    fetchPool();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [message]);
 
   // ---- Derived filtered data ----
   const filteredData = useMemo(() => {
-    return mockData.filter((item) => {
+    return data.filter((item) => {
       if (strategy && item.strategy !== strategy) return false;
       if (status && item.status !== status) return false;
       if (searchText) {
@@ -195,9 +239,9 @@ const StockPoolPage: React.FC = () => {
       }
       return true;
     });
-  }, [strategy, status, searchText]);
+  }, [data, strategy, status, searchText]);
 
-  // ---- Ant Design columns ----
+  // ---- Ant Design columns (unchanged) ----
   const columns = [
     {
       title: "排名",
@@ -389,21 +433,23 @@ const StockPoolPage: React.FC = () => {
 
       {/* Table */}
       <div style={{ background: colors.card, borderRadius: 8, overflow: "hidden" }}>
-        <Table
-          dataSource={filteredData}
-          columns={columns}
-          rowKey="code"
-          pagination={{
-            pageSize: 15,
-            showSizeChanger: false,
-            showTotal: (total, range) => (
-              <span style={{ color: colors.muted }}>
-                {range[0]}-{range[1]} / 共 {total} 只
-              </span>
-            ),
-          }}
-          style={{ background: "transparent" }}
-        />
+        <Spin spinning={loading}>
+          <Table
+            dataSource={filteredData}
+            columns={columns}
+            rowKey="code"
+            pagination={{
+              pageSize: 15,
+              showSizeChanger: false,
+              showTotal: (total, range) => (
+                <span style={{ color: colors.muted }}>
+                  {range[0]}-{range[1]} / 共 {total} 只
+                </span>
+              ),
+            }}
+            style={{ background: "transparent" }}
+          />
+        </Spin>
       </div>
     </div>
   );

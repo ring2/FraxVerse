@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import {
   Row,
   Col,
@@ -12,237 +12,153 @@ import {
   Space,
   Modal,
   Typography,
-  DatePicker,
   Card,
-  message,
 } from "antd";
+import { App } from "antd";
 import { colors } from "../../theme/colors";
-import type {
-  PositionItem,
-  TradeOrder,
-  StopLossCondition,
-  TradeMode,
-  SubmitOrderRequest,
-} from "../../types/trade";
+import type { components } from "../../types/api-generated";
+import { portfolioService } from "../../services/portfolioService";
+import { tradeService } from "../../services/tradeService";
+
+type BackendPosition = components["schemas"]["PositionItem"];
+type BackendOrder = components["schemas"]["OrderResponse"];
 
 const { Text, Title } = Typography;
-const { RangePicker } = DatePicker;
 
 /* ============================================================
-   Mock Data
+   Types — UI-layer fields that backend doesn't have
    ============================================================ */
-const mockPositions: PositionItem[] = [
-  {
-    id: "p1",
-    stockCode: "600519",
-    stockName: "贵州茅台",
-    volume: 100,
-    avgCost: 1850.0,
-    currentPrice: 1893.5,
-    marketValue: 189350,
-    pnl: 4350,
-    pnlPct: 2.35,
-    strategy: "价值投资",
-    openedAt: "2025-01-15",
-  },
-  {
-    id: "p2",
-    stockCode: "300750",
-    stockName: "宁德时代",
-    volume: 500,
-    avgCost: 245.0,
-    currentPrice: 241.86,
-    marketValue: 120930,
-    pnl: -1570,
-    pnlPct: -1.28,
-    strategy: "动量策略",
-    openedAt: "2025-03-20",
-  },
-  {
-    id: "p3",
-    stockCode: "000001",
-    stockName: "平安银行",
-    volume: 1000,
-    avgCost: 11.5,
-    currentPrice: 11.6,
-    marketValue: 11600,
-    pnl: 100,
-    pnlPct: 0.87,
-    strategy: "网格策略",
-    openedAt: "2025-04-01",
-  },
-];
-
-const mockStopLosses: StopLossCondition[] = [
-  {
-    id: "sl1",
-    stockCode: "600519",
-    stockName: "贵州茅台",
-    type: "fixed",
-    triggerPrice: 1820.0,
-    currentPrice: 1893.5,
-    status: "active",
-    createdAt: "2025-04-10 09:30",
-  },
-  {
-    id: "sl2",
-    stockCode: "300750",
-    stockName: "宁德时代",
-    type: "trailing",
-    triggerPrice: 235.0,
-    currentPrice: 241.86,
-    status: "active",
-    createdAt: "2025-04-12 14:15",
-  },
-];
-
-const mockTradeLogs: (TradeOrder & { stockName: string })[] = [
-  {
-    id: "t1",
-    stockCode: "600519",
-    stockName: "贵州茅台",
-    direction: "buy",
-    orderType: "limit",
-    price: 1840.0,
-    volume: 100,
-    filledVolume: 100,
-    status: "filled",
-    createdAt: "2025-04-08 09:35:12",
-    updatedAt: "2025-04-08 09:35:15",
-  },
-  {
-    id: "t2",
-    stockCode: "300750",
-    stockName: "宁德时代",
-    direction: "sell",
-    orderType: "market",
-    price: 242.5,
-    volume: 200,
-    filledVolume: 200,
-    status: "filled",
-    createdAt: "2025-04-09 10:20:45",
-    updatedAt: "2025-04-09 10:20:46",
-  },
-  {
-    id: "t3",
-    stockCode: "000001",
-    stockName: "平安银行",
-    direction: "buy",
-    orderType: "limit",
-    price: 11.45,
-    volume: 1000,
-    filledVolume: 1000,
-    status: "filled",
-    createdAt: "2025-04-10 11:05:33",
-    updatedAt: "2025-04-10 11:05:35",
-  },
-  {
-    id: "t4",
-    stockCode: "600519",
-    stockName: "贵州茅台",
-    direction: "buy",
-    orderType: "limit",
-    price: 1855.0,
-    volume: 100,
-    filledVolume: 0,
-    status: "pending",
-    createdAt: "2025-04-11 13:45:00",
-    updatedAt: "2025-04-11 13:45:00",
-  },
-  {
-    id: "t5",
-    stockCode: "300750",
-    stockName: "宁德时代",
-    direction: "sell",
-    orderType: "limit",
-    price: 250.0,
-    volume: 300,
-    filledVolume: 0,
-    status: "cancelled",
-    createdAt: "2025-04-12 09:15:22",
-    updatedAt: "2025-04-12 10:30:00",
-  },
-];
+interface OrderDisplay extends BackendOrder {
+  stockName: string;
+}
 
 /* ============================================================
    Component
    ============================================================ */
 const TradePage: React.FC = () => {
+  const { message } = App.useApp();
+
   // ---- state ----
-  const [mode, setMode] = useState<TradeMode>("SIMULATION");
+  const [mode, setMode] = useState<string>("SIMULATION");
+  const [positions, setPositions] = useState<BackendPosition[]>([]);
+  const [orders, setOrders] = useState<OrderDisplay[]>([]);
+  const [loading, setLoading] = useState(true);
   const [modeModalOpen, setModeModalOpen] = useState(false);
-  const [pendingMode, setPendingMode] = useState<TradeMode | null>(null);
+  const [pendingMode, setPendingMode] = useState<string | null>(null);
   const [emergencyModalOpen, setEmergencyModalOpen] = useState(false);
   const [orderModalOpen, setOrderModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const [orderForm] = Form.useForm<SubmitOrderRequest>();
+  const [orderForm] = Form.useForm();
+
+  // ---- data fetching ----
+  const fetchAll = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [posData, ordData, modeData] = await Promise.all([
+        portfolioService.getPositions(),
+        tradeService.getOrders(),
+        tradeService.getMode(),
+      ]);
+      setPositions(posData);
+      setOrders(
+        ordData.map((o) => ({ ...o, stockName: o.stock_code }))
+      );
+      if (modeData) setMode(modeData.current_mode);
+    } catch (e) {
+      console.error("TradePage: failed to load data", e);
+      message.error("加载数据失败");
+    } finally {
+      setLoading(false);
+    }
+  }, [message]);
+
+  useEffect(() => {
+    fetchAll();
+  }, [fetchAll]);
 
   // ---- trade-mode tag click handler ----
-  const handleModeClick = (target: TradeMode) => {
+  const handleModeClick = (target: string) => {
     if (target === mode) return;
     setPendingMode(target);
     setModeModalOpen(true);
   };
 
-  const confirmModeChange = () => {
-    if (pendingMode) setMode(pendingMode);
+  const confirmModeChange = async () => {
+    if (!pendingMode) return;
+    try {
+      await tradeService.updateMode({ target_mode: pendingMode });
+      setMode(pendingMode);
+      message.success(`交易模式已切换至 ${pendingMode}`);
+    } catch {
+      message.error("切换模式失败");
+    }
     setModeModalOpen(false);
     setPendingMode(null);
   };
 
   // ---- emergency stop ----
   const handleEmergencyStop = () => setEmergencyModalOpen(true);
-  const confirmEmergencyStop = () => {
-    message.warning("🚨 紧急停止已触发 — 所有交易已暂停");
-    setMode("SIMULATION");
+  const confirmEmergencyStop = async () => {
+    try {
+      await tradeService.emergencyStop();
+      message.warning("🚨 紧急停止已触发 — 所有交易已暂停");
+      setMode("SIMULATION");
+    } catch {
+      message.error("紧急停止失败");
+    }
     setEmergencyModalOpen(false);
   };
 
+  // ---- submit order ----
   const handleSubmitOrder = () => {
     orderForm.validateFields().then(() => setOrderModalOpen(true));
   };
 
   const confirmSubmitOrder = async () => {
     setIsSubmitting(true);
-    // simulate network delay
-    await new Promise((r) => setTimeout(r, 800));
-    message.success("订单已提交");
-    setIsSubmitting(false);
-    setOrderModalOpen(false);
-    orderForm.resetFields();
+    try {
+      const vals = orderForm.getFieldsValue();
+      await tradeService.createOrder({
+        stock_code: vals.stockCode,
+        direction: vals.direction,
+        order_type: vals.orderType,
+        price: vals.price ?? 0,
+        volume: vals.volume,
+        strategy_type: "",
+        reason: "",
+      });
+      message.success("订单已提交");
+      setOrderModalOpen(false);
+      orderForm.resetFields();
+      fetchAll(); // refresh
+    } catch {
+      message.error("下单失败");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
-
-  // ---- helper: pnl color ----
-  // (unused, kept for reference)
-  // const getPnlColor = (v: number) => (v >= 0 ? colors.danger : colors.success);
 
   // ---- columns ----
   const positionColumns = useMemo(
     () => [
       {
         title: "标的",
-        dataIndex: "stockName",
-        key: "stockName",
-        render: (_: string, r: PositionItem) => (
+        dataIndex: "stock_name",
+        key: "stock_name",
+        render: (_: string, r: BackendPosition) => (
           <span>
-            <span style={{ color: colors.text }}>{r.stockName}</span>
-            <Text
-              style={{
-                color: colors.dimmed,
-                fontSize: 12,
-                marginLeft: 6,
-              }}
-            >
-              {r.stockCode}
+            <span style={{ color: colors.text }}>{r.stock_name}</span>
+            <Text style={{ color: colors.dimmed, fontSize: 12, marginLeft: 6 }}>
+              {r.stock_code}
             </Text>
           </span>
         ),
       },
       {
         title: "数量",
-        dataIndex: "volume",
-        key: "volume",
+        dataIndex: "total_volume",
+        key: "total_volume",
         width: 100,
         align: "right" as const,
         render: (v: number) => (
@@ -251,103 +167,45 @@ const TradePage: React.FC = () => {
       },
       {
         title: "成本",
-        dataIndex: "avgCost",
-        key: "avgCost",
+        dataIndex: "cost_price",
+        key: "cost_price",
         width: 100,
         align: "right" as const,
-        render: (v: number) => (
-          <span style={{ color: colors.muted }}>¥{v.toFixed(2)}</span>
+        render: (v: string) => (
+          <span style={{ color: colors.muted }}>¥{parseFloat(v || "0").toFixed(2)}</span>
         ),
       },
       {
-        title: "现价",
-        dataIndex: "currentPrice",
-        key: "currentPrice",
+        title: "市值",
+        dataIndex: "market_value",
+        key: "market_value",
         width: 100,
         align: "right" as const,
-        render: (v: number) => (
-          <span style={{ color: colors.text }}>¥{v.toFixed(2)}</span>
+        render: (v: string) => (
+          <span style={{ color: colors.text }}>¥{parseFloat(v || "0").toFixed(2)}</span>
         ),
       },
       {
         title: "盈亏%",
-        dataIndex: "pnlPct",
-        key: "pnlPct",
+        dataIndex: "unrealized_pnl_pct",
+        key: "unrealized_pnl_pct",
         width: 100,
         align: "right" as const,
-        render: (v: number) => {
-          const sign = v >= 0 ? "+" : "";
+        render: (v: string) => {
+          const num = parseFloat(v || "0");
+          const sign = num >= 0 ? "+" : "";
           return (
             <span
               style={{
-                color: v >= 0 ? colors.danger : colors.success,
+                color: num >= 0 ? colors.danger : colors.success,
                 fontWeight: 600,
               }}
             >
               {sign}
-              {v.toFixed(2)}%
+              {(num * 100).toFixed(2)}%
             </span>
           );
         },
-      },
-    ],
-    []
-  );
-
-  const stopLossColumns = useMemo(
-    () => [
-      {
-        title: "标的",
-        dataIndex: "stockName",
-        key: "stockName",
-        render: (_: string, r: StopLossCondition) => (
-          <span>
-            <span style={{ color: colors.text }}>{r.stockName}</span>
-            <Text
-              style={{
-                color: colors.dimmed,
-                fontSize: 12,
-                marginLeft: 6,
-              }}
-            >
-              {r.stockCode}
-            </Text>
-          </span>
-        ),
-      },
-      {
-        title: "类型",
-        dataIndex: "type",
-        key: "type",
-        width: 120,
-        render: (v: string) => (
-          <Tag
-            color={v === "fixed" ? "blue" : "orange"}
-            style={{ borderRadius: 4 }}
-          >
-            {v === "fixed" ? "固定止损" : "追踪止损"}
-          </Tag>
-        ),
-      },
-      {
-        title: "触发价",
-        dataIndex: "triggerPrice",
-        key: "triggerPrice",
-        width: 110,
-        align: "right" as const,
-        render: (v: number) => (
-          <span style={{ color: colors.amber }}>¥{v.toFixed(2)}</span>
-        ),
-      },
-      {
-        title: "现价",
-        dataIndex: "currentPrice",
-        key: "currentPrice",
-        width: 110,
-        align: "right" as const,
-        render: (v: number) => (
-          <span style={{ color: colors.text }}>¥{v.toFixed(2)}</span>
-        ),
       },
     ],
     []
@@ -357,23 +215,22 @@ const TradePage: React.FC = () => {
     () => [
       {
         title: "时间",
-        dataIndex: "createdAt",
-        key: "createdAt",
+        dataIndex: "created_at",
+        key: "created_at",
         width: 170,
         render: (v: string) => (
-          <span style={{ color: colors.muted, fontSize: 13 }}>{v}</span>
+          <span style={{ color: colors.muted, fontSize: 13 }}>
+            {v ? new Date(v).toLocaleString("zh-CN") : "-"}
+          </span>
         ),
       },
       {
         title: "标的",
         key: "stock",
         width: 140,
-        render: (_: unknown, r: TradeOrder & { stockName: string }) => (
+        render: (_: unknown, r: OrderDisplay) => (
           <span>
-            <span style={{ color: colors.text }}>{r.stockName}</span>
-            <Text style={{ color: colors.dimmed, fontSize: 12, marginLeft: 4 }}>
-              {r.stockCode}
-            </Text>
+            <span style={{ color: colors.text }}>{r.stock_code}</span>
           </span>
         ),
       },
@@ -392,17 +249,6 @@ const TradePage: React.FC = () => {
         ),
       },
       {
-        title: "类型",
-        dataIndex: "orderType",
-        key: "orderType",
-        width: 80,
-        render: (v: string) => (
-          <span style={{ color: colors.muted }}>
-            {v === "market" ? "市价" : "限价"}
-          </span>
-        ),
-      },
-      {
         title: "数量",
         dataIndex: "volume",
         key: "volume",
@@ -410,6 +256,26 @@ const TradePage: React.FC = () => {
         align: "right" as const,
         render: (v: number) => (
           <span style={{ color: colors.text }}>{v.toLocaleString()}</span>
+        ),
+      },
+      {
+        title: "成交",
+        dataIndex: "filled_volume",
+        key: "filled_volume",
+        width: 90,
+        align: "right" as const,
+        render: (v: number) => (
+          <span style={{ color: colors.muted }}>{v.toLocaleString()}</span>
+        ),
+      },
+      {
+        title: "价格",
+        dataIndex: "price",
+        key: "price",
+        width: 100,
+        align: "right" as const,
+        render: (v: string) => (
+          <span style={{ color: colors.text }}>¥{parseFloat(v || "0").toFixed(2)}</span>
         ),
       },
       {
@@ -439,14 +305,12 @@ const TradePage: React.FC = () => {
     []
   );
 
-  // ---- watch order type to conditionally show limit price ----
+  // ---- watch order type ----
   const orderTypeValue = Form.useWatch("orderType", orderForm);
 
   return (
     <div style={{ padding: "0 0 24px 0" }}>
-      {/* ================================================================
-          Top bar: mode tags + emergency button
-          ================================================================ */}
+      {/* Top bar: mode tags + emergency button */}
       <Title level={3} style={{ color: colors.text, marginBottom: 20 }}>
         交易星图
       </Title>
@@ -458,12 +322,11 @@ const TradePage: React.FC = () => {
           border: `1px solid ${colors.border}`,
           borderRadius: 12,
         }}
-        bodyStyle={{ padding: "14px 24px" }}
+        styles={{ body: { padding: "14px 24px" } }}
       >
         <Row align="middle" justify="space-between">
-          {/* Mode tags */}
           <Space size={12}>
-            {(["SIMULATION", "PAPER", "LIVE"] as TradeMode[]).map((m) => {
+            {(["SIMULATION", "PAPER", "LIVE"] as const).map((m) => {
               const isActive = mode === m;
               const isLive = m === "LIVE";
               const activeColor = isLive ? colors.danger : colors.shard;
@@ -479,9 +342,7 @@ const TradePage: React.FC = () => {
                     fontSize: 13,
                     fontWeight: isActive ? 700 : 500,
                     letterSpacing: "0.5px",
-                    background: isActive
-                      ? `${activeColor}22`
-                      : "transparent",
+                    background: isActive ? `${activeColor}22` : "transparent",
                     border: isActive
                       ? `1.5px solid ${activeColor}`
                       : `1px solid ${colors.dimmed}`,
@@ -489,17 +350,12 @@ const TradePage: React.FC = () => {
                     transition: "all 0.25s ease",
                   }}
                 >
-                  {m === "SIMULATION"
-                    ? "💻 模拟"
-                    : m === "PAPER"
-                    ? "📄 纸交"
-                    : "🔥 实盘"}
+                  {m === "SIMULATION" ? "💻 模拟" : m === "PAPER" ? "📄 纸交" : "🔥 实盘"}
                 </span>
               );
             })}
           </Space>
 
-          {/* Emergency stop — only in LIVE mode */}
           {mode === "LIVE" && (
             <Button
               danger
@@ -523,11 +379,8 @@ const TradePage: React.FC = () => {
         </Row>
       </Card>
 
-      {/* ================================================================
-          Middle: Positions (left 14/24) + Order form (right 10/24)
-          ================================================================ */}
+      {/* Positions + Order form */}
       <Row gutter={[16, 16]}>
-        {/* Left — Positions */}
         <Col xs={24} lg={14}>
           <Card
             title={
@@ -536,24 +389,22 @@ const TradePage: React.FC = () => {
               </span>
             }
             headStyle={{ borderBottom: `1px solid ${colors.border}` }}
-            bodyStyle={{ padding: 0 }}
+            styles={{ body: { padding: 0 } }}
           >
             <Table
-              dataSource={mockPositions}
+              dataSource={positions}
               columns={positionColumns}
-              rowKey="id"
+              rowKey="stock_code"
               size="small"
+              loading={loading}
               pagination={false}
               locale={{
-                emptyText: (
-                  <span style={{ color: colors.muted }}>暂无持仓</span>
-                ),
+                emptyText: <span style={{ color: colors.muted }}>暂无持仓</span>,
               }}
             />
           </Card>
         </Col>
 
-        {/* Right — Order Form */}
         <Col xs={24} lg={10}>
           <Card
             title={
@@ -574,13 +425,10 @@ const TradePage: React.FC = () => {
               }}
               style={{ maxWidth: "100%" }}
             >
-              {/* 股票代码 */}
               <Form.Item
                 name="stockCode"
                 label={<span style={{ color: colors.muted }}>股票代码 *</span>}
-                rules={[
-                  { required: true, message: "请输入股票代码" },
-                ]}
+                rules={[{ required: true, message: "请输入股票代码" }]}
               >
                 <Input
                   placeholder="例如 600519"
@@ -593,16 +441,12 @@ const TradePage: React.FC = () => {
                 />
               </Form.Item>
 
-              {/* 方向 */}
               <Form.Item
                 name="direction"
                 label={<span style={{ color: colors.muted }}>方向</span>}
               >
                 <Select
-                  style={{
-                    background: colors.bg,
-                    borderRadius: 6,
-                  }}
+                  style={{ background: colors.bg, borderRadius: 6 }}
                   dropdownStyle={{ background: colors.card }}
                 >
                   <Select.Option value="buy">买入</Select.Option>
@@ -610,16 +454,12 @@ const TradePage: React.FC = () => {
                 </Select>
               </Form.Item>
 
-              {/* 订单类型 */}
               <Form.Item
                 name="orderType"
                 label={<span style={{ color: colors.muted }}>订单类型</span>}
               >
                 <Select
-                  style={{
-                    background: colors.bg,
-                    borderRadius: 6,
-                  }}
+                  style={{ background: colors.bg, borderRadius: 6 }}
                   dropdownStyle={{ background: colors.card }}
                 >
                   <Select.Option value="market">市价</Select.Option>
@@ -627,14 +467,11 @@ const TradePage: React.FC = () => {
                 </Select>
               </Form.Item>
 
-              {/* 限价价格 (conditional) */}
               {orderTypeValue === "limit" && (
                 <Form.Item
                   name="price"
                   label={<span style={{ color: colors.muted }}>限价价格</span>}
-                  rules={[
-                    { required: true, message: "请输入限价价格" },
-                  ]}
+                  rules={[{ required: true, message: "请输入限价价格" }]}
                 >
                   <InputNumber
                     min={0.01}
@@ -651,17 +488,12 @@ const TradePage: React.FC = () => {
                 </Form.Item>
               )}
 
-              {/* 数量 */}
               <Form.Item
                 name="volume"
                 label={<span style={{ color: colors.muted }}>数量 *</span>}
                 rules={[
                   { required: true, message: "请输入数量" },
-                  {
-                    type: "number",
-                    min: 100,
-                    message: "最小数量为100",
-                  },
+                  { type: "number", min: 100, message: "最小数量为100" },
                 ]}
               >
                 <InputNumber
@@ -676,7 +508,6 @@ const TradePage: React.FC = () => {
                 />
               </Form.Item>
 
-              {/* 止损价 */}
               <Form.Item
                 name="stopLossPrice"
                 label={<span style={{ color: colors.muted }}>止损价（可选）</span>}
@@ -695,7 +526,6 @@ const TradePage: React.FC = () => {
                 />
               </Form.Item>
 
-              {/* 止盈价 */}
               <Form.Item
                 name="stopProfitPrice"
                 label={<span style={{ color: colors.muted }}>止盈价（可选）</span>}
@@ -714,7 +544,6 @@ const TradePage: React.FC = () => {
                 />
               </Form.Item>
 
-              {/* 下单按钮 */}
               <Form.Item style={{ marginBottom: 0 }}>
                 <Button
                   type="primary"
@@ -743,38 +572,9 @@ const TradePage: React.FC = () => {
         </Col>
       </Row>
 
-      {/* ================================================================
-          Bottom: Stop-loss conditions + Trade log
-          ================================================================ */}
+      {/* Trade log */}
       <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
-        {/* Stop-loss conditions */}
-        <Col xs={24} lg={10}>
-          <Card
-            title={
-              <span style={{ color: colors.text, fontSize: 15, fontWeight: 600 }}>
-                🛡 止损条件
-              </span>
-            }
-            headStyle={{ borderBottom: `1px solid ${colors.border}` }}
-            bodyStyle={{ padding: 0 }}
-          >
-            <Table
-              dataSource={mockStopLosses}
-              columns={stopLossColumns}
-              rowKey="id"
-              size="small"
-              pagination={false}
-              locale={{
-                emptyText: (
-                  <span style={{ color: colors.muted }}>暂无止损条件</span>
-                ),
-              }}
-            />
-          </Card>
-        </Col>
-
-        {/* Trade log */}
-        <Col xs={24} lg={14}>
+        <Col xs={24}>
           <Card
             title={
               <span style={{ color: colors.text, fontSize: 15, fontWeight: 600 }}>
@@ -783,94 +583,24 @@ const TradePage: React.FC = () => {
             }
             headStyle={{ borderBottom: `1px solid ${colors.border}` }}
           >
-            {/* Filters */}
-            <Row gutter={[12, 12]} style={{ marginBottom: 16 }}>
-              <Col xs={24} sm={8}>
-                <RangePicker
-                  style={{
-                    width: "100%",
-                    background: colors.bg,
-                    borderColor: colors.border,
-                    borderRadius: 6,
-                  }}
-                  popupClassName="range-picker-cosmos"
-                />
-              </Col>
-              <Col xs={12} sm={5}>
-                <Input
-                  placeholder="搜索代码"
-                  style={{
-                    background: colors.bg,
-                    borderColor: colors.border,
-                    color: colors.text,
-                    borderRadius: 6,
-                  }}
-                />
-              </Col>
-              <Col xs={12} sm={5}>
-                <Select
-                  placeholder="策略"
-                  allowClear
-                  style={{
-                    width: "100%",
-                    background: colors.bg,
-                    borderRadius: 6,
-                  }}
-                  dropdownStyle={{ background: colors.card }}
-                >
-                  <Select.Option value="all">全部</Select.Option>
-                  <Select.Option value="value">价值投资</Select.Option>
-                  <Select.Option value="momentum">动量策略</Select.Option>
-                  <Select.Option value="grid">网格策略</Select.Option>
-                </Select>
-              </Col>
-              <Col xs={12} sm={6}>
-                <Select
-                  placeholder="事件"
-                  allowClear
-                  style={{
-                    width: "100%",
-                    background: colors.bg,
-                    borderRadius: 6,
-                  }}
-                  dropdownStyle={{ background: colors.card }}
-                >
-                  <Select.Option value="all">全部</Select.Option>
-                  <Select.Option value="buy">买入</Select.Option>
-                  <Select.Option value="sell">卖出</Select.Option>
-                  <Select.Option value="sl">止损触发</Select.Option>
-                  <Select.Option value="tp">止盈触发</Select.Option>
-                </Select>
-              </Col>
-            </Row>
-
             <Table
-              dataSource={mockTradeLogs}
+              dataSource={orders}
               columns={logColumns}
               rowKey="id"
               size="small"
-              pagination={{ pageSize: 5, size: "small" }}
+              loading={loading}
+              pagination={{ pageSize: 10, size: "small" }}
               locale={{
-                emptyText: (
-                  <span style={{ color: colors.muted }}>暂无交易日志</span>
-                ),
+                emptyText: <span style={{ color: colors.muted }}>暂无交易日志</span>,
               }}
             />
           </Card>
         </Col>
       </Row>
 
-      {/* ================================================================
-          Modals
-          ================================================================ */}
-
-      {/* Mode switch confirm */}
+      {/* Modals */}
       <Modal
-        title={
-          <span style={{ color: colors.text }}>
-            切换交易模式
-          </span>
-        }
+        title={<span style={{ color: colors.text }}>切换交易模式</span>}
         open={modeModalOpen}
         onOk={confirmModeChange}
         onCancel={() => {
@@ -903,7 +633,6 @@ const TradePage: React.FC = () => {
         </Text>
       </Modal>
 
-      {/* Emergency stop confirm */}
       <Modal
         title={
           <span style={{ color: colors.danger, fontWeight: 700 }}>
@@ -915,13 +644,7 @@ const TradePage: React.FC = () => {
         onCancel={() => setEmergencyModalOpen(false)}
         okText="确认紧急停止"
         cancelText="取消"
-        okButtonProps={{
-          danger: true,
-          style: {
-            fontWeight: 600,
-            borderRadius: 6,
-          },
-        }}
+        okButtonProps={{ danger: true, style: { fontWeight: 600, borderRadius: 6 } }}
         centered
         styles={{
           header: { background: colors.card, borderRadius: 8 },
@@ -934,7 +657,7 @@ const TradePage: React.FC = () => {
         }}
       >
         <Text style={{ color: colors.muted }}>
-          此操作将立即{""}
+          此操作将立即{" "}
           <Text strong style={{ color: colors.danger }}>
             暂停所有交易活动
           </Text>
@@ -942,7 +665,6 @@ const TradePage: React.FC = () => {
         </Text>
       </Modal>
 
-      {/* Order submit confirm */}
       <Modal
         title={
           <span style={{ color: colors.text, fontWeight: 600 }}>
@@ -971,30 +693,19 @@ const TradePage: React.FC = () => {
           return (
             <div>
               <Row style={{ marginBottom: 8 }}>
-                <Col span={10}>
-                  <Text style={{ color: colors.muted }}>股票</Text>
-                </Col>
-                <Col span={14}>
-                  <Text style={{ color: colors.text }}>{vals.stockCode}</Text>
-                </Col>
+                <Col span={10}><Text style={{ color: colors.muted }}>股票</Text></Col>
+                <Col span={14}><Text style={{ color: colors.text }}>{vals.stockCode}</Text></Col>
               </Row>
               <Row style={{ marginBottom: 8 }}>
-                <Col span={10}>
-                  <Text style={{ color: colors.muted }}>方向</Text>
-                </Col>
+                <Col span={10}><Text style={{ color: colors.muted }}>方向</Text></Col>
                 <Col span={14}>
-                  <Tag
-                    color={vals.direction === "buy" ? "green" : "red"}
-                    style={{ borderRadius: 4 }}
-                  >
+                  <Tag color={vals.direction === "buy" ? "green" : "red"} style={{ borderRadius: 4 }}>
                     {vals.direction === "buy" ? "买入" : "卖出"}
                   </Tag>
                 </Col>
               </Row>
               <Row style={{ marginBottom: 8 }}>
-                <Col span={10}>
-                  <Text style={{ color: colors.muted }}>类型</Text>
-                </Col>
+                <Col span={10}><Text style={{ color: colors.muted }}>类型</Text></Col>
                 <Col span={14}>
                   <Text style={{ color: colors.text }}>
                     {vals.orderType === "market" ? "市价" : "限价"}
@@ -1003,47 +714,31 @@ const TradePage: React.FC = () => {
               </Row>
               {vals.price != null && (
                 <Row style={{ marginBottom: 8 }}>
-                  <Col span={10}>
-                    <Text style={{ color: colors.muted }}>价格</Text>
-                  </Col>
+                  <Col span={10}><Text style={{ color: colors.muted }}>价格</Text></Col>
                   <Col span={14}>
-                    <Text style={{ color: colors.text }}>
-                      ¥{vals.price?.toFixed(2)}
-                    </Text>
+                    <Text style={{ color: colors.text }}>¥{vals.price?.toFixed(2)}</Text>
                   </Col>
                 </Row>
               )}
               <Row style={{ marginBottom: 8 }}>
-                <Col span={10}>
-                  <Text style={{ color: colors.muted }}>数量</Text>
-                </Col>
+                <Col span={10}><Text style={{ color: colors.muted }}>数量</Text></Col>
                 <Col span={14}>
-                  <Text style={{ color: colors.text }}>
-                    {vals.volume?.toLocaleString()} 股
-                  </Text>
+                  <Text style={{ color: colors.text }}>{vals.volume?.toLocaleString()} 股</Text>
                 </Col>
               </Row>
               {vals.stopLossPrice != null && (
                 <Row style={{ marginBottom: 8 }}>
-                  <Col span={10}>
-                    <Text style={{ color: colors.muted }}>止损价</Text>
-                  </Col>
+                  <Col span={10}><Text style={{ color: colors.muted }}>止损价</Text></Col>
                   <Col span={14}>
-                    <Text style={{ color: colors.danger }}>
-                      ¥{vals.stopLossPrice?.toFixed(2)}
-                    </Text>
+                    <Text style={{ color: colors.danger }}>¥{vals.stopLossPrice?.toFixed(2)}</Text>
                   </Col>
                 </Row>
               )}
               {vals.stopProfitPrice != null && (
                 <Row style={{ marginBottom: 8 }}>
-                  <Col span={10}>
-                    <Text style={{ color: colors.muted }}>止盈价</Text>
-                  </Col>
+                  <Col span={10}><Text style={{ color: colors.muted }}>止盈价</Text></Col>
                   <Col span={14}>
-                    <Text style={{ color: colors.success }}>
-                      ¥{vals.stopProfitPrice?.toFixed(2)}
-                    </Text>
+                    <Text style={{ color: colors.success }}>¥{vals.stopProfitPrice?.toFixed(2)}</Text>
                   </Col>
                 </Row>
               )}
@@ -1052,17 +747,10 @@ const TradePage: React.FC = () => {
         })()}
       </Modal>
 
-      {/* Inline keyframes for emergency pulse animation */}
       <style>{`
         @keyframes pulse-emergency {
-          0%, 100% {
-            transform: scale(1);
-            box-shadow: 0 0 12px ${colors.danger}44;
-          }
-          50% {
-            transform: scale(1.03);
-            box-shadow: 0 0 28px ${colors.danger}99;
-          }
+          0%, 100% { transform: scale(1); box-shadow: 0 0 12px ${colors.danger}44; }
+          50% { transform: scale(1.03); box-shadow: 0 0 28px ${colors.danger}99; }
         }
       `}</style>
     </div>

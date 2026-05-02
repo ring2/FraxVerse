@@ -1,4 +1,5 @@
-import { Card, Tag, List } from "antd";
+import { useEffect, useState } from "react";
+import { Card, Tag, List, Spin, App } from "antd";
 import {
   RiseOutlined,
   FallOutlined,
@@ -7,27 +8,60 @@ import {
   BulbOutlined,
 } from "@ant-design/icons";
 import { colors } from "../../theme/colors";
-
-interface CandidateItem {
-  name: string;
-  code: string;
-  score: number;
-  strategy: string;
-  changePct: number;
-}
-
-const CANDIDATES: CandidateItem[] = [
-  { name: "宁德时代", code: "300750", score: 87, strategy: "策略一", changePct: 3.25 },
-  { name: "比亚迪", code: "002594", score: 82, strategy: "策略二", changePct: -1.48 },
-  { name: "中科曙光", code: "603019", score: 78, strategy: "策略一", changePct: 5.62 },
-  { name: "北方华创", code: "002371", score: 74, strategy: "策略二", changePct: -0.93 },
-  { name: "金山办公", code: "688111", score: 71, strategy: "策略一", changePct: 2.17 },
-];
+import { strategyService } from "../../services/strategyService";
+import type { StockPoolItem } from "../../types/api-extended";
 
 function MobileStockPool() {
-  const countTotal = CANDIDATES.length;
-  const countS1 = CANDIDATES.filter((c) => c.strategy === "策略一").length;
-  const countS2 = CANDIDATES.filter((c) => c.strategy === "策略二").length;
+  const { message } = App.useApp();
+  const [loading, setLoading] = useState(true);
+  const [items, setItems] = useState<StockPoolItem[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+
+    strategyService
+      .getPool()
+      .then((data) => {
+        if (cancelled) return;
+        setItems(data);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        console.error("Failed to load stock pool:", err);
+        message.error("加载股票池失败");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [message]);
+
+  const countTotal = items.length;
+  const countS1 = items.filter((c) => c.strategy_type === "strategy_1").length;
+  const countS2 = items.filter((c) => c.strategy_type === "strategy_2").length;
+
+  const getScoreLabel = (item: StockPoolItem): string => {
+    return item.score_total ? `${parseFloat(item.score_total).toFixed(0)}分` : "--";
+  };
+
+  if (loading) {
+    return (
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          minHeight: 200,
+        }}
+      >
+        <Spin tip="加载中..." />
+      </div>
+    );
+  }
 
   return (
     <div style={{ paddingBottom: 16 }}>
@@ -108,10 +142,12 @@ function MobileStockPool() {
 
       {/* Candidate List */}
       <List
-        dataSource={CANDIDATES}
+        dataSource={items}
         split={false}
         renderItem={(item) => {
-          const isUp = item.changePct >= 0;
+          const decision = item.final_decision;
+          const isUp = decision === "buy";
+          const isDown = decision === "sell";
           return (
             <List.Item
               style={{
@@ -138,12 +174,25 @@ function MobileStockPool() {
                       fontWeight: 600,
                     }}
                   >
-                    {item.name}
-                    <span style={{ color: colors.dimmed, fontSize: 11, marginLeft: 6 }}>
-                      {item.code}
+                    {item.stock_code}
+                    <span
+                      style={{
+                        color: colors.dimmed,
+                        fontSize: 11,
+                        marginLeft: 6,
+                      }}
+                    >
+                      {item.date}
                     </span>
                   </div>
-                  <div style={{ marginTop: 4, display: "flex", gap: 6, alignItems: "center" }}>
+                  <div
+                    style={{
+                      marginTop: 4,
+                      display: "flex",
+                      gap: 6,
+                      alignItems: "center",
+                    }}
+                  >
                     <Tag
                       color={colors.nebula}
                       style={{
@@ -155,7 +204,7 @@ function MobileStockPool() {
                         color: "#fff",
                       }}
                     >
-                      {item.score}分
+                      {getScoreLabel(item)}
                     </Tag>
                     <Tag
                       style={{
@@ -168,7 +217,7 @@ function MobileStockPool() {
                         color: colors.muted,
                       }}
                     >
-                      {item.strategy}
+                      {item.strategy_type}
                     </Tag>
                   </div>
                 </div>
@@ -176,17 +225,29 @@ function MobileStockPool() {
                   style={{
                     fontSize: 15,
                     fontWeight: 700,
-                    color: isUp ? colors.gold : colors.danger,
+                    color: isUp
+                      ? colors.gold
+                      : isDown
+                      ? colors.danger
+                      : colors.muted,
                     whiteSpace: "nowrap",
                   }}
                 >
-                  {isUp ? (
-                    <RiseOutlined style={{ fontSize: 12, marginRight: 3 }} />
-                  ) : (
-                    <FallOutlined style={{ fontSize: 12, marginRight: 3 }} />
+                  {isUp && (
+                    <RiseOutlined
+                      style={{ fontSize: 12, marginRight: 3 }}
+                    />
                   )}
-                  {isUp ? "+" : ""}
-                  {item.changePct.toFixed(2)}%
+                  {isDown && (
+                    <FallOutlined
+                      style={{ fontSize: 12, marginRight: 3 }}
+                    />
+                  )}
+                  {decision === "buy"
+                    ? "买入"
+                    : decision === "sell"
+                    ? "卖出"
+                    : "持有"}
                 </div>
               </div>
             </List.Item>

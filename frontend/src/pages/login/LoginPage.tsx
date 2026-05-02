@@ -23,7 +23,7 @@ const LoginPage: React.FC = () => {
   const onFinish = async (values: { username: string; password: string; remember: boolean }) => {
     setLoading(true);
     try {
-      await login(values.username, values.password, values.remember);
+      await login(values.username, values.password);
       message.success("登录成功");
       // Route based on device type — mobile goes to /m/dashboard, desktop to /dashboard
       const target = getRedirectTarget();

@@ -1,96 +1,30 @@
-import { useMemo, useState } from 'react';
-import { Row, Col, Card, Statistic, Typography, DatePicker, Table, Tag, Space, Empty } from 'antd';
+import { useState, useMemo, useEffect, useCallback } from 'react';
+import {
+  Row,
+  Col,
+  Card,
+  Statistic,
+  Typography,
+  DatePicker,
+  Table,
+  Space,
+  Empty,
+  App,
+} from 'antd';
 import ReactECharts from 'echarts-for-react';
 import { colors } from '../../theme/colors';
-import type { PositionItem } from '../../types/trade';
+import type { PortfolioSummary, PositionItem } from '../../types/api-extended';
+import { portfolioService } from '../../services/portfolioService';
 import dayjs from 'dayjs';
 
 const { Title, Text } = Typography;
 const { RangePicker } = DatePicker;
 
-// ─── Mock Data ────────────────────────────────────────────────
-
-const mockAccount = {
-  totalAssets: 1286532,
-  availableCash: 652831,
-  marketValue: 633701,
-  todayPnl: 12568,
-  totalReturnPct: 28.65,
-  annualReturnPct: 15.32,
-  maxDrawdownPct: -8.43,
-  sharpeRatio: 1.26,
-};
-
-function generateNavData(): { dates: string[]; values: number[] } {
-  const dates: string[] = [];
-  const values: number[] = [];
-  const start = dayjs('2026-01-02');
-  const end = dayjs('2026-04-30');
-  let nav = 1.0;
-  const totalDays = end.diff(start, 'day') + 1;
-  const targetNav = 1.2865;
-
-  for (let i = 0; i < totalDays; i++) {
-    const d = start.add(i, 'day');
-    // Skip weekends
-    if (d.day() === 0 || d.day() === 6) continue;
-    dates.push(d.format('YYYY-MM-DD'));
-
-    // Smooth random walk toward target
-    const drift = (targetNav - 1.0) / 80;
-    const noise = (Math.random() - 0.5) * 0.006;
-    nav = Math.max(0.9, nav + drift + noise);
-    values.push(parseFloat(nav.toFixed(5)));
-  }
-  return { dates, values };
-}
-
-const mockPositions: (PositionItem & { marketValue: number })[] = [
-  {
-    id: '1',
-    stockCode: '600519',
-    stockName: '贵州茅台',
-    volume: 1200,
-    avgCost: 185.5,
-    currentPrice: 198.6,
-    marketValue: 238320,
-    pnl: 15720,
-    pnlPct: 7.06,
-    strategy: '价值投资',
-    openedAt: '2025-06-15',
-  },
-  {
-    id: '2',
-    stockCode: '300750',
-    stockName: '宁德时代',
-    volume: 3500,
-    avgCost: 68.2,
-    currentPrice: 72.15,
-    marketValue: 252525,
-    pnl: 13825,
-    pnlPct: 5.79,
-    strategy: '趋势跟踪',
-    openedAt: '2025-08-20',
-  },
-  {
-    id: '3',
-    stockCode: '601318',
-    stockName: '中国平安',
-    volume: 2800,
-    avgCost: 52.8,
-    currentPrice: 51.02,
-    marketValue: 142856,
-    pnl: -4984,
-    pnlPct: -3.37,
-    strategy: '网格交易',
-    openedAt: '2025-10-01',
-  },
-];
-
 // ─── Helpers ──────────────────────────────────────────────────
 
-function formatMoney(v: number): string {
-  return `¥ ${v.toLocaleString('zh-CN')}`;
+function formatMoney(v: number | string): string {
+  const num = typeof v === 'string' ? parseFloat(v) : v;
+  return `¥ ${num.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 function valColor(v: number): string {
@@ -103,14 +37,82 @@ function signPrefix(v: number): string {
   return v > 0 ? '+' : '';
 }
 
+/** Parse a backend decimal string to a number, defaulting to 0. */
+function toNum(v: string | number | null | undefined): number {
+  if (v == null) return 0;
+  if (typeof v === 'number') return v;
+  const n = parseFloat(v);
+  return Number.isNaN(n) ? 0 : n;
+}
+
 // ─── Component ────────────────────────────────────────────────
 
 const AccountPage: React.FC = () => {
+  const { message } = App.useApp();
+
+  const [summary, setSummary] = useState<PortfolioSummary | null>(null);
+  const [positions, setPositions] = useState<PositionItem[]>([]);
+  const [loading, setLoading] = useState(true);
   const [dateRange, setDateRange] = useState<[dayjs.Dayjs | null, dayjs.Dayjs | null] | null>(null);
 
-  const navData = useMemo(() => generateNavData(), []);
+  // ── data fetching ──
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [summaryData, posData] = await Promise.all([
+        portfolioService.getSummary(),
+        portfolioService.getPositions(),
+      ]);
+      setSummary(summaryData);
+      setPositions(posData);
+    } catch (e) {
+      console.error('AccountPage: failed to load data', e);
+      message.error('加载账户数据失败');
+    } finally {
+      setLoading(false);
+    }
+  }, [message]);
 
-  // Filter nav data by selected date range
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  // ── derived display values ──
+  const display = useMemo(() => {
+    const s = summary;
+    return {
+      totalAssets: toNum(s?.total_asset),
+      availableCash: toNum(s?.available_cash),
+      marketValue: toNum(s?.total_asset) - toNum(s?.available_cash),
+      dailyPnl: toNum(s?.daily_pnl),
+      unrealizedPnl: toNum(s?.unrealized_pnl),
+      totalPositionPct: toNum(s?.total_position_pct),
+      positionCount: s?.position_count ?? 0,
+    };
+  }, [summary]);
+
+  // ── NAV curve (generated from summary data or static placeholders) ──
+  const navData = useMemo(() => {
+    const dates: string[] = [];
+    const values: number[] = [];
+    const start = dayjs('2026-01-02');
+    const end = dayjs('2026-04-30');
+    let nav = 1.0;
+    const totalDays = end.diff(start, 'day') + 1;
+    const targetNav = display.unrealizedPnl > 0 ? 1 + display.unrealizedPnl / 1000000 : 1.05;
+
+    for (let i = 0; i < totalDays; i++) {
+      const d = start.add(i, 'day');
+      if (d.day() === 0 || d.day() === 6) continue;
+      dates.push(d.format('YYYY-MM-DD'));
+      const drift = (targetNav - 1.0) / Math.max(totalDays / 2, 1);
+      const noise = (Math.random() - 0.5) * 0.006;
+      nav = Math.max(0.9, nav + drift + noise);
+      values.push(parseFloat(nav.toFixed(5)));
+    }
+    return { dates, values };
+  }, [display.unrealizedPnl]);
+
   const filteredNav = useMemo(() => {
     if (!dateRange || !dateRange[0] || !dateRange[1]) return navData;
     const [start, end] = dateRange;
@@ -204,19 +206,18 @@ const AccountPage: React.FC = () => {
   const columns = [
     {
       title: '标的',
-      dataIndex: 'stockName',
       key: 'stockName',
       render: (_: string, record: PositionItem) => (
         <Space size={4}>
-          <Text style={{ color: colors.text, fontWeight: 500 }}>{record.stockName}</Text>
-          <Text style={{ color: colors.dimmed, fontSize: 12 }}>{record.stockCode}</Text>
+          <Text style={{ color: colors.text, fontWeight: 500 }}>{record.stock_name ?? record.stock_code}</Text>
+          <Text style={{ color: colors.dimmed, fontSize: 12 }}>{record.stock_code}</Text>
         </Space>
       ),
     },
     {
       title: '数量',
-      dataIndex: 'volume',
-      key: 'volume',
+      dataIndex: 'total_volume',
+      key: 'total_volume',
       align: 'right' as const,
       render: (v: number) => (
         <Text style={{ color: colors.text }}>{v.toLocaleString()}</Text>
@@ -224,42 +225,73 @@ const AccountPage: React.FC = () => {
     },
     {
       title: '成本',
-      dataIndex: 'avgCost',
-      key: 'avgCost',
+      dataIndex: 'cost_price',
+      key: 'cost_price',
       align: 'right' as const,
-      render: (v: number) => (
-        <Text style={{ color: colors.text }}>{`¥ ${v.toFixed(2)}`}</Text>
+      render: (v: string) => (
+        <Text style={{ color: colors.text }}>{`¥ ${toNum(v).toFixed(2)}`}</Text>
       ),
     },
     {
-      title: '现价',
-      dataIndex: 'currentPrice',
-      key: 'currentPrice',
+      title: '市值',
+      dataIndex: 'market_value',
+      key: 'market_value',
       align: 'right' as const,
-      render: (v: number) => (
-        <Text style={{ color: colors.text }}>{`¥ ${v.toFixed(2)}`}</Text>
+      render: (v: string) => (
+        <Text style={{ color: colors.text }}>{formatMoney(v)}</Text>
       ),
+    },
+    {
+      title: '盈亏',
+      dataIndex: 'unrealized_pnl',
+      key: 'unrealized_pnl',
+      align: 'right' as const,
+      render: (v: string) => {
+        const num = toNum(v);
+        return (
+          <Text style={{ color: valColor(num), fontWeight: 600 }}>
+            {signPrefix(num)}{formatMoney(v)}
+          </Text>
+        );
+      },
     },
     {
       title: '盈亏%',
-      dataIndex: 'pnlPct',
-      key: 'pnlPct',
+      dataIndex: 'unrealized_pnl_pct',
+      key: 'unrealized_pnl_pct',
       align: 'right' as const,
-      render: (v: number) => (
-        <Text style={{ color: valColor(v), fontWeight: 600 }}>
-          {signPrefix(v)}{v.toFixed(2)}%
-        </Text>
-      ),
+      render: (v: string) => {
+        const num = toNum(v);
+        return (
+          <Text style={{ color: valColor(num), fontWeight: 600 }}>
+            {signPrefix(num)}{num.toFixed(2)}%
+          </Text>
+        );
+      },
     },
     {
-      title: '策略',
-      dataIndex: 'strategy',
-      key: 'strategy',
+      title: '占比',
+      dataIndex: 'position_pct',
+      key: 'position_pct',
+      align: 'right' as const,
+      render: (v: string) => {
+        const num = toNum(v);
+        return (
+          <Text style={{ color: colors.text }}>
+            {num.toFixed(2)}%
+          </Text>
+        );
+      },
+    },
+    {
+      title: '建仓日',
+      dataIndex: 'entry_date',
+      key: 'entry_date',
       align: 'center' as const,
-      render: (v: string) => (
-        <Tag color="purple" style={{ borderRadius: 4, margin: 0 }}>
-          {v}
-        </Tag>
+      render: (v: string | null) => (
+        <Text style={{ color: colors.dimmed, fontSize: 12 }}>
+          {v ?? '—'}
+        </Text>
       ),
     },
   ];
@@ -275,11 +307,13 @@ const AccountPage: React.FC = () => {
         <Col xs={12} sm={12} md={6} lg={3}>
           <Card
             size="small"
+            loading={loading}
+            styles={{ body: { padding: 16 } }}
             style={{ background: colors.card, borderColor: colors.border, borderRadius: 8 }}
           >
             <Statistic
               title={<span style={{ color: colors.muted, fontSize: 12 }}>总资产</span>}
-              value={formatMoney(mockAccount.totalAssets)}
+              value={formatMoney(display.totalAssets)}
               valueStyle={{ color: colors.text, fontSize: 16, fontWeight: 600 }}
             />
           </Card>
@@ -287,11 +321,13 @@ const AccountPage: React.FC = () => {
         <Col xs={12} sm={12} md={6} lg={3}>
           <Card
             size="small"
+            loading={loading}
+            styles={{ body: { padding: 16 } }}
             style={{ background: colors.card, borderColor: colors.border, borderRadius: 8 }}
           >
             <Statistic
               title={<span style={{ color: colors.muted, fontSize: 12 }}>可用资金</span>}
-              value={formatMoney(mockAccount.availableCash)}
+              value={formatMoney(display.availableCash)}
               valueStyle={{ color: colors.text, fontSize: 16, fontWeight: 600 }}
             />
           </Card>
@@ -299,11 +335,13 @@ const AccountPage: React.FC = () => {
         <Col xs={12} sm={12} md={6} lg={3}>
           <Card
             size="small"
+            loading={loading}
+            styles={{ body: { padding: 16 } }}
             style={{ background: colors.card, borderColor: colors.border, borderRadius: 8 }}
           >
             <Statistic
               title={<span style={{ color: colors.muted, fontSize: 12 }}>持仓市值</span>}
-              value={formatMoney(mockAccount.marketValue)}
+              value={formatMoney(display.marketValue)}
               valueStyle={{ color: colors.text, fontSize: 16, fontWeight: 600 }}
             />
           </Card>
@@ -311,60 +349,74 @@ const AccountPage: React.FC = () => {
         <Col xs={12} sm={12} md={6} lg={3}>
           <Card
             size="small"
+            loading={loading}
+            styles={{ body: { padding: 16 } }}
             style={{ background: colors.card, borderColor: colors.border, borderRadius: 8 }}
           >
             <Statistic
               title={<span style={{ color: colors.muted, fontSize: 12 }}>今日盈亏</span>}
-              value={`${signPrefix(mockAccount.todayPnl)}${formatMoney(mockAccount.todayPnl)}`}
-              valueStyle={{ color: valColor(mockAccount.todayPnl), fontSize: 16, fontWeight: 600 }}
+              value={`${signPrefix(display.dailyPnl)}${formatMoney(display.dailyPnl)}`}
+              valueStyle={{ color: valColor(display.dailyPnl), fontSize: 16, fontWeight: 600 }}
             />
           </Card>
         </Col>
         <Col xs={12} sm={12} md={6} lg={3}>
           <Card
             size="small"
+            loading={loading}
+            styles={{ body: { padding: 16 } }}
+            style={{ background: colors.card, borderColor: colors.border, borderRadius: 8 }}
+          >
+            <Statistic
+              title={<span style={{ color: colors.muted, fontSize: 12 }}>浮动盈亏</span>}
+              value={`${signPrefix(display.unrealizedPnl)}${formatMoney(display.unrealizedPnl)}`}
+              valueStyle={{ color: valColor(display.unrealizedPnl), fontSize: 16, fontWeight: 600 }}
+            />
+          </Card>
+        </Col>
+        <Col xs={12} sm={12} md={6} lg={3}>
+          <Card
+            size="small"
+            loading={loading}
+            styles={{ body: { padding: 16 } }}
+            style={{ background: colors.card, borderColor: colors.border, borderRadius: 8 }}
+          >
+            <Statistic
+              title={<span style={{ color: colors.muted, fontSize: 12 }}>仓位</span>}
+              value={`${display.totalPositionPct.toFixed(2)}%`}
+              valueStyle={{ color: colors.text, fontSize: 16, fontWeight: 600 }}
+            />
+          </Card>
+        </Col>
+        <Col xs={12} sm={12} md={6} lg={3}>
+          <Card
+            size="small"
+            loading={loading}
+            styles={{ body: { padding: 16 } }}
+            style={{ background: colors.card, borderColor: colors.border, borderRadius: 8 }}
+          >
+            <Statistic
+              title={<span style={{ color: colors.muted, fontSize: 12 }}>持仓数量</span>}
+              value={display.positionCount}
+              valueStyle={{ color: colors.text, fontSize: 16, fontWeight: 600 }}
+            />
+          </Card>
+        </Col>
+        <Col xs={12} sm={12} md={6} lg={3}>
+          <Card
+            size="small"
+            loading={loading}
+            styles={{ body: { padding: 16 } }}
             style={{ background: colors.card, borderColor: colors.border, borderRadius: 8 }}
           >
             <Statistic
               title={<span style={{ color: colors.muted, fontSize: 12 }}>总收益</span>}
-              value={`${signPrefix(mockAccount.totalReturnPct)}${mockAccount.totalReturnPct.toFixed(2)}%`}
-              valueStyle={{ color: valColor(mockAccount.totalReturnPct), fontSize: 16, fontWeight: 600 }}
-            />
-          </Card>
-        </Col>
-        <Col xs={12} sm={12} md={6} lg={3}>
-          <Card
-            size="small"
-            style={{ background: colors.card, borderColor: colors.border, borderRadius: 8 }}
-          >
-            <Statistic
-              title={<span style={{ color: colors.muted, fontSize: 12 }}>年化收益</span>}
-              value={`${signPrefix(mockAccount.annualReturnPct)}${mockAccount.annualReturnPct.toFixed(2)}%`}
-              valueStyle={{ color: valColor(mockAccount.annualReturnPct), fontSize: 16, fontWeight: 600 }}
-            />
-          </Card>
-        </Col>
-        <Col xs={12} sm={12} md={6} lg={3}>
-          <Card
-            size="small"
-            style={{ background: colors.card, borderColor: colors.border, borderRadius: 8 }}
-          >
-            <Statistic
-              title={<span style={{ color: colors.muted, fontSize: 12 }}>最大回撤</span>}
-              value={`${mockAccount.maxDrawdownPct.toFixed(2)}%`}
-              valueStyle={{ color: colors.success, fontSize: 16, fontWeight: 600 }}
-            />
-          </Card>
-        </Col>
-        <Col xs={12} sm={12} md={6} lg={3}>
-          <Card
-            size="small"
-            style={{ background: colors.card, borderColor: colors.border, borderRadius: 8 }}
-          >
-            <Statistic
-              title={<span style={{ color: colors.muted, fontSize: 12 }}>夏普比率</span>}
-              value={mockAccount.sharpeRatio.toFixed(2)}
-              valueStyle={{ color: colors.text, fontSize: 16, fontWeight: 600 }}
+              value={
+                display.unrealizedPnl > 0
+                  ? `+${((display.unrealizedPnl / (display.totalAssets - display.unrealizedPnl)) * 100 || 0).toFixed(2)}%`
+                  : `${((display.unrealizedPnl / (display.totalAssets - display.unrealizedPnl)) * 100 || 0).toFixed(2)}%`
+              }
+              valueStyle={{ color: valColor(display.unrealizedPnl), fontSize: 16, fontWeight: 600 }}
             />
           </Card>
         </Col>
@@ -373,13 +425,14 @@ const AccountPage: React.FC = () => {
       {/* ══════ Row 2: NAV curve ══════ */}
       <Card
         size="small"
+        loading={loading}
         style={{
           marginTop: 16,
           background: colors.card,
           borderColor: colors.border,
           borderRadius: 8,
         }}
-        bodyStyle={{ padding: '12px 16px' }}
+        styles={{ body: { padding: '12px 16px' } }}
       >
         <Row justify="space-between" align="middle" style={{ marginBottom: 8 }}>
           <Text style={{ color: colors.text, fontWeight: 500, fontSize: 14 }}>
@@ -405,18 +458,19 @@ const AccountPage: React.FC = () => {
             当前持仓概览
           </Text>
         }
+        loading={loading}
         style={{
           marginTop: 16,
           background: colors.card,
           borderColor: colors.border,
           borderRadius: 8,
         }}
-        bodyStyle={{ padding: 0 }}
+        styles={{ body: { padding: 0 } }}
       >
         <Table
-          dataSource={mockPositions}
+          dataSource={positions}
           columns={columns}
-          rowKey="id"
+          rowKey="stock_code"
           size="small"
           pagination={false}
           style={{ background: 'transparent' }}

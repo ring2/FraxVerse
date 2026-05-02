@@ -1,49 +1,89 @@
-import { Card, Statistic, Tag, Row, Col } from "antd";
+import { useEffect, useState } from "react";
+import { Card, Statistic, Tag, Row, Col, Spin, App } from "antd";
 import {
-  CaretUpOutlined,
-  CaretDownOutlined,
   FundOutlined,
   StockOutlined,
 } from "@ant-design/icons";
 import { colors } from "../../theme/colors";
-
-interface MarketIndex {
-  name: string;
-  code: string;
-  price: number;
-  change: number;
-  changePct: number;
-}
-
-interface Position {
-  name: string;
-  code: string;
-  pnlPct: number;
-  volume: number;
-  strategy: string;
-}
-
-const MARKET_INDICES: MarketIndex[] = [
-  { name: "上证指数", code: "000001", price: 3245.67, change: 12.34, changePct: 0.38 },
-  { name: "深证成指", code: "399001", price: 10234.56, change: -45.12, changePct: -0.44 },
-  { name: "创业板指", code: "399006", price: 2156.78, change: 23.45, changePct: 1.10 },
-];
-
-const POSITIONS: Position[] = [
-  { name: "宁德时代", code: "300750", pnlPct: 5.32, volume: 200, strategy: "趋势跟踪" },
-  { name: "贵州茅台", code: "600519", pnlPct: -2.15, volume: 100, strategy: "价值投资" },
-  { name: "科大讯飞", code: "002230", pnlPct: 8.77, volume: 500, strategy: "动量策略" },
-];
-
-function getMarketStatusTag(): { label: string; color: string } {
-  const sh = MARKET_INDICES[0].changePct;
-  if (sh > 0.5) return { label: "🐂 牛市", color: colors.success };
-  if (sh < -0.5) return { label: "🐻 熊市", color: colors.danger };
-  return { label: "⚖️ 震荡", color: colors.amber };
-}
+import { portfolioService } from "../../services/portfolioService";
+import { tradeService } from "../../services/tradeService";
+import { marketService } from "../../services/marketService";
+import type {
+  PortfolioSummary,
+  TradeModeResponse,
+  MarketStateResponse,
+} from "../../types/api-extended";
 
 function MobileDashboard() {
-  const marketTag = getMarketStatusTag();
+  const { message } = App.useApp();
+  const [loading, setLoading] = useState(true);
+  const [summary, setSummary] = useState<PortfolioSummary | null>(null);
+  const [tradeMode, setTradeMode] = useState<TradeModeResponse | null>(null);
+  const [marketState, setMarketState] = useState<MarketStateResponse | null>(
+    null
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+
+    Promise.all([
+      portfolioService.getSummary(),
+      tradeService.getMode(),
+      marketService.getMarketState(),
+    ])
+      .then(([s, m, ms]) => {
+        if (cancelled) return;
+        setSummary(s);
+        setTradeMode(m);
+        setMarketState(ms);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        console.error("Failed to load dashboard data:", err);
+        message.error("加载仪表盘数据失败");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [message]);
+
+  const getMarketTag = (): { label: string; color: string } => {
+    if (!marketState) return { label: "⏳ 加载中", color: colors.muted };
+    const state = marketState.current_state;
+    if (state === "bull") return { label: "🐂 牛市", color: colors.success };
+    if (state === "bear") return { label: "🐻 熊市", color: colors.danger };
+    return { label: "⚖️ 震荡", color: colors.amber };
+  };
+
+  const marketTag = getMarketTag();
+  const mode = tradeMode?.current_mode ?? "SIMULATION";
+
+  const modeTagColor =
+    mode === "LIVE"
+      ? colors.danger
+      : mode === "PAPER"
+      ? colors.amber
+      : colors.shard;
+
+  if (loading) {
+    return (
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          minHeight: 200,
+        }}
+      >
+        <Spin tip="加载中..." />
+      </div>
+    );
+  }
 
   return (
     <div style={{ paddingBottom: 16 }}>
@@ -61,59 +101,144 @@ function MobileDashboard() {
       >
         <FundOutlined style={{ color: colors.nebula }} />
         看盘
-        <Tag color={marketTag.color} style={{ marginLeft: "auto", fontSize: 11, borderRadius: 12 }}>
-          {marketTag.label}
-        </Tag>
+        <div style={{ marginLeft: "auto", display: "flex", gap: 4 }}>
+          <Tag
+            color={modeTagColor}
+            style={{ fontSize: 10, borderRadius: 12, marginRight: 4 }}
+          >
+            {mode}
+          </Tag>
+          <Tag
+            color={marketTag.color}
+            style={{ fontSize: 11, borderRadius: 12 }}
+          >
+            {marketTag.label}
+          </Tag>
+        </div>
       </div>
 
-      {/* Market Index Cards */}
+      {/* Summary Cards */}
       <Row gutter={[8, 8]} style={{ marginBottom: 12 }}>
-        {MARKET_INDICES.map((idx) => {
-          const isUp = idx.changePct >= 0;
-          return (
-            <Col span={8} key={idx.code}>
-              <Card
-                size="small"
-                style={{
-                  background: colors.card,
-                  border: `1px solid ${colors.border}`,
-                  borderRadius: 10,
-                }}
-                styles={{ body: { padding: "10px 8px" } }}
-              >
-                <Statistic
-                  title={
-                    <span style={{ color: colors.muted, fontSize: 11 }}>{idx.name}</span>
-                  }
-                  value={idx.price.toFixed(2)}
-                  valueStyle={{
-                    fontSize: 14,
-                    fontWeight: 600,
-                    color: colors.text,
-                    lineHeight: 1.4,
-                  }}
-                  suffix={
-                    <span
-                      style={{
-                        fontSize: 11,
-                        color: isUp ? colors.gold : colors.danger,
-                        marginLeft: 4,
-                      }}
-                    >
-                      {isUp ? (
-                        <CaretUpOutlined style={{ fontSize: 10 }} />
-                      ) : (
-                        <CaretDownOutlined style={{ fontSize: 10 }} />
-                      )}
-                      {Math.abs(idx.changePct).toFixed(2)}%
-                    </span>
-                  }
-                />
-              </Card>
-            </Col>
-          );
-        })}
+        <Col span={8}>
+          <Card
+            size="small"
+            style={{
+              background: colors.card,
+              border: `1px solid ${colors.border}`,
+              borderRadius: 10,
+            }}
+            styles={{ body: { padding: "10px 8px" } }}
+          >
+            <Statistic
+              title={
+                <span style={{ color: colors.muted, fontSize: 11 }}>
+                  总资产
+                </span>
+              }
+              value={summary?.total_asset ?? "--"}
+              valueStyle={{
+                fontSize: 14,
+                fontWeight: 600,
+                color: colors.text,
+                lineHeight: 1.4,
+              }}
+            />
+          </Card>
+        </Col>
+        <Col span={8}>
+          <Card
+            size="small"
+            style={{
+              background: colors.card,
+              border: `1px solid ${colors.border}`,
+              borderRadius: 10,
+            }}
+            styles={{ body: { padding: "10px 8px" } }}
+          >
+            <Statistic
+              title={
+                <span style={{ color: colors.muted, fontSize: 11 }}>
+                  持仓数
+                </span>
+              }
+              value={summary?.position_count ?? 0}
+              valueStyle={{
+                fontSize: 14,
+                fontWeight: 600,
+                color: colors.text,
+                lineHeight: 1.4,
+              }}
+            />
+          </Card>
+        </Col>
+        <Col span={8}>
+          <Card
+            size="small"
+            style={{
+              background: colors.card,
+              border: `1px solid ${colors.border}`,
+              borderRadius: 10,
+            }}
+            styles={{ body: { padding: "10px 8px" } }}
+          >
+            <Statistic
+              title={
+                <span style={{ color: colors.muted, fontSize: 11 }}>
+                  日盈亏
+                </span>
+              }
+              value={summary?.daily_pnl ?? "--"}
+              valueStyle={{
+                fontSize: 14,
+                fontWeight: 600,
+                color: colors.text,
+                lineHeight: 1.4,
+              }}
+            />
+          </Card>
+        </Col>
       </Row>
+
+      {/* Market State Info */}
+      {marketState && (
+        <Card
+          size="small"
+          style={{
+            background: colors.card,
+            border: `1px solid ${colors.border}`,
+            borderRadius: 10,
+            marginBottom: 12,
+          }}
+          styles={{ body: { padding: "10px 12px" } }}
+        >
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+            }}
+          >
+            <div>
+              <div style={{ color: colors.muted, fontSize: 11 }}>市场状态</div>
+              <div style={{ color: colors.text, fontSize: 14, fontWeight: 600 }}>
+                {marketState.current_state === "bull"
+                  ? "🐂 牛市"
+                  : marketState.current_state === "bear"
+                  ? "🐻 熊市"
+                  : "⚖️ 震荡"}
+              </div>
+            </div>
+            <div style={{ textAlign: "right" }}>
+              <div style={{ color: colors.muted, fontSize: 11 }}>
+                主线板块
+              </div>
+              <div style={{ color: colors.text, fontSize: 13 }}>
+                {marketState.main_line_sector ?? "无"}
+              </div>
+            </div>
+          </div>
+        </Card>
+      )}
 
       {/* Positions Section */}
       <div
@@ -131,52 +256,37 @@ function MobileDashboard() {
         持仓概览
       </div>
 
-      {POSITIONS.map((pos) => {
-        const isProfit = pos.pnlPct >= 0;
-        return (
-          <Card
-            key={pos.code}
-            size="small"
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          padding: "10px 12px",
+          background: colors.card,
+          border: `1px solid ${colors.border}`,
+          borderRadius: 10,
+        }}
+      >
+        <div>
+          <div style={{ color: colors.text, fontSize: 14, fontWeight: 600 }}>
+            可用资金
+          </div>
+        </div>
+        <div style={{ textAlign: "right" }}>
+          <div
             style={{
-              background: colors.card,
-              border: `1px solid ${colors.border}`,
-              borderRadius: 10,
-              marginBottom: 6,
+              fontSize: 16,
+              fontWeight: 700,
+              color: colors.text,
             }}
-            styles={{ body: { padding: "10px 12px" } }}
           >
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-              }}
-            >
-              <div>
-                <div style={{ color: colors.text, fontSize: 14, fontWeight: 600 }}>
-                  {pos.name}
-                </div>
-                <div style={{ color: colors.dimmed, fontSize: 11 }}>{pos.code}</div>
-              </div>
-              <div style={{ textAlign: "right" }}>
-                <div
-                  style={{
-                    fontSize: 16,
-                    fontWeight: 700,
-                    color: isProfit ? colors.gold : colors.danger,
-                  }}
-                >
-                  {isProfit ? "+" : ""}
-                  {pos.pnlPct.toFixed(2)}%
-                </div>
-                <div style={{ color: colors.dimmed, fontSize: 11 }}>
-                  {pos.volume}股 · {pos.strategy}
-                </div>
-              </div>
-            </div>
-          </Card>
-        );
-      })}
+            {summary?.available_cash ?? "--"}
+          </div>
+          <div style={{ color: colors.dimmed, fontSize: 11 }}>
+            仓位 {summary?.total_position_pct ?? "--"}%
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

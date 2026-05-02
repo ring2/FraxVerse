@@ -1,21 +1,60 @@
-import { useState } from "react";
-import { Card, Tag, Button, Radio, Divider, Space, message } from "antd";
+import { useEffect, useState } from "react";
+import { Card, Tag, Button, Radio, Divider, Space, Spin, App } from "antd";
 import {
   SettingOutlined,
   LogoutOutlined,
   UserOutlined,
   InfoCircleOutlined,
   StarOutlined,
+  CheckCircleOutlined,
+  CloseCircleOutlined,
 } from "@ant-design/icons";
 import { useNavigate } from "react-router-dom";
 import { colors } from "../../theme/colors";
 import { useAuthStore } from "../../stores/useAuthStore";
-import type { TradeMode } from "../../types/trade";
+import { tradeService } from "../../services/tradeService";
+import { monitorService } from "../../services/monitorService";
+import type { TradeModeResponse, ServiceStatus } from "../../types/api-extended";
 
 function MobileSettings() {
+  const { message } = App.useApp();
   const navigate = useNavigate();
   const { user, logout } = useAuthStore();
-  const [tradeMode, setTradeMode] = useState<TradeMode>("SIMULATION");
+
+  const [loadingMode, setLoadingMode] = useState(true);
+  const [loadingServices, setLoadingServices] = useState(true);
+  const [tradeMode, setTradeMode] = useState<TradeModeResponse | null>(null);
+  const [services, setServices] = useState<ServiceStatus[]>([]);
+  const [updating, setUpdating] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    Promise.all([
+      tradeService.getMode(),
+      monitorService.getServices(),
+    ])
+      .then(([tm, svc]) => {
+        if (cancelled) return;
+        setTradeMode(tm);
+        setServices(svc);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        console.error("Failed to load settings data:", err);
+        message.error("加载设置数据失败");
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setLoadingMode(false);
+          setLoadingServices(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [message]);
 
   const handleLogout = async () => {
     await logout();
@@ -23,13 +62,26 @@ function MobileSettings() {
     navigate("/login");
   };
 
-  const handleModeChange = (e: any) => {
-    const newMode = e.target.value as TradeMode;
-    setTradeMode(newMode);
-    message.success(`交易模式已切换为: ${newMode}`);
+  const handleModeChange = async (e: any) => {
+    const newMode = e.target.value;
+    setUpdating(true);
+    try {
+      const updated = await tradeService.updateMode({ target_mode: newMode });
+      if (updated) {
+        setTradeMode(updated);
+      }
+      message.success(`交易模式已切换为: ${newMode}`);
+    } catch (err: any) {
+      console.error("Failed to update trade mode:", err);
+      message.error(err?.response?.data?.message || "切换交易模式失败");
+    } finally {
+      setUpdating(false);
+    }
   };
 
-  const modeTagColor = (mode: TradeMode) => {
+  const currentMode = tradeMode?.current_mode ?? "SIMULATION";
+
+  const modeTagColor = (mode: string) => {
     switch (mode) {
       case "LIVE":
         return colors.danger;
@@ -37,6 +89,8 @@ function MobileSettings() {
         return colors.amber;
       case "SIMULATION":
         return colors.shard;
+      default:
+        return colors.muted;
     }
   };
 
@@ -109,59 +163,141 @@ function MobileSettings() {
         }}
         styles={{ body: { padding: 14 } }}
       >
+        {loadingMode ? (
+          <div style={{ textAlign: "center", padding: 8 }}>
+            <Spin size="small" />
+          </div>
+        ) : (
+          <>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                marginBottom: 10,
+              }}
+            >
+              <span style={{ color: colors.text, fontSize: 13, fontWeight: 600 }}>
+                交易模式
+              </span>
+              <Tag
+                color={modeTagColor(currentMode)}
+                style={{ fontSize: 10, borderRadius: 12, fontWeight: 600 }}
+              >
+                {currentMode}
+              </Tag>
+            </div>
+            <Radio.Group
+              value={currentMode}
+              onChange={handleModeChange}
+              disabled={updating}
+              style={{ width: "100%" }}
+            >
+              <Space direction="vertical" style={{ width: "100%" }}>
+                <Radio
+                  value="SIMULATION"
+                  style={{
+                    color: currentMode === "SIMULATION" ? colors.shard : colors.muted,
+                    fontSize: 13,
+                  }}
+                >
+                  <span style={{ marginLeft: 4 }}>SIMULATION — 模拟回测</span>
+                </Radio>
+                <Radio
+                  value="PAPER"
+                  style={{
+                    color: currentMode === "PAPER" ? colors.amber : colors.muted,
+                    fontSize: 13,
+                  }}
+                >
+                  <span style={{ marginLeft: 4 }}>PAPER — 纸上交易</span>
+                </Radio>
+                <Radio
+                  value="LIVE"
+                  style={{
+                    color: currentMode === "LIVE" ? colors.danger : colors.muted,
+                    fontSize: 13,
+                  }}
+                >
+                  <span style={{ marginLeft: 4 }}>LIVE — 实盘交易</span>
+                </Radio>
+              </Space>
+            </Radio.Group>
+          </>
+        )}
+      </Card>
+
+      {/* Service Status */}
+      <Card
+        size="small"
+        style={{
+          background: colors.card,
+          border: `1px solid ${colors.border}`,
+          borderRadius: 10,
+          marginBottom: 10,
+        }}
+        styles={{ body: { padding: 14 } }}
+      >
         <div
           style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
+            color: colors.text,
+            fontSize: 13,
+            fontWeight: 600,
             marginBottom: 10,
           }}
         >
-          <span style={{ color: colors.text, fontSize: 13, fontWeight: 600 }}>
-            交易模式
-          </span>
-          <Tag
-            color={modeTagColor(tradeMode)}
-            style={{ fontSize: 10, borderRadius: 12, fontWeight: 600 }}
-          >
-            {tradeMode}
-          </Tag>
+          服务状态
         </div>
-        <Radio.Group
-          value={tradeMode}
-          onChange={handleModeChange}
-          style={{ width: "100%" }}
-        >
+        {loadingServices ? (
+          <div style={{ textAlign: "center", padding: 8 }}>
+            <Spin size="small" />
+          </div>
+        ) : services.length === 0 ? (
+          <div style={{ color: colors.dimmed, fontSize: 12, textAlign: "center" }}>
+            暂无服务数据
+          </div>
+        ) : (
           <Space direction="vertical" style={{ width: "100%" }}>
-            <Radio
-              value="SIMULATION"
-              style={{
-                color: tradeMode === "SIMULATION" ? colors.shard : colors.muted,
-                fontSize: 13,
-              }}
-            >
-              <span style={{ marginLeft: 4 }}>SIMULATION — 模拟回测</span>
-            </Radio>
-            <Radio
-              value="PAPER"
-              style={{
-                color: tradeMode === "PAPER" ? colors.amber : colors.muted,
-                fontSize: 13,
-              }}
-            >
-              <span style={{ marginLeft: 4 }}>PAPER — 纸上交易</span>
-            </Radio>
-            <Radio
-              value="LIVE"
-              style={{
-                color: tradeMode === "LIVE" ? colors.danger : colors.muted,
-                fontSize: 13,
-              }}
-            >
-              <span style={{ marginLeft: 4 }}>LIVE — 实盘交易</span>
-            </Radio>
+            {services.map((svc, idx) => (
+              <div
+                key={idx}
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  padding: "6px 0",
+                  borderBottom:
+                    idx < services.length - 1
+                      ? `1px solid ${colors.border}`
+                      : "none",
+                }}
+              >
+                <span style={{ color: colors.text, fontSize: 12 }}>
+                  {svc.service}
+                </span>
+                <span>
+                  {svc.status === "healthy" ? (
+                    <Tag
+                      icon={<CheckCircleOutlined />}
+                      color="success"
+                      style={{ fontSize: 10, borderRadius: 8, margin: 0 }}
+                    >
+                      {svc.status}
+                    </Tag>
+                  ) : (
+                    <Tag
+                      icon={<CloseCircleOutlined />}
+                      color="error"
+                      style={{ fontSize: 10, borderRadius: 8, margin: 0 }}
+                    >
+                      {svc.status}
+                    </Tag>
+                  )}
+                </span>
+              </div>
+            ))}
           </Space>
-        </Radio.Group>
+        )}
       </Card>
 
       {/* Logout */}

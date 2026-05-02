@@ -1,4 +1,5 @@
-import { Card, Typography, List, Tag, Space } from "antd";
+import { useEffect, useState, useCallback } from "react";
+import { Card, Typography, List, Tag, Space, Button, App } from "antd";
 import {
   CheckCircleOutlined,
   CloseCircleOutlined,
@@ -6,91 +7,10 @@ import {
   BellOutlined,
 } from "@ant-design/icons";
 import { colors } from "../../theme/colors";
+import { notificationService } from "../../services/notificationService";
+import type { NotificationItem } from "../../types/api-extended";
 
 const { Title, Text } = Typography;
-
-// ─── Mock Data ───────────────────────────────────────────────────────────────
-
-interface Notification {
-  id: string;
-  time: string;
-  type: "trade" | "stop_loss" | "alert" | "system";
-  title: string;
-  content: string;
-}
-
-const mockNotifications: Notification[] = [
-  {
-    id: "1",
-    time: "2026-04-29 14:35:22",
-    type: "trade",
-    title: "成交通知",
-    content: "贵州茅台（600519）买入1200股，成交价185.50元，成交金额222,600元。",
-  },
-  {
-    id: "2",
-    time: "2026-04-29 14:30:00",
-    type: "stop_loss",
-    title: "止损触发",
-    content: "宁德时代（300750）触及止损位68.00元，已自动平仓3500股。",
-  },
-  {
-    id: "3",
-    time: "2026-04-29 13:45:10",
-    type: "alert",
-    title: "预警提醒",
-    content: "中国平安（601318）盘中跌幅超过3%，当前价格51.02元/股。",
-  },
-  {
-    id: "4",
-    time: "2026-04-29 12:00:15",
-    type: "system",
-    title: "系统通知",
-    content: "行情源连接超时，已自动重连成功，期间数据已补全。",
-  },
-  {
-    id: "5",
-    time: "2026-04-29 10:22:08",
-    type: "trade",
-    title: "成交通知",
-    content: "五粮液（000858）买入800股，成交价142.30元，成交金额113,840元。",
-  },
-  {
-    id: "6",
-    time: "2026-04-29 09:45:33",
-    type: "alert",
-    title: "预警提醒",
-    content: "招商银行（600036）MACD金叉信号出现，建议关注。",
-  },
-  {
-    id: "7",
-    time: "2026-04-28 15:30:00",
-    type: "system",
-    title: "系统通知",
-    content: "日终清算完成，今日交易数据已归档。",
-  },
-  {
-    id: "8",
-    time: "2026-04-28 14:50:12",
-    type: "trade",
-    title: "成交通知",
-    content: "迈瑞医疗（300760）买入600股，成交价268.50元，成交金额161,100元。",
-  },
-  {
-    id: "9",
-    time: "2026-04-28 13:20:45",
-    type: "stop_loss",
-    title: "止损触发",
-    content: "隆基绿能（601012）触及止损位28.00元，已自动平仓10000股。",
-  },
-  {
-    id: "10",
-    time: "2026-04-28 09:35:00",
-    type: "system",
-    title: "系统通知",
-    content: "数据采集模块启动完成，K线数据、板块数据、资金流数据同步正常。",
-  },
-];
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 
@@ -120,9 +40,50 @@ const typeConfig: Record<
   },
 };
 
+/** 根据优先级返回合适颜色 */
+function priorityColor(priority: string): string | undefined {
+  if (priority === "high" || priority === "critical") return colors.danger;
+  if (priority === "medium") return colors.amber;
+  return undefined; // low / normal → 不覆盖
+}
+
 // ─── Component ───────────────────────────────────────────────────────────────
 
 const NotificationPage: React.FC = () => {
+  const { message } = App.useApp();
+
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetchNotifications = useCallback(async () => {
+    try {
+      const data = await notificationService.getNotifications();
+      setNotifications(data);
+    } catch (err) {
+      console.error("获取通知失败", err);
+      message.error("获取通知失败");
+    } finally {
+      setLoading(false);
+    }
+  }, [message]);
+
+  useEffect(() => {
+    fetchNotifications();
+  }, [fetchNotifications]);
+
+  const handleMarkRead = async (id: number) => {
+    try {
+      await notificationService.markRead(String(id));
+      setNotifications((prev) =>
+        prev.map((n) => (n.id === id ? { ...n, is_read: true } : n))
+      );
+      message.success("已标记为已读");
+    } catch (err) {
+      console.error("标记已读失败", err);
+      message.error("标记已读失败");
+    }
+  };
+
   return (
     <div>
       <Title level={3} style={{ color: colors.text, marginBottom: 24 }}>
@@ -137,47 +98,127 @@ const NotificationPage: React.FC = () => {
         }}
         styles={{ body: { padding: "12px 20px" } }}
       >
-        <List
-          dataSource={mockNotifications}
-          renderItem={(item) => {
-            const cfg = typeConfig[item.type];
-            return (
-              <List.Item
-                style={{
-                  borderBottom: `1px solid ${colors.border}`,
-                  padding: "14px 0",
-                }}
-              >
-                <List.Item.Meta
-                  avatar={
-                    <Tag
-                      icon={cfg.icon}
-                      color={cfg.color}
-                      style={{ borderRadius: 4, margin: 0, whiteSpace: "nowrap" }}
-                    >
-                      {cfg.label}
-                    </Tag>
+        {loading ? (
+          <Text style={{ color: colors.dimmed }}>加载中…</Text>
+        ) : notifications.length === 0 ? (
+          <div style={{ textAlign: "center", padding: "40px 0" }}>
+            <BellOutlined
+              style={{ fontSize: 48, color: colors.dimmed, marginBottom: 16 }}
+            />
+            <br />
+            <Text style={{ color: colors.dimmed, fontSize: 14 }}>
+              暂无通知消息
+            </Text>
+          </div>
+        ) : (
+          <List
+            dataSource={notifications}
+            renderItem={(item) => {
+              const cfg = typeConfig[item.event_type] ?? {
+                color: colors.nebula,
+                icon: <BellOutlined />,
+                label: item.event_type,
+              };
+              const priColor = priorityColor(item.priority);
+
+              return (
+                <List.Item
+                  style={{
+                    borderBottom: `1px solid ${colors.border}`,
+                    padding: "14px 0",
+                    background: item.is_read ? "transparent" : colors.surface,
+                    borderRadius: 4,
+                    marginBottom: 2,
+                    paddingLeft: item.is_read ? 0 : 8,
+                    transition: "background 0.2s",
+                  }}
+                  actions={
+                    !item.is_read
+                      ? [
+                          <Button
+                            type="link"
+                            size="small"
+                            onClick={() => handleMarkRead(item.id)}
+                            style={{ color: colors.shard, fontSize: 12 }}
+                          >
+                            标为已读
+                          </Button>,
+                        ]
+                      : undefined
                   }
-                  title={
-                    <Space size={12}>
-                      <Text style={{ color: colors.text, fontWeight: 500, fontSize: 14 }}>
-                        {item.title}
+                >
+                  <List.Item.Meta
+                    avatar={
+                      <Space size={4}>
+                        <Tag
+                          icon={cfg.icon}
+                          color={cfg.color}
+                          style={{
+                            borderRadius: 4,
+                            margin: 0,
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          {cfg.label}
+                        </Tag>
+                        {priColor && (
+                          <Tag
+                            color={priColor}
+                            style={{
+                              borderRadius: 4,
+                              margin: 0,
+                              fontSize: 10,
+                              padding: "0 4px",
+                              lineHeight: "18px",
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            {item.priority === "critical"
+                              ? "紧急"
+                              : item.priority === "high"
+                                ? "高"
+                                : item.priority === "medium"
+                                  ? "中"
+                                  : "低"}
+                          </Tag>
+                        )}
+                      </Space>
+                    }
+                    title={
+                      <Space size={12}>
+                        <Text
+                          style={{
+                            color: colors.text,
+                            fontWeight: item.is_read ? 400 : 600,
+                            fontSize: 14,
+                          }}
+                        >
+                          {item.title}
+                        </Text>
+                        <Text style={{ color: colors.dimmed, fontSize: 12 }}>
+                          {item.created_at
+                            ? new Date(item.created_at).toLocaleString("zh-CN")
+                            : ""}
+                        </Text>
+                      </Space>
+                    }
+                    description={
+                      <Text
+                        style={{
+                          color: colors.muted,
+                          fontSize: 13,
+                          lineHeight: 1.6,
+                        }}
+                      >
+                        {item.content}
                       </Text>
-                      <Text style={{ color: colors.dimmed, fontSize: 12 }}>
-                        {item.time}
-                      </Text>
-                    </Space>
-                  }
-                  description={
-                    <Text style={{ color: colors.muted, fontSize: 13, lineHeight: 1.6 }}>
-                      {item.content}
-                    </Text>
-                  }
-                />
-              </List.Item>
-            );
-          }}
-        />
+                    }
+                  />
+                </List.Item>
+              );
+            }}
+          />
+        )}
       </Card>
     </div>
   );

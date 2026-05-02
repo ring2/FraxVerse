@@ -1,71 +1,53 @@
-import { useState } from "react";
-import { Card, Select, Tag, Typography, Row, Col, Table } from "antd";
+import { useEffect, useState } from "react";
+import { App, Card, Select, Tag, Typography, Row, Col, Table, Spin } from "antd";
 import {
   CheckCircleOutlined,
   CloseCircleOutlined,
   MinusCircleOutlined,
 } from "@ant-design/icons";
 import { colors } from "../../theme/colors";
-import type { AgentOpinion, AgentWeight } from "../../types/agent";
+import { agentService } from "../../services/agentService";
+import type { AgentDiscussionItem, AgentWeightItem } from "../../types/api-extended";
 
 const { Title, Text, Paragraph } = Typography;
 
-// ─── Mock Data ───────────────────────────────────────────────────────────────
+// ─── Mock Data (fallback) — TODO: remove once API returns real data ──────────
 
-const targetOptions = [
-  { value: "贵州茅台", label: "贵州茅台" },
-  { value: "宁德时代", label: "宁德时代" },
-  { value: "平安银行", label: "平安银行" },
-];
-
-const mockOpinions: AgentOpinion[] = [
-  {
-    agentId: "1",
-    agentName: "趋势猎手",
-    action: "buy",
-    reason: "均线多头排列，量能持续放大，短期动能强劲。",
-    confidence: 85,
-    refuteReason: undefined,
-  },
-  {
-    agentId: "2",
-    agentName: "价值守望者",
-    action: "hold",
-    reason: "估值处于合理区间，等待更明确的财报信号。",
-    confidence: 70,
-    refuteReason: "但若Q3营收低于预期则需重新评估",
-  },
-  {
-    agentId: "3",
-    agentName: "风险守护者",
-    action: "sell",
-    reason: "市场波动率上升，仓位过重风险较高。",
-    confidence: 75,
-    refuteReason: undefined,
-  },
-  {
-    agentId: "4",
-    agentName: "情绪感知者",
-    action: "buy",
-    reason: "市场恐慌指数回落，资金流向积极。",
-    confidence: 80,
-    refuteReason: "若突然出现黑天鹅事件则止损",
-  },
-];
-
-const mockWeights: AgentWeight[] = [
-  { agentId: "1", agentName: "趋势猎手", weight: 0.3, winRate: 0.62, totalDecisions: 158 },
-  { agentId: "2", agentName: "价值守望者", weight: 0.25, winRate: 0.58, totalDecisions: 134 },
-  { agentId: "3", agentName: "风险守护者", weight: 0.25, winRate: 0.71, totalDecisions: 112 },
-  { agentId: "4", agentName: "情绪感知者", weight: 0.2, winRate: 0.55, totalDecisions: 96 },
-];
-
-const consensusAction = "buy" as const;
-const consensusScore = 78;
-const currentRound = 3;
-const stockName = "贵州茅台";
+const fallbackDiscussions: AgentDiscussionItem[] = [];
+const fallbackWeights: AgentWeightItem[] = [];
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
+
+// Infer action from discussion: if buy_reasons has content → buy, if against_reasons has content → sell, else hold
+function inferAction(disc: AgentDiscussionItem): string {
+  const hasBuy = disc.buy_reasons?.length > 0;
+  const hasAgainst = disc.against_reasons?.length > 0;
+  if (hasBuy && !hasAgainst) return "buy";
+  if (!hasBuy && hasAgainst) return "sell";
+  if (hasBuy && hasAgainst) return "hold";
+  return "hold";
+}
+
+function buildReason(disc: AgentDiscussionItem): string {
+  const reasons: string[] = [];
+  if (disc.buy_reasons?.length) {
+    reasons.push(...disc.buy_reasons.slice(0, 1));
+  }
+  if (disc.against_reasons?.length) {
+    reasons.push(...disc.against_reasons.slice(0, 1));
+  }
+  return reasons.join("；") || "暂无观点";
+}
+
+function buildRefute(disc: AgentDiscussionItem): string | undefined {
+  if (disc.against_reasons?.length > 1) {
+    return disc.against_reasons.slice(1).join("；");
+  }
+  if (disc.buy_reasons?.length > 1 && disc.against_reasons?.length > 0) {
+    return disc.against_reasons[0];
+  }
+  return undefined;
+}
 
 const actionConfig: Record<
   string,
@@ -89,7 +71,7 @@ const actionConfig: Record<
 };
 
 function actionTag(action: string) {
-  const cfg = actionConfig[action];
+  const cfg = actionConfig[action] ?? actionConfig.hold;
   return (
     <Tag color={cfg.color} icon={cfg.icon}>
       {cfg.label}
@@ -100,42 +82,108 @@ function actionTag(action: string) {
 // ─── Component ───────────────────────────────────────────────────────────────
 
 const AgentDiscussionPage: React.FC = () => {
-  const [target, setTarget] = useState<string>("贵州茅台");
+  const { message } = App.useApp();
+  const [discussions, setDiscussions] = useState<AgentDiscussionItem[]>([]);
+  const [weights, setWeights] = useState<AgentWeightItem[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    Promise.all([
+      agentService.getDiscussions(),
+      agentService.getWeights(),
+    ])
+      .then(([discs, wts]) => {
+        setDiscussions(discs);
+        setWeights(wts);
+      })
+      .catch((err) => {
+        console.error("Failed to load agent discussion data:", err);
+        message.error("加载Agent数据失败，使用演示数据");
+      })
+      .finally(() => setLoading(false));
+  }, []);
+
+  // Derive target options from discussion stock codes
+  const stockCodes = Array.from(new Set(discussions.map((d) => d.stock_code)));
+  const targetOptions = stockCodes.map((code) => ({
+    value: code,
+    label: code,
+  }));
+  const defaultTarget = targetOptions[0]?.value ?? "贵州茅台";
+  const [target, setTarget] = useState<string>(defaultTarget);
+
+  // Filter discussions for selected stock, group by agent_name, take latest per agent
+  const filteredDiscs = discussions
+    .filter((d) => d.stock_code === target)
+    .reduce<Map<string, AgentDiscussionItem>>((acc, d) => {
+      const existing = acc.get(d.agent_name);
+      if (!existing || d.round_num > existing.round_num) {
+        acc.set(d.agent_name, d);
+      }
+      return acc;
+    }, new Map());
+
+  const opinions = Array.from(filteredDiscs.values());
+
+  // Compute consensus info from opinions
+  const consensusScore = opinions.length > 0
+    ? Math.round(opinions.reduce((s, o) => s + (o.score ?? 0), 0) / opinions.length)
+    : 0;
+  const consensusAction = opinions.length > 0
+    ? (opinions.some((o) => inferAction(o) === "buy") ? "buy" : opinions.some((o) => inferAction(o) === "sell") ? "sell" : "hold")
+    : "hold";
+  const currentRound = opinions.length > 0
+    ? Math.max(...opinions.map((o) => o.round_num))
+    : 0;
 
   const weightColumns = [
     {
       title: "Agent",
-      dataIndex: "agentName",
-      key: "agentName",
+      dataIndex: "agent_name",
+      key: "agent_name",
       render: (v: string) => (
         <span style={{ color: colors.text }}>{v}</span>
       ),
     },
     {
-      title: "权重",
-      dataIndex: "weight",
-      key: "weight",
+      title: "基础权重",
+      dataIndex: "base_weight",
+      key: "base_weight",
       render: (v: number) => (
         <span style={{ color: colors.gold }}>{(v * 100).toFixed(0)}%</span>
       ),
     },
     {
-      title: "胜率",
-      dataIndex: "winRate",
-      key: "winRate",
+      title: "有效权重",
+      dataIndex: "effective_weight",
+      key: "effective_weight",
       render: (v: number) => (
-        <span style={{ color: colors.shard }}>{(v * 100).toFixed(1)}%</span>
+        <span style={{ color: colors.shard }}>{(v * 100).toFixed(0)}%</span>
       ),
     },
     {
-      title: "总决策数",
-      dataIndex: "totalDecisions",
-      key: "totalDecisions",
-      render: (v: number) => (
-        <span style={{ color: colors.muted }}>{v}</span>
+      title: "胜率",
+      dataIndex: "win_rate",
+      key: "win_rate",
+      render: (v: number | null | undefined) => (
+        <span style={{ color: colors.shard }}>
+          {v != null ? `${(v * 100).toFixed(1)}%` : "-"}
+        </span>
       ),
     },
   ];
+
+  if (loading) {
+    return (
+      <div style={{ textAlign: "center", paddingTop: 80 }}>
+        <Spin size="large" />
+      </div>
+    );
+  }
+
+  const items = discussions.length > 0 ? discussions : fallbackDiscussions;
+  const weightItems = weights.length > 0 ? weights : fallbackWeights;
+  const hasData = items.length > 0;
 
   return (
     <div>
@@ -150,7 +198,7 @@ const AgentDiscussionPage: React.FC = () => {
           <Select
             value={target}
             onChange={setTarget}
-            options={targetOptions}
+            options={targetOptions.length > 0 ? targetOptions : [{ value: "贵州茅台", label: "贵州茅台" }]}
             style={{ width: 160 }}
             popupMatchSelectWidth={false}
           />
@@ -173,11 +221,11 @@ const AgentDiscussionPage: React.FC = () => {
             </Text>
             <div style={{ marginTop: 4 }}>
               <Tag
-                color={actionConfig[consensusAction].color}
-                icon={actionConfig[consensusAction].icon}
+                color={actionConfig[consensusAction]?.color ?? colors.amber}
+                icon={actionConfig[consensusAction]?.icon ?? <MinusCircleOutlined />}
                 style={{ fontSize: 14, padding: "2px 12px" }}
               >
-                {actionConfig[consensusAction].label}
+                {actionConfig[consensusAction]?.label ?? "持有"}
               </Tag>
             </div>
           </Col>
@@ -187,7 +235,7 @@ const AgentDiscussionPage: React.FC = () => {
             </Text>
             <div style={{ marginTop: 4 }}>
               <Text style={{ color: colors.text, fontSize: 16, fontWeight: 600 }}>
-                {stockName}
+                {target}
               </Text>
             </div>
           </Col>
@@ -218,84 +266,96 @@ const AgentDiscussionPage: React.FC = () => {
       <Title level={5} style={{ color: colors.muted, marginBottom: 12 }}>
         Agent 观点
       </Title>
-      <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
-        {mockOpinions.map((op) => {
-          return (
-            <Col xs={24} sm={12} key={op.agentId}>
-              <Card
-                style={{
-                  background: colors.card,
-                  borderColor: colors.border,
-                  height: "100%",
-                }}
-                styles={{
-                  body: { padding: 20 },
-                }}
-              >
-                {/* Agent 名称 */}
-                <Row align="middle" justify="space-between" style={{ marginBottom: 12 }}>
-                  <Col>
-                    <Text
-                      strong
-                      style={{ color: colors.text, fontSize: 15 }}
-                    >
-                      {op.agentName}
-                    </Text>
-                  </Col>
-                  <Col>{actionTag(op.action)}</Col>
-                </Row>
+      {!hasData ? (
+        <div style={{ textAlign: "center", paddingTop: 40, color: colors.dimmed }}>
+          暂无讨论数据
+        </div>
+      ) : opinions.length === 0 ? (
+        <div style={{ textAlign: "center", paddingTop: 40, color: colors.dimmed }}>
+          该标的暂无讨论数据
+        </div>
+      ) : (
+        <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
+          {opinions.map((op) => {
+            const action = inferAction(op);
+            const reason = buildReason(op);
+            const refute = buildRefute(op);
+            const confidence = op.confidence ?? 50;
 
-                {/* 理由 */}
-                <Paragraph
-                  style={{ color: colors.text, marginBottom: 8, fontSize: 13, lineHeight: 1.6 }}
+            return (
+              <Col xs={24} sm={12} key={`${op.agent_name}-${op.round_num}`}>
+                <Card
+                  style={{
+                    background: colors.card,
+                    borderColor: colors.border,
+                    height: "100%",
+                  }}
+                  styles={{
+                    body: { padding: 20 },
+                  }}
                 >
-                  {op.reason}
-                </Paragraph>
+                  {/* Agent 名称 */}
+                  <Row align="middle" justify="space-between" style={{ marginBottom: 12 }}>
+                    <Col>
+                      <Text strong style={{ color: colors.text, fontSize: 15 }}>
+                        {op.agent_name}
+                      </Text>
+                    </Col>
+                    <Col>{actionTag(action)}</Col>
+                  </Row>
 
-                {/* 置信度 */}
-                <Row align="middle" justify="space-between">
-                  <Col>
-                    <Text style={{ color: colors.muted, fontSize: 12 }}>
-                      置信度
-                    </Text>
-                  </Col>
-                  <Col>
-                    <Text
-                      style={{
-                        color:
-                          op.confidence >= 80
-                            ? colors.success
-                            : op.confidence >= 60
-                              ? colors.amber
-                              : colors.danger,
-                        fontWeight: 600,
-                        fontSize: 15,
-                      }}
-                    >
-                      {op.confidence}/100
-                    </Text>
-                  </Col>
-                </Row>
+                  {/* 理由 */}
+                  <Paragraph
+                    style={{ color: colors.text, marginBottom: 8, fontSize: 13, lineHeight: 1.6 }}
+                  >
+                    {reason}
+                  </Paragraph>
 
-                {/* 证伪理由 */}
-                {op.refuteReason && (
-                  <div style={{ marginTop: 8 }}>
-                    <Text
-                      style={{
-                        color: colors.dimmed,
-                        fontStyle: "italic",
-                        fontSize: 12,
-                      }}
-                    >
-                      ⚠ {op.refuteReason}
-                    </Text>
-                  </div>
-                )}
-              </Card>
-            </Col>
-          );
-        })}
-      </Row>
+                  {/* 置信度 */}
+                  <Row align="middle" justify="space-between">
+                    <Col>
+                      <Text style={{ color: colors.muted, fontSize: 12 }}>
+                        置信度
+                      </Text>
+                    </Col>
+                    <Col>
+                      <Text
+                        style={{
+                          color:
+                            confidence >= 80
+                              ? colors.success
+                              : confidence >= 60
+                                ? colors.amber
+                                : colors.danger,
+                          fontWeight: 600,
+                          fontSize: 15,
+                        }}
+                      >
+                        {confidence}/100
+                      </Text>
+                    </Col>
+                  </Row>
+
+                  {/* 证伪理由 */}
+                  {refute && (
+                    <div style={{ marginTop: 8 }}>
+                      <Text
+                        style={{
+                          color: colors.dimmed,
+                          fontStyle: "italic",
+                          fontSize: 12,
+                        }}
+                      >
+                        ⚠ {refute}
+                      </Text>
+                    </div>
+                  )}
+                </Card>
+              </Col>
+            );
+          })}
+        </Row>
+      )}
 
       {/* ── Agent 权重列表 ── */}
       <Title level={5} style={{ color: colors.muted, marginBottom: 12 }}>
@@ -309,11 +369,12 @@ const AgentDiscussionPage: React.FC = () => {
         styles={{ body: { padding: 0 } }}
       >
         <Table
-          dataSource={mockWeights}
+          dataSource={weightItems}
           columns={weightColumns}
-          rowKey="agentId"
+          rowKey="agent_name"
           pagination={false}
           style={{ background: "transparent" }}
+          locale={{ emptyText: "暂无权重数据" }}
           components={{
             header: {
               cell: (props: React.ThHTMLAttributes<HTMLTableCellElement>) => (
