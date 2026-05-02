@@ -122,7 +122,7 @@ function MobileNotifications() {
 
   if (loading) {
     return (
-      <div
+      <div className="page-enter"
         style={{
           display: "flex",
           alignItems: "center",
@@ -136,7 +136,7 @@ function MobileNotifications() {
   }
 
   return (
-    <div
+    <div className="page-enter"
       style={{
         display: "flex",
         flexDirection: "column",
@@ -245,6 +245,7 @@ function MobileNotifications() {
                     cursor: "pointer",
                     userSelect: "none",
                     padding: "2px 0",
+                    transition: "opacity 0.15s ease",
                   }}
                 >
                   标记已读

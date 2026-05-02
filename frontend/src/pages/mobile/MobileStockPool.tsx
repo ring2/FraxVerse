@@ -138,7 +138,7 @@ function MobileStockPool() {
 
   if (loading) {
     return (
-      <div
+      <div className="page-enter"
         style={{
           display: "flex",
           justifyContent: "center",
@@ -154,7 +154,7 @@ function MobileStockPool() {
   }
 
   return (
-    <div>
+    <div className="page-enter">
       {/* ===== 标题栏 ===== */}
       <div
         style={{
@@ -162,12 +162,18 @@ function MobileStockPool() {
           alignItems: "center",
           fontSize: 18,
           fontWeight: 600,
-          color: colors.text.primary,
           marginBottom: 14,
           lineHeight: 1.3,
         }}
       >
-        股票池
+        <span style={{
+          background: "linear-gradient(135deg, #7F77DD, #9B93E4)",
+          WebkitBackgroundClip: "text",
+          WebkitTextFillColor: "transparent",
+          backgroundClip: "text",
+        }}>
+          股票池
+        </span>
         <div style={{ marginLeft: "auto" }}>
           <button
             onClick={handleRescan}
@@ -186,6 +192,7 @@ function MobileStockPool() {
               background: colors.gradient.primary,
               color: colors.text.inverse,
               boxShadow: colors.btnShadow,
+              transition: "all 0.15s ease",
             }}
           >
             重新扫描

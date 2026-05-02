@@ -76,7 +76,7 @@ function MobileSystemHealth() {
 
   if (loading) {
     return (
-      <div
+      <div className="page-enter"
         style={{
           display: "flex",
           alignItems: "center",
@@ -90,7 +90,7 @@ function MobileSystemHealth() {
   }
 
   return (
-    <div
+    <div className="page-enter"
       style={{
         display: "flex",
         flexDirection: "column",

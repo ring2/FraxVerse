@@ -68,13 +68,12 @@ const MobileMore: React.FC = () => {
   const navigate = useNavigate();
 
   return (
-    <div style={{ paddingBottom: 16 }}>
+    <div className="page-enter" style={{ paddingBottom: 16 }}>
       {/* Header */}
       <div
         style={{
           fontSize: 18,
           fontWeight: 700,
-          color: colors.text.primary,
           marginBottom: 20,
           display: "flex",
           alignItems: "center",
@@ -82,7 +81,14 @@ const MobileMore: React.FC = () => {
         }}
       >
         <AppstoreAddOutlined style={{ color: colors.purple[500] }} />
-        更多功能
+        <span style={{
+          background: "linear-gradient(135deg, #7F77DD, #9B93E4)",
+          WebkitBackgroundClip: "text",
+          WebkitTextFillColor: "transparent",
+          backgroundClip: "text",
+        }}>
+          更多功能
+        </span>
       </div>
 
       {/* 2x3 Grid */}

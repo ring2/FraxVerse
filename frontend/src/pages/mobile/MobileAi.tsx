@@ -110,7 +110,7 @@ function MobileAi() {
 
   if (loading) {
     return (
-      <div
+      <div className="page-enter"
         style={{
           display: "flex",
           alignItems: "center",
@@ -124,7 +124,7 @@ function MobileAi() {
   }
 
   return (
-    <div
+    <div className="page-enter"
       style={{
         display: "flex",
         flexDirection: "column",

@@ -114,7 +114,7 @@ function MobileMonitor() {
 
   if (loading) {
     return (
-      <div
+      <div className="page-enter"
         style={{
           display: "flex",
           alignItems: "center",
@@ -130,7 +130,7 @@ function MobileMonitor() {
   const latestMetrics = metrics.length > 0 ? metrics[metrics.length - 1] : null;
 
   return (
-    <div
+    <div className="page-enter"
       style={{
         display: "flex",
         flexDirection: "column",

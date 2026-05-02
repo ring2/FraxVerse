@@ -305,18 +305,24 @@ function MobileSettings() {
   }, [message]);
 
   return (
-    <div>
+    <div className="page-enter">
       {/* 标题 */}
       <div
         style={{
           fontSize: 18,
           fontWeight: 600,
-          color: colors.text.primary,
           marginBottom: 6,
           lineHeight: 1.3,
         }}
       >
-        设置
+        <span style={{
+          background: "linear-gradient(135deg, #7F77DD, #9B93E4)",
+          WebkitBackgroundClip: "text",
+          WebkitTextFillColor: "transparent",
+          backgroundClip: "text",
+        }}>
+          设置
+        </span>
       </div>
       <div
         style={{
@@ -350,6 +356,7 @@ function MobileSettings() {
                 background: "transparent",
                 color: colors.text.secondary,
                 lineHeight: 1.4,
+                transition: "all 0.15s ease",
               }}
             >
               修改
@@ -605,6 +612,7 @@ function MobileSettings() {
                 background: colors.semantic.upBg,
                 color: colors.semantic.up,
                 lineHeight: 1.4,
+                transition: "all 0.15s ease",
               }}
             >
               退出登录
