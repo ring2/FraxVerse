@@ -40,17 +40,46 @@ const Placeholder = ({ title }: { title: string }) => (
   </div>
 );
 
-const AgentDiscussionPage = () => <Placeholder title="碎片聚合" />;
+const AgentDiscussionPage = lazy(() =>
+  import("./pages/agent-discussion/AgentDiscussionPage").catch(() => ({
+    default: () => <Placeholder title="碎片聚合" />,
+  }))
+);
 const KlineSignalPage = () => <Placeholder title="K线星象" />;
 const BacktestPage = () => <Placeholder title="回测时光" />;
-const StrategyPerfPage = () => <Placeholder title="修行日记" />;
-const ExperiencePage = () => <Placeholder title="内观" />;
-const NotificationPage = () => <Placeholder title="回音" />;
-const SystemHealthPage = () => <Placeholder title="系统脉搏" />;
 const SettingsPage = () => <Placeholder title="内观设置" />;
-const EquityCurvePage = () => <Placeholder title="星轨" />;
-const DataMonitorPage = () => <Placeholder title="天眼" />;
 const NewsPage = () => <Placeholder title="心念潮汐" />;
+
+const StrategyPerfPage = lazy(() =>
+  import("./pages/strategy-perf/StrategyPerfPage").catch(() => ({
+    default: () => <Placeholder title="修行日记" />,
+  }))
+);
+const ExperiencePage = lazy(() =>
+  import("./pages/experience/ExperiencePage").catch(() => ({
+    default: () => <Placeholder title="内观" />,
+  }))
+);
+const NotificationPage = lazy(() =>
+  import("./pages/notification/NotificationPage").catch(() => ({
+    default: () => <Placeholder title="回音" />,
+  }))
+);
+const SystemHealthPage = lazy(() =>
+  import("./pages/system-health/SystemHealthPage").catch(() => ({
+    default: () => <Placeholder title="系统脉搏" />,
+  }))
+);
+const EquityCurvePage = lazy(() =>
+  import("./pages/equity-curve/EquityCurvePage").catch(() => ({
+    default: () => <Placeholder title="星轨" />,
+  }))
+);
+const DataMonitorPage = lazy(() =>
+  import("./pages/data-monitor/DataMonitorPage").catch(() => ({
+    default: () => <Placeholder title="天眼" />,
+  }))
+);
 
 function App() {
   return (
