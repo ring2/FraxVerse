@@ -65,7 +65,7 @@ api.interceptors.response.use(
           ApiResponse<{ access_token: string }>
         >("/api/v1/auth/refresh", { refresh_token: refreshToken });
 
-        const newToken = res.data.data.access_token;
+        const newToken = res.data.access_token;
         localStorage.setItem("access_token", newToken);
         processQueue(null, newToken);
 

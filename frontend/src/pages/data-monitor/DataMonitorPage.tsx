@@ -128,9 +128,10 @@ const DataMonitorPage: React.FC = () => {
               <Descriptions
                 column={1}
                 size="small"
-                styles={{
-                  label: { color: colors.dimmed, fontSize: 12, paddingBottom: 6 },
-                  content: { color: colors.text, fontSize: 13, paddingBottom: 6 },
+                style={{
+                  background: colors.surface,
+                  borderRadius: 8,
+                  padding: 12,
                 }}
               >
                 <Descriptions.Item label="数据行数">

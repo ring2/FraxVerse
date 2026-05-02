@@ -10,8 +10,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@ant-design/icons": "^6.2.2",
-    "antd": "^5.29.3",
+    "@ant-design/icons": "5.5",
+    "antd": "5.22",
     "autoprefixer": "^10.5.0",
     "axios": "^1.15.2",
     "echarts": "^6.0.0",
