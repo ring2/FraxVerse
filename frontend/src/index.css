@@ -1,0 +1,146 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --cosmos-bg: #0a0a1a;
+  --cosmos-surface: #12122a;
+  --cosmos-card: #1a1a3a;
+  --cosmos-border: #2a2a4a;
+  --cosmos-nebula: #6b5ce7;
+  --cosmos-gold: #f0c040;
+  --cosmos-shard: #4a9eff;
+  --cosmos-amber: #ef9f27;
+  --cosmos-danger: #ff4757;
+  --cosmos-success: #2ed573;
+  --cosmos-text: #e0e0f0;
+  --cosmos-muted: #8887a8;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+}
+
+body {
+  font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+  background: var(--cosmos-bg);
+  color: var(--cosmos-text);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--cosmos-border);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--cosmos-nebula);
+}
+
+/* Ant Design overrides for dark cosmos theme */
+.ant-table {
+  background: transparent !important;
+}
+
+.ant-table-thead > tr > th {
+  background: var(--cosmos-surface) !important;
+  color: var(--cosmos-muted) !important;
+  border-bottom: 1px solid var(--cosmos-border) !important;
+}
+
+.ant-table-tbody > tr > td {
+  background: transparent !important;
+  border-bottom: 1px solid var(--cosmos-border) !important;
+  color: var(--cosmos-text) !important;
+}
+
+.ant-table-tbody > tr:hover > td {
+  background: rgba(107, 92, 231, 0.08) !important;
+}
+
+.ant-card {
+  background: var(--cosmos-card) !important;
+  border: 1px solid var(--cosmos-border) !important;
+  border-radius: 12px !important;
+}
+
+.ant-card-head {
+  border-bottom: 1px solid var(--cosmos-border) !important;
+  color: var(--cosmos-text) !important;
+}
+
+.ant-btn-primary {
+  background: linear-gradient(135deg, var(--cosmos-nebula), var(--cosmos-shard)) !important;
+  border: none !important;
+  box-shadow: 0 2px 8px rgba(107, 92, 231, 0.3) !important;
+}
+
+.ant-btn-primary:hover {
+  opacity: 0.9 !important;
+  box-shadow: 0 4px 16px rgba(107, 92, 231, 0.5) !important;
+}
+
+.ant-input {
+  background: var(--cosmos-surface) !important;
+  border-color: var(--cosmos-border) !important;
+  color: var(--cosmos-text) !important;
+}
+
+.ant-input:hover,
+.ant-input:focus {
+  border-color: var(--cosmos-nebula) !important;
+}
+
+.ant-typography {
+  color: var(--cosmos-text) !important;
+}
+
+.ant-menu {
+  background: transparent !important;
+  border-inline-end: none !important;
+}
+
+.ant-menu-item {
+  color: var(--cosmos-muted) !important;
+}
+
+.ant-menu-item-selected {
+  background: rgba(107, 92, 231, 0.15) !important;
+  color: var(--cosmos-nebula) !important;
+}
+
+.ant-menu-item:hover {
+  color: var(--cosmos-shard) !important;
+}
+
+/* Smooth transitions */
+.fade-enter {
+  opacity: 0;
+  transform: translateY(10px);
+}
+
+.fade-enter-active {
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity 300ms ease, transform 300ms ease;
+}

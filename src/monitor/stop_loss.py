@@ -244,3 +244,20 @@ def run_monitor(scan_interval: int = DEFAULT_SCAN_INTERVAL):
     """运行止损监视器"""
     monitor = StopLossMonitor(scan_interval=scan_interval)
     monitor.start()
+
+# 集成微信推送
+try:
+    from src.notification.wechat import get_notifier
+
+    def _notify_stop_loss(stock_code, trigger_price, cost_price, pnl_pct, reason):
+        """止损推送通知"""
+        notifier = get_notifier()
+        notifier.send_stop_loss_alert(
+            stock_code=stock_code,
+            trigger_price=Decimal(str(trigger_price)),
+            cost_price=Decimal(str(cost_price)),
+            pnl_pct=Decimal(str(pnl_pct)),
+            reason=reason,
+        )
+except ImportError:
+    _notify_stop_loss = None
