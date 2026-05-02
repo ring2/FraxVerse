@@ -49,6 +49,12 @@ class Settings(BaseSettings):
     # LLM
     DEEPSEEK_API_KEY: str = os.getenv("DEEPSEEK_API_KEY", "")
 
+    # quant-qmt-proxy (LIVE 模式对接)
+    QMT_PROXY_URL: str = os.getenv("QMT_PROXY_URL", "http://127.0.0.1:8000")
+    QMT_PROXY_API_KEY: str = os.getenv("QMT_PROXY_API_KEY", "")
+    QMT_ACCOUNT_ID: str = os.getenv("QMT_ACCOUNT_ID", "")
+    QMT_ACCOUNT_TYPE: str = os.getenv("QMT_ACCOUNT_TYPE", "STOCK")
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"

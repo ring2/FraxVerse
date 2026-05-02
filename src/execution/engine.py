@@ -192,6 +192,18 @@ class OrderExecutor:
             )
         return total_asset, order_amount
 
+    _live_broker: "QmtLiveBroker | None" = None
+
+    @classmethod
+    def set_live_broker(cls, broker: "QmtLiveBroker | None"):
+        """设置全局 LIVE 模式代理（启动时注入）"""
+        cls._live_broker = broker
+
+    @classmethod
+    def get_live_broker(cls) -> "QmtLiveBroker | None":
+        """获取全局 LIVE 模式代理"""
+        return cls._live_broker
+
     def _generate_client_order_id(self) -> str:
         """生成幂等键"""
         return str(uuid.uuid4())
@@ -214,9 +226,13 @@ class OrderExecutor:
         reason: str | None = None,
     ) -> TradeOrders:
         """
-        执行下单（SIMULATION模式直接标记成交）
+        执行下单
 
-        校验顺序：
+        SIMULATION 模式：直接标记成交，模拟更新持仓
+        PAPER 模式：按模拟盘逻辑执行（未来实现）
+        LIVE 模式：通过 quant-qmt-proxy 提交真实订单
+
+        校验顺序（所有模式通用）：
         1. 紧急停止检查
         2. 股票存在性
         3. 冷却期检查
@@ -256,9 +272,9 @@ class OrderExecutor:
             order_type=order_type,
             price=price,
             volume=volume,
-            filled_volume=volume if self._mode == "SIMULATION" else 0,
-            filled_amount=order_amount if self._mode == "SIMULATION" else Decimal("0"),
-            status="filled" if self._mode == "SIMULATION" else "pending",
+            filled_volume=0,
+            filled_amount=Decimal("0"),
+            status="pending",
             trigger_source=trigger_source,
             trade_mode=self._mode,
             strategy_type=strategy_type,
@@ -268,16 +284,99 @@ class OrderExecutor:
         self.db.add(order)
         self.db.flush()
 
-        # SIMULATION 模式：直接更新持仓
+        # ================================================================
+        # 模式分发
+        # ================================================================
+
         if self._mode == "SIMULATION":
-            self._update_position_after_trade(
-                stock_code, direction, volume, price or Decimal("100"),
-                position_batch, strategy_type,
-            )
+            # SIMULATION：直接标记成交，更新持仓
+            self._execute_simulation(order, stock_code, direction, volume, price or Decimal("100"), position_batch)
+        elif self._mode == "LIVE":
+            # LIVE：通过 broker 提交真实订单
+            self._execute_live(order, stock_code, direction, volume, order_type, price, strategy_type)
+        # PAPER 模式：后续实现
 
         self.db.commit()
         self.db.refresh(order)
         return order
+
+    def _execute_simulation(
+        self,
+        order: TradeOrders,
+        stock_code: str,
+        direction: str,
+        volume: int,
+        price: Decimal,
+        position_batch: str | None,
+    ):
+        """SIMULATION 模式：标记成交 + 更新持仓"""
+        order.status = "filled"
+        order.filled_volume = volume
+        order.filled_amount = Decimal(str(volume)) * price
+        self._update_position_after_trade(
+            stock_code, direction, volume, price,
+            position_batch, order.strategy_type,
+        )
+
+    def _execute_live(
+        self,
+        order: TradeOrders,
+        stock_code: str,
+        direction: str,
+        volume: int,
+        order_type: str,
+        price: Decimal | None,
+        strategy_type: str | None,
+    ):
+        """LIVE 模式：通过 quant-qmt-proxy 提交真实订单"""
+        broker = self.get_live_broker()
+        if broker is None:
+            order.status = "failed"
+            order.fail_reason = "LIVE broker 未配置"
+            return
+
+        try:
+            # 订单类型映射
+            price_type = 2  # 默认市价
+            proxy_price = 0.0
+            if order_type == "limit" and price is not None:
+                price_type = 1
+                proxy_price = float(price)
+
+            result = broker.submit_order(
+                stock_code=stock_code,
+                direction=direction,
+                volume=volume,
+                price_type=price_type,
+                price=proxy_price,
+                strategy_name=strategy_type or "",
+                order_remark=order.reason or "",
+            )
+
+            # 更新订单状态
+            order.client_order_id = result.get("order_id", order.client_order_id)
+            order.status = self._qmt_status_to_local(result.get("status_code", 50))
+            order.filled_volume = result.get("traded_volume", 0)
+            order.filled_amount = Decimal(str(result.get("traded_price", 0)))
+            order.fail_reason = result.get("status_msg", "")
+
+        except Exception as exc:
+            order.status = "failed"
+            order.fail_reason = str(exc)
+
+    @staticmethod
+    def _qmt_status_to_local(status_code: int) -> str:
+        """将 quant-qmt-proxy 的订单状态码映射到本地"""
+        mapping = {
+            48: "pending",      # 未报
+            50: "submitted",    # 已报待撤/正报
+            51: "failed",       # 废单（委托失败）
+            52: "retrying",     # 部成待撤
+            53: "partial_filled",  # 部成部撤
+            54: "cancelled",    # 已撤
+            55: "filled",       # 全部成交
+        }
+        return mapping.get(status_code, "pending")
 
     def _update_position_after_trade(
         self,
