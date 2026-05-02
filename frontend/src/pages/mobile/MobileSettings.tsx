@@ -1,8 +1,9 @@
 import { useCallback, useState } from "react";
+import { App } from "antd";
 import { useNavigate } from "react-router-dom";
 import { useTheme } from "../../theme/ThemeContext";
-import { MobileSectionCard } from "../../components/mobile";
 import { useAuthStore } from "../../stores/useAuthStore";
+import { authService } from "../../services/authService";
 
 /* ===================================================================
    MobileSettings — 12 大分类 50+ 项参数
@@ -272,6 +273,7 @@ const GroupLabel = ({ label }: { label: string }) => {
    Main Component
    =================================================================== */
 function MobileSettings() {
+  const { message } = App.useApp();
   const { colors, mode, toggle } = useTheme();
   const { user } = useAuthStore();
   const navigate = useNavigate();
@@ -297,6 +299,11 @@ function MobileSettings() {
     useAuthStore.getState().logout();
     navigate("/login");
   }, [navigate]);
+
+  const handleChangePassword = useCallback(() => {
+    // TODO: 弹出密码修改模态框，收集旧密码+新密码后调用 authService.changePassword
+    message.info("修改密码 — 将在下轮迭代中弹出模态框");
+  }, [message]);
 
   return (
     <div>
@@ -333,7 +340,7 @@ function MobileSettings() {
           desc="修改后将自动登出，需重新登录"
           right={
             <button
-              onClick={(e) => { e.stopPropagation(); }}
+              onClick={(e) => { e.stopPropagation(); handleChangePassword(); }}
               style={{
                 padding: "5px 12px",
                 borderRadius: `${colors.radius.sm}px`,

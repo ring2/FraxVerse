@@ -7,8 +7,6 @@ from sqlalchemy.orm import Session
 
 from src.api.deps import get_current_user_id
 from src.db.models import (
-    AgentDiscussions,
-    AgentWeights,
     BacktestResults,
     Experiences,
     Notifications,
@@ -17,7 +15,6 @@ from src.db.models import (
     StrategyParams,
 )
 from src.db.session import get_session
-from src.schemas.agent import AgentDiscussionItem, AgentWeightItem
 from src.schemas.system import (
     BacktestResultItem,
     ExperienceItem,
@@ -57,43 +54,6 @@ def get_strategy_params(
     if strategy_type:
         q = q.filter(StrategyParams.strategy_type == strategy_type)
     return q.all()
-
-
-# —————— Agent 路由 ——————
-agent_router = APIRouter(prefix="/api/v1/agent", tags=["agent"])
-
-
-@agent_router.get("/discussions", response_model=list[AgentDiscussionItem])
-def list_agent_discussions(
-    stock_code: str | None = None,
-    date_str: date | None = None,
-    limit: int = Query(50, le=200),
-    db: Session = Depends(get_session),
-    user_id: int = Depends(get_current_user_id),
-):
-    """查询Agent讨论记录"""
-    q = db.query(AgentDiscussions).order_by(AgentDiscussions.created_at.desc())
-    if stock_code:
-        q = q.filter(AgentDiscussions.stock_code == stock_code)
-    if date_str:
-        q = q.filter(AgentDiscussions.date == date_str)
-    return q.limit(limit).all()
-
-
-@agent_router.get("/weights", response_model=list[AgentWeightItem])
-def get_agent_weights(db: Session = Depends(get_session), user_id: int = Depends(get_current_user_id)):
-    """查询Agent权重"""
-    weights = db.query(AgentWeights).all()
-    return [
-        AgentWeightItem(
-            agent_name=w.agent_name,
-            market_state=w.market_state,
-            base_weight=float(w.base_weight),
-            effective_weight=float(w.effective_weight),
-            win_rate=float(w.win_rate) if w.win_rate else None,
-        )
-        for w in weights
-    ]
 
 
 # —————— 风险路由 ——————

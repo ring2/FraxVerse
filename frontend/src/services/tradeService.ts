@@ -1,4 +1,5 @@
 import api from "./api";
+import { normalizeStockCode } from "../utils/stockCode";
 import type {
   OrderResponse,
   OrderCreateRequest,
@@ -32,7 +33,10 @@ export const tradeService = {
    * 创建订单 — 传入 OrderCreateRequest，返回新增的 OrderResponse
    */
   async createOrder(payload: OrderCreateRequest): Promise<OrderResponse | null> {
-    const res = await api.post("/trade/orders", payload);
+    const res = await api.post("/trade/orders", {
+      ...payload,
+      stock_code: normalizeStockCode(payload.stock_code),
+    });
     return res.data ?? null;
   },
 

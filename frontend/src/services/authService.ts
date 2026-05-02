@@ -42,4 +42,16 @@ export const authService = {
       data: res.data as { access_token: string },
     };
   },
+
+  async changePassword(oldPassword: string, newPassword: string): Promise<ApiResponse<null>> {
+    await api.post("/auth/change-password", {
+      old_password: oldPassword,
+      new_password: newPassword,
+    });
+    return {
+      code: 0,
+      message: "ok",
+      data: null,
+    };
+  },
 };
