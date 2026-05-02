@@ -1,10 +1,10 @@
 # FraxVerse 碎片宇宙 · 进化路线图
 
-> ⏱ 最后更新：2026-05-02
+> ⏱ 最后更新：2026-05-03
 >
-> 当前评分：5.5 / 10（半成品工具，非玩具但离可用差一口气）
+> 当前评分：6.0 / 10（LIVE 实盘模式代码就绪，待 Win 云服务器验证）
 >
-> 致命短板：**0 笔交易记录，无真 LLM，无实盘验证**
+> 致命短板：**0 笔真实交易记录，仍需租一台 Win 云服务器跑 quant-qmt-proxy**
 
 ---
 
@@ -19,6 +19,7 @@
 | V2 移动端 | ~100% | 4主页面+6子页面+登录页+双主题+底部Tab导航 |
 | P0遗留(L1-L5) | 100% | 空状态/404/Loading/toast/移动端适配 全部就位 |
 | DeepSeek API Key | ✅ 已配 | `.env`→deepseek-v4-flash，3/3实测通过 |
+| LIVE 实盘模式 | 100% 代码 | QmtProxyClient + QmtLiveBroker + 引擎集成 + 560测试通过，待 Win 服务器验证 |
 
 ---
 
@@ -30,9 +31,15 @@
   - 参数敏感性分析（评分阈值、止盈阶梯、分批比例）
 
 - [ ] **P3-3 — 实盘/模拟盘持续运行**
-  - 配置 `run_p0.py --mode real` 每日自动触发
-  - Agent 每日分析 → 写入 DB → 积累历史决策
-  - 连续跑 1 个月以上
+  - [x] **代码完成** — QmtProxyClient + QmtLiveBroker，引擎集成，560 测试通过
+  - [ ] **租一台低配 Windows 云服务器**（60-80 元/月，阿里云或腾讯云）
+  - [ ] 装 miniQMT 并登录
+  - [ ] 装 quant-qmt-proxy（https://github.com/liqimore/quant-qmt-proxy）
+  - [ ] 配置 `.env` 的 QMT_PROXY_URL / API_KEY / ACCOUNT_ID
+  - [ ] 模式切换到 LIVE 验证下单/查询链路
+  - [ ] 配置 `run_p0.py --mode real` 每日自动触发
+  - [ ] Agent 每日分析 → 写入 DB → 积累历史决策
+  - [ ] 连续跑 1 个月以上
 
 ---
 
@@ -125,5 +132,6 @@ DevOps         ░░░░░░░░░░  （0%）
 UX             ░░░░░░░░░░  （0%）
 ```
 
-> 注：每次完成一个任务，更新此文件后 commit。
-> 格式：`[ ]` → `[x]` + `@日期` + 简要说明。
+### 更新记录
+- 2026-05-03: LIVE 实盘模式代码完成（QmtProxyClient + QmtLiveBroker），更新致命短板描述
+- 2026-05-02: 初始版本
