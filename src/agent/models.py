@@ -77,6 +77,7 @@ class WeightedVoteResult(BaseModel):
     against_score_sum: float
     net_score: float
     decision: DecisionType
+    decision_reason: Optional[str] = None  # 决策原因
     risk_veto: bool = False  # [PRD-T-101]
     risk_veto_reason: Optional[str] = None
     agent_votes: dict[str, dict]  # {agent_name: {score, weight, effective_score}}

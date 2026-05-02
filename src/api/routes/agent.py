@@ -19,6 +19,7 @@ FraxVerse · Agent API 路由
 """
 from __future__ import annotations
 
+import json
 import logging
 from datetime import date, datetime
 from typing import Any
@@ -90,7 +91,7 @@ def _make_get_weights(session: Session):
 def _make_get_active_risk_events(session: Session):
     def fn(dt: str) -> bool:
         row = session.execute(
-            text("SELECT COUNT(*) FROM risk_events WHERE date = :date AND is_resolved = FALSE LIMIT 1"),
+            text("SELECT COUNT(*) FROM risk_events WHERE trade_date = :date AND recovery_status != 'resolved' LIMIT 1"),
             {"date": dt},
         ).fetchone()
         return row[0] > 0 if row else False
@@ -100,7 +101,7 @@ def _make_get_active_risk_events(session: Session):
 def _make_get_daily_volume(session: Session):
     def fn(stock_code: str, dt: str) -> float | None:
         row = session.execute(
-            text("SELECT avg_amount FROM fund_flows WHERE stock_code = :code AND date = :date LIMIT 1"),
+            text("SELECT main_amount FROM fund_flows WHERE stock_code = :code AND trade_date = :date LIMIT 1"),
             {"code": stock_code, "date": dt},
         ).fetchone()
         return float(row[0]) if row else None
@@ -143,7 +144,7 @@ def _make_save_decisions(session: Session):
                     "net_score": d.net_score,
                     "decision": d.decision.value,
                     "decision_reason": d.decision_reason,
-                    "agent_votes": str(d.agent_votes),
+                    "agent_votes": json.dumps(d.agent_votes, ensure_ascii=False),
                     "risk_veto": d.risk_veto,
                     "risk_veto_reason": d.risk_veto_reason,
                     "convergence_rounds": 0,
@@ -172,8 +173,8 @@ def _make_save_discussions(session: Session):
                         "round_num": round_num,
                         "agent_name": output.agent_name.value,
                         "score": output.score,
-                        "buy_reasons": str(list(output.buy_reasons)),
-                        "against_reasons": str(list(output.against_reasons)),
+                        "buy_reasons": json.dumps(list(output.buy_reasons), ensure_ascii=False),
+                        "against_reasons": json.dumps(list(output.against_reasons), ensure_ascii=False),
                         "confidence": output.confidence,
                         "predicted_outcome": output.predicted_outcome.value,
                         "is_valid": True,
