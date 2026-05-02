@@ -21,7 +21,7 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// Response interceptor — token refresh on 401
+// Response interceptor — token refresh on 401, notifies store
 let isRefreshing = false;
 let failedQueue: Array<{
   resolve: (token: string) => void;
@@ -62,19 +62,35 @@ api.interceptors.response.use(
         if (!refreshToken) throw new Error("No refresh token");
 
         const res = await axios.post<
-          ApiResponse<{ access_token: string }>
+          ApiResponse<{ access_token: string; refresh_token?: string }>
         >("/api/v1/auth/refresh", { refresh_token: refreshToken });
 
-        const newToken = res.data.access_token;
-        localStorage.setItem("access_token", newToken);
-        processQueue(null, newToken);
+        const newAccessToken = res.data.data?.access_token || (res.data as unknown as { access_token: string }).access_token;
+        if (!newAccessToken) throw new Error("No access_token in refresh response");
 
-        originalRequest.headers.Authorization = `Bearer ${newToken}`;
+        // Store new token
+        localStorage.setItem("access_token", newAccessToken);
+
+        // Notify the Zustand store so its state stays in sync
+        // Lazy import to avoid circular dependency at module level
+        const { useAuthStore } = await import("../stores/useAuthStore");
+        useAuthStore.getState().setTokens(newAccessToken, null);
+
+        processQueue(null, newAccessToken);
+
+        originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
         return api(originalRequest);
       } catch (refreshError) {
         processQueue(refreshError, null);
         localStorage.removeItem("access_token");
         localStorage.removeItem("refresh_token");
+        // Clear store state too
+        try {
+          const { useAuthStore } = await import("../stores/useAuthStore");
+          useAuthStore.getState().setTokens(null, null);
+        } catch {
+          // Best effort
+        }
         window.location.href = "/login";
         return Promise.reject(refreshError);
       } finally {
