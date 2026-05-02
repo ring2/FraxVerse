@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
-import { App, Card, Select, Tag, Typography, Row, Col, Table, Spin, Button, Space, Divider, Statistic, Badge } from "antd";
+import { App, Card, Select, Tag, Typography, Row, Col, Table, Spin, Button, Space, Divider, Statistic, Badge, Modal, Tooltip, Alert } from "antd";
 import {
   CheckCircleOutlined,
   CloseCircleOutlined,
@@ -10,6 +10,8 @@ import {
   ExperimentOutlined,
   BarChartOutlined,
   ReloadOutlined,
+  PlayCircleOutlined,
+  LoadingOutlined,
 } from "@ant-design/icons";
 import { colors } from "../../theme/colors";
 import { agentService } from "../../services/agentService";
@@ -202,6 +204,40 @@ const AgentDiscussionPage: React.FC = () => {
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  // ─── 手动触发分析 ──────────────────────────────────────────────────────────────
+  const [triggerModalOpen, setTriggerModalOpen] = useState(false);
+  const [triggerLoading, setTriggerLoading] = useState(false);
+  const [triggerResult, setTriggerResult] = useState<{
+    success: boolean;
+    stockCount: number;
+    decisions: Array<{ stockCode: string; decision: string; totalScore: number }>;
+  } | null>(null);
+  const [selectedTriggerCodes, setSelectedTriggerCodes] = useState<string[]>([]);
+
+  const handleTrigger = useCallback(async () => {
+    setTriggerLoading(true);
+    setTriggerResult(null);
+    try {
+      const result = await agentService.triggerAnalysis(
+        selectedTriggerCodes.length > 0 ? selectedTriggerCodes : undefined
+      );
+      setTriggerResult({
+        success: true,
+        stockCount: result.stockCount,
+        decisions: result.decisions,
+      });
+      // 分析完成后自动刷新数据
+      setTimeout(() => {
+        loadData();
+      }, 1000);
+    } catch (err) {
+      console.error("Trigger analysis failed:", err);
+      setTriggerResult({ success: false, stockCount: 0, decisions: [] });
+    } finally {
+      setTriggerLoading(false);
+    }
+  }, [selectedTriggerCodes, loadData]);
 
   // 标的筛选
   const stockCodes = Array.from(new Set(discussions.map(d => d.stockCode)));
@@ -408,6 +444,142 @@ const AgentDiscussionPage: React.FC = () => {
           })}
         </Row>
       )}
+
+      {/* ── 手动触发 Agent 分析 ── */}
+      <Card
+        style={{ background: colors.surface, borderColor: colors.border, borderStyle: "dashed", marginBottom: 24 }}
+        styles={{ body: { padding: "16px 24px" } }}
+      >
+        <Row align="middle" justify="space-between">
+          <Col>
+            <Space>
+              <PlayCircleOutlined style={{ color: colors.shard, fontSize: 20 }} />
+              <div>
+                <Text strong style={{ color: colors.text, display: "block" }}>
+                  手动触发 Agent 分析
+                </Text>
+                <Text style={{ color: colors.muted, fontSize: 12 }}>
+                  将使用当前市场状态和股票池数据，触发完整的 Agent 辩论→投票→决策流程
+                </Text>
+              </div>
+            </Space>
+          </Col>
+          <Col>
+            <Button
+              type="primary"
+              icon={<PlayCircleOutlined />}
+              onClick={() => {
+                setTriggerModalOpen(true);
+                setTriggerResult(null);
+                setSelectedTriggerCodes([]);
+              }}
+              style={{ background: colors.shard, borderColor: colors.shard }}
+            >
+              开始分析
+            </Button>
+          </Col>
+        </Row>
+
+        {/* 触发结果展示 */}
+        {triggerResult && (
+          <div style={{ marginTop: 12, padding: 12, background: colors.card, borderRadius: 6 }}>
+            {triggerResult.success ? (
+              <Space direction="vertical" style={{ width: "100%" }}>
+                <Alert
+                  type="success"
+                  message={`分析完成 — 涉及 ${triggerResult.stockCount} 只标的`}
+                  showIcon
+                  style={{ background: "rgba(82, 196, 26, 0.1)", border: "none", color: colors.text }}
+                />
+                {triggerResult.decisions.length > 0 && (
+                  <div style={{ marginTop: 8 }}>
+                    <Text style={{ color: colors.muted, fontSize: 12 }}>分析结果：</Text>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 4 }}>
+                      {triggerResult.decisions.slice(0, 10).map((d) => {
+                        const cfg = actionConfig(d.decision);
+                        return (
+                          <Tag key={d.stockCode} color={cfg.color}>
+                            {d.stockCode}: {cfg.label} ({d.totalScore.toFixed(0)}分)
+                          </Tag>
+                        );
+                      })}
+                      {triggerResult.decisions.length > 10 && (
+                        <Text style={{ color: colors.dimmed, fontSize: 12 }}>
+                          ...共 {triggerResult.decisions.length} 只
+                        </Text>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </Space>
+            ) : (
+              <Alert type="error" message="分析触发失败，请检查后端服务状态" showIcon />
+            )}
+          </div>
+        )}
+      </Card>
+
+      {/* ── 触发分析 Modal ── */}
+      <Modal
+        title={
+          <Space>
+            <PlayCircleOutlined style={{ color: colors.shard }} />
+            <span>触发 Agent 分析</span>
+          </Space>
+        }
+        open={triggerModalOpen}
+        onCancel={() => setTriggerModalOpen(false)}
+        footer={
+          <Space>
+            <Button onClick={() => setTriggerModalOpen(false)}>取消</Button>
+            <Button
+              type="primary"
+              loading={triggerLoading}
+              icon={triggerLoading ? <LoadingOutlined /> : <PlayCircleOutlined />}
+              onClick={handleTrigger}
+              style={{ background: colors.shard, borderColor: colors.shard }}
+            >
+              {triggerLoading ? "分析中..." : "确认触发"}
+            </Button>
+          </Space>
+        }
+        styles={{ content: { background: colors.card }, header: { background: colors.card, borderBottom: `1px solid ${colors.border}` } }}
+      >
+        <Space direction="vertical" style={{ width: "100%" }}>
+          <Text style={{ color: colors.muted }}>
+            将触发 AI Agent 对以下标的进行完整的辩论→加权投票→决策流程。
+          </Text>
+
+          {stockCodes.length > 0 && (
+            <>
+              <div style={{ marginTop: 8 }}>
+                <Text style={{ color: colors.text, display: "block", marginBottom: 8 }}>
+                  可选特定标的（留空 = 分析全部）
+                </Text>
+                <Select
+                  mode="multiple"
+                  placeholder="选择标的（可选）"
+                  value={selectedTriggerCodes}
+                  onChange={setSelectedTriggerCodes}
+                  options={stockCodes.map((c) => ({ value: c, label: c }))}
+                  style={{ width: "100%" }}
+                  maxTagCount={5}
+                />
+              </div>
+            </>
+          )}
+
+          {/* 分析中的加载状态 */}
+          {triggerLoading && (
+            <div style={{ textAlign: "center", padding: "24px 0" }}>
+              <Spin indicator={<LoadingOutlined style={{ fontSize: 32, color: colors.shard }} spin />} />
+              <div style={{ marginTop: 12 }}>
+                <Text style={{ color: colors.muted }}>Agent 辩论进行中（4个Agent × 2-3轮）...</Text>
+              </div>
+            </div>
+          )}
+        </Space>
+      </Modal>
 
       <Divider style={{ borderColor: colors.border, margin: "24px 0" }} />
 
