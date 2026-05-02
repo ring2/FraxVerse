@@ -4,13 +4,13 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuthStore } from "../../stores/useAuthStore";
 import { detectDevice } from "../../utils/deviceDetect";
+import { useTheme } from "../../theme/ThemeContext";
 const getRedirectTarget = () => {
   // Primary: UA-based detection. Fallback: screen width check.
   if (detectDevice() === "mobile") return "/m/dashboard";
   if (window.innerWidth < 768) return "/m/dashboard";
   return "/dashboard";
 };
-import { colors } from "../../theme/colors";
 
 const { Title, Text } = Typography;
 
@@ -19,6 +19,7 @@ const LoginPage: React.FC = () => {
   const navigate = useNavigate();
   const { login } = useAuthStore();
   const { message } = App.useApp();
+  const { colors } = useTheme();
 
   const onFinish = async (values: { username: string; password: string; remember: boolean }) => {
     setLoading(true);
