@@ -39,7 +39,7 @@ def _get_weights(db: Session | None) -> dict[str, float]:
     """加载权重；db=None 时返回硬编码默认值"""
     if db is None:
         return _DEFAULT_WEIGHTS
-    return _get_weights(db)
+    return load_scorer_weights(db)
 
 
 # ── 数据类 ────────────────────────────────────────────────────────
@@ -91,7 +91,7 @@ class ScoredCandidate:
 #   均线排列完整性 ±6 | 量价关系 ±6 | ADX趋势强度 ±6 | 价格位置 ±3
 # ════════════════════════════════════════════════════════════════
 
-def calculate_volume_price_score(klines: list[dict], db: Session) -> DimensionScore:
+def calculate_volume_price_score(klines: list[dict], db: Session | None = None) -> DimensionScore:
     """量价维度评分 — 基准50，±21分范围，上限100下限0"""
     score = 50.0
     details: list[str] = []
@@ -176,7 +176,7 @@ def calculate_volume_price_score(klines: list[dict], db: Session) -> DimensionSc
 #   主力净流入方向 ±8 | CMF ±6 | 大单占比 ±6 | 净流入相对规模 ±3
 # ════════════════════════════════════════════════════════════════
 
-def calculate_fund_score(fund_flow: list[dict], db: Session) -> DimensionScore:
+def calculate_fund_score(fund_flow: list[dict], db: Session | None = None) -> DimensionScore:
     """资金维度评分 — 基准50，±23分范围"""
     score = 50.0
     details: list[str] = []
@@ -278,7 +278,7 @@ def calculate_fund_score(fund_flow: list[dict], db: Session) -> DimensionScore:
 #   新闻情绪 ±6 | 板块热度 ±6 | 龙虎榜 ±3 | 时效性 ±3
 # ════════════════════════════════════════════════════════════════
 
-def calculate_sentiment_score(news: list[dict], trade_date: str, db: Session) -> DimensionScore:
+def calculate_sentiment_score(news: list[dict], trade_date: str, db: Session | None = None) -> DimensionScore:
     """情绪维度评分 — 基准50，±18分范围
 
     P0简化版：无新闻源时基于板块热度做简化判断。
@@ -359,7 +359,7 @@ def calculate_sentiment_score(news: list[dict], trade_date: str, db: Session) ->
 #          消息面 ±3(暂不启用) | 大单行为 ±3 | 连流方向 ±3
 # ════════════════════════════════════════════════════════════════
 
-def calculate_mainforce_score(klines: list[dict], fund_flow: list[dict], db: Session) -> DimensionScore:
+def calculate_mainforce_score(klines: list[dict], fund_flow: list[dict], db: Session | None = None) -> DimensionScore:
     """主力行为维度评分 — 基准50，总分范围0-100
 
     你的核心武器：识别洗盘vs出货。P0实现6因子简化版。
@@ -458,7 +458,7 @@ def calculate_capital_logic_score(
     candidate: dict,
     news: list[dict],
     klines: list[dict],
-    db: Session,
+    db: Session | None = None,
 ) -> DimensionScore:
     """资本市场逻辑维度评分 — 基准50，±17分范围"""
     score = 50.0
