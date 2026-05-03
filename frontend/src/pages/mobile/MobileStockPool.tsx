@@ -37,7 +37,7 @@ function MobileStockPool() {
     const totalScore = parseScore(item.score_total);
     return {
       code: item.stock_code || "--",
-      name: item.stock_code || "",
+      name: item.stock_name || item.stock_code?.replace(".SH","").replace(".SZ","") || "",
       strategy: item.strategy_type || "未知",
       score: totalScore,
       metrics: {
@@ -265,8 +265,9 @@ function MobileStockPool() {
 
       {/* ===== 候选股票表格 ===== */}
       <MobileSectionCard title={`候选股票 (${filteredItems.length})`}>
-        {/* 表头 */}
-        <div
+        <div style={{ overflowX: "auto", scrollbarWidth: "thin" }}>
+          {/* 表头 */}
+          <div
           style={{
             display: "flex",
             padding: "8px 14px",
@@ -301,11 +302,10 @@ function MobileStockPool() {
           <span style={{ width: 50, flexShrink: 0, textAlign: "center" }}>
             操作
           </span>
-        </div>
+        </div>{/* 表头结束 */}
 
-        {/* 表体 — 支持横向滚动 */}
-        <div style={{ overflowX: "auto", scrollbarWidth: "thin" }}>
-          {filteredItems.map((item, idx) => (
+        {/* 表体 */}
+        {filteredItems.map((item, idx) => (
             <div
               key={idx}
               style={{
@@ -373,7 +373,7 @@ function MobileStockPool() {
                   color: colors.purple[500],
                 }}
               >
-                {item.score}
+                {item.score.toFixed(1)}
               </span>
               <span
                 style={{

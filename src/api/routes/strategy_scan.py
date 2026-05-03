@@ -117,20 +117,27 @@ def scan_stock_pool(
     all_candidates = candidates_s1 + candidates_s2
 
     # ── 3. 写入 stock_pool 表 ──
-    # 先确保所有候选股票在 stocks 表中有记录
+    # 从 AKShare 获取股票中文名，补充 stocks 表
+    name_map: dict[str, str] = {}
     for c in all_candidates:
         code = c["stock_code"]
-        existing = db.execute(text("SELECT 1 FROM stocks WHERE code = :c"), {"c": code}).fetchone()
-        if not existing:
-            try:
-                # 从 stock_code 解析短码
-                short_code = code.replace(".SH", "").replace(".SZ", "")
-                db.execute(
-                    text("INSERT INTO stocks (code, name, market) VALUES (:c, :n, :m) ON CONFLICT (code) DO NOTHING"),
-                    {"c": code, "n": short_code, "m": "SH" if ".SH" in code else "SZ"},
-                )
-            except Exception as e:
-                logger.warning("插入stocks失败 %s: %s", code, e)
+        short_code = code.replace(".SH", "").replace(".SZ", "")
+        # 从 AKShare 获取中文名
+        try:
+            info = ak.stock_individual_info_em(symbol=short_code)
+            stock_name = info.loc[info["item"] == "股票简称", "value"].iloc[0] if not info.empty else short_code
+        except Exception:
+            stock_name = short_code
+        name_map[code] = stock_name
+        try:
+            db.execute(
+                text("""INSERT INTO stocks (code, name, market)
+                        VALUES (:c, :n, :m)
+                        ON CONFLICT (code) DO UPDATE SET name = :n"""),
+                {"c": code, "n": stock_name, "m": "SH" if ".SH" in code else "SZ"},
+            )
+        except Exception as e:
+            logger.warning("更新stocks失败 %s: %s", code, e)
 
     db.commit()
 

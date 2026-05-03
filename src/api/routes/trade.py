@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from src.api.deps import get_current_user_id
-from src.db.models import Positions, StockPool, TradeMode, TradeOrders
+from src.db.models import Positions, StockPool, Stocks, TradeMode, TradeOrders
 from src.db.session import get_session
 from src.schemas.trade import (
     OrderCreateRequest,
@@ -124,13 +124,33 @@ def get_stock_pool(
     db: Session = Depends(get_session),
     user_id: int = Depends(get_current_user_id),
 ):
-    """查询每日股票池"""
-    q = db.query(StockPool).order_by(StockPool.date.desc())
+    """查询每日股票池（带股票名称）"""
+    q = (
+        db.query(StockPool, Stocks.name)
+        .outerjoin(Stocks, StockPool.stock_code == Stocks.code)
+        .order_by(StockPool.date.desc(), StockPool.score_total.desc().nullslast())
+    )
     if pool_date:
         q = q.filter(StockPool.date == pool_date)
     if strategy:
         q = q.filter(StockPool.strategy_type == strategy)
-    return q.limit(100).all()
+    rows = q.limit(100).all()
+
+    result = []
+    for pool, stock_name in rows:
+        item = StockPoolItem(
+            date=pool.date,
+            stock_code=pool.stock_code,
+            stock_name=stock_name or pool.stock_code,
+            strategy_type=pool.strategy_type,
+            pass_coarse=pool.pass_coarse,
+            score_total=pool.score_total,
+            final_decision=pool.final_decision,
+            position_pct=pool.position_pct,
+            reject_reason=pool.reject_reason,
+        )
+        result.append(item)
+    return result
 
 
 @router.get("/mode", response_model=TradeModeResponse)

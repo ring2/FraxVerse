@@ -68,6 +68,7 @@ class TradeModeUpdateRequest(BaseModel):
 class StockPoolItem(BaseModel):
     date: date
     stock_code: str
+    stock_name: str = ""
     strategy_type: str
     pass_coarse: bool
     score_total: Decimal | None = None
