@@ -9,10 +9,12 @@ import {
 import { strategyService } from "../../services/strategyService";
 
 const STRATEGY_FILTERS = ["全部", "底部反转", "趋势跟踪"];
+const BOTTOM_KEYS = new Set(["bottom_reversal", "bottom_volume"]);
 
 const STRATEGY_NAMES: Record<string, string> = {
   bottom_reversal: "底部反转",
   trend_momentum: "趋势跟踪",
+  bottom_volume: "底部反转",
 };
 
 function MobileStockPool() {
@@ -40,6 +42,7 @@ function MobileStockPool() {
       code: item.stock_code || "--",
       name: item.stock_name || item.stock_code?.replace(".SH","").replace(".SZ","") || "",
       strategy: STRATEGY_NAMES[item.strategy_type] || item.strategy_type || "未知",
+      strategyKey: item.strategy_type || "",
       score: totalScore,
     };
   };
@@ -103,7 +106,9 @@ function MobileStockPool() {
   const filteredItems =
     activeFilter === "全部"
       ? items
-      : items.filter((item) => item.strategy === activeFilter);
+      : activeFilter === "底部反转"
+        ? items.filter((item) => BOTTOM_KEYS.has(item.strategyKey))
+        : items.filter((item) => item.strategy === activeFilter);
 
   const countTotal = items.length;
   const countNewToday = items.filter(
