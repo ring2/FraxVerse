@@ -3,7 +3,7 @@ import { App } from "antd";
 import { useTheme } from "../../theme/ThemeContext";
 import { MobileSectionCard } from "../../components/mobile";
 import { marketService } from "../../services/marketService";
-import type { NewsItem } from "../../types/api-extended";
+import type { HotNewsItem } from "../../types/api-extended";
 
 /* ---- Helpers ---- */
 
@@ -25,6 +25,8 @@ function formatTimeAgo(iso: string): string {
   const d = new Date(iso);
   const now = new Date();
   const diffMs = now.getTime() - d.getTime();
+  // 未来时间或刚刚发生
+  if (diffMs < 0) return "刚刚";
   const diffMin = Math.floor(diffMs / 60000);
   if (diffMin < 60) return `${diffMin}分钟前`;
   const diffHour = Math.floor(diffMin / 60);
@@ -34,23 +36,13 @@ function formatTimeAgo(iso: string): string {
   return iso.slice(0, 10);
 }
 
-function sourceDisplay(source: string): string {
-  const m: Record<string, string> = {
-    akshare: "财经资讯",
-    eastmoney: "东方财富",
-    wallstreet: "华尔街见闻",
-    sina: "新浪财经",
-  };
-  return m[source] ?? source;
-}
-
 const MobileHotNews: React.FC = () => {
   const { message } = App.useApp();
   const { colors } = useTheme();
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [news, setNews] = useState<NewsItem[]>([]);
+  const [news, setNews] = useState<HotNewsItem[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   const fetchNews = useCallback(
@@ -58,7 +50,7 @@ const MobileHotNews: React.FC = () => {
       if (!silent) setLoading(true);
       setError(null);
       try {
-        const data = await marketService.getNews();
+        const data = (await marketService.getNews()) as HotNewsItem[];
         setNews(data);
         if (data.length === 0 && !silent) {
           message.info("暂无热点资讯，稍后再来看看吧");
@@ -209,7 +201,7 @@ const MobileHotNews: React.FC = () => {
                         color: colors.text.tertiary,
                       }}
                     >
-                      {sourceDisplay(item.source)}
+                      {item.source_display || item.source}
                     </span>
                     <span
                       style={{

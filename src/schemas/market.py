@@ -22,11 +22,13 @@ class KlineItem(BaseModel):
 class NewsItem(BaseModel):
     id: int
     source: str
+    source_display: str = ""
     title: str
     published_at: datetime
     sentiment: str | None = None
     related_stocks: list[str] = []
     is_hot: bool = False
+    hot_score: int = 0
 
 
 class SectorItem(BaseModel):

@@ -40,6 +40,12 @@ export type MarketStateResponse = components["schemas"]["MarketStateResponse"];
 export type KlineItem = components["schemas"]["KlineItem"];
 export type SectorItem = components["schemas"]["SectorItem"];
 export type NewsItem = components["schemas"]["NewsItem"];
+
+/** 热闻感知用 — 在 NewsItem 基础上增加后端新字段 */
+export interface HotNewsItem extends NewsItem {
+  source_display: string;
+  hot_score: number;
+}
 export type BacktestResultItem = components["schemas"]["BacktestResultItem"];
 // Agent types are defined inline in agentService.ts (AgentDiscussionItemEx etc.)
 // Keep types that exist in the backend OpenAPI schema:

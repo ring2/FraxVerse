@@ -39,8 +39,8 @@ def get_news(
     db: Session = Depends(get_session),
     user_id: int = Depends(get_current_user_id),
 ):
-    """查询新闻"""
-    q = db.query(News).order_by(News.published_at.desc())
+    """查询新闻 — 按热度分页，再按时间排序"""
+    q = db.query(News).order_by(News.hot_score.desc(), News.published_at.desc())
     if source:
         q = q.filter(News.source == source)
     if hot_only:

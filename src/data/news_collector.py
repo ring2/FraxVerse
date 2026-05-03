@@ -8,7 +8,7 @@ FraxVerse · 新闻采集器
 import logging
 import json
 import re
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Any
 
 import akshare as ak
@@ -77,6 +77,10 @@ SOURCE_MAP: dict[str, tuple[str, str]] = {
     "新浪财经": ("sina", "新浪财经"),
     "新浪": ("sina", "新浪"),
 }
+
+# A股代码正则，用于从新闻内容中识别关联股票
+# 北京时间 (UTC+8)
+CST = timezone(timedelta(hours=8))
 
 # A股代码正则，用于从新闻内容中识别关联股票
 STOCK_CODE_RE = re.compile(r"([SHBZ]{2}\d{6})|(\d{6})")
@@ -161,11 +165,10 @@ def collect_hot_news(
                     if not title or not url:
                         continue
 
-                    # 解析时间
+                    # 解析时间 — AKShare返回北京时间（如 "2026-05-02 06:30:41"）
                     try:
-                        pub_time = datetime.strptime(
-                            pub_time_str, "%Y-%m-%d %H:%M:%S"
-                        ).replace(tzinfo=timezone.utc)
+                        naive = datetime.strptime(pub_time_str, "%Y-%m-%d %H:%M:%S")
+                        pub_time = naive.replace(tzinfo=CST)  # 标记为 UTC+8
                     except (ValueError, TypeError):
                         pub_time = datetime.now(timezone.utc)
 
