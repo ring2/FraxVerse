@@ -14,7 +14,13 @@ SYNC_DB_URL = os.getenv(
     "postgresql://fraxverse:fraxverse_dev@localhost:5432/fraxverse",
 )
 
-engine = create_engine(SYNC_DB_URL, pool_pre_ping=True, pool_size=5)
+engine = create_engine(
+    SYNC_DB_URL,
+    pool_pre_ping=True,
+    pool_size=10,
+    max_overflow=20,
+    pool_timeout=30,
+)
 SessionLocal = sessionmaker(bind=engine)
 
 
