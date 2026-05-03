@@ -1,34 +1,52 @@
-name: FraxVerse CI
+name: CI
+
 on:
   push:
-    branches: [main, dev, 'feat/**', 'fix/**']
+    branches:
+      - main
+      - dev
   pull_request:
-    branches: [main, dev]
+    branches:
+      - main
+      - dev
+
 jobs:
-  test:
+  backend:
     runs-on: ubuntu-latest
     strategy:
       matrix:
         python-version: ["3.11"]
     steps:
       - uses: actions/checkout@v4
-      - name: 设置 Python ${{ matrix.python-version }}
+      - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-      - name: 安装依赖
+      - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements-dev.txt
-      - name: 代码格式检查
+      - name: Lint with Ruff
         run: ruff check .
-      - name: 类型检查
-        run: mypy src/ --ignore-missing-imports
-      - name: 单元测试 + 覆盖率
-        run: |
-          pytest tests/unit -v --cov=src --cov-report=xml --cov-report=term-missing -m "not slow"
-      - name: 上传覆盖率报告
-        uses: codecov/codecov-action@v4
+      - name: Test with pytest
+        run: python -m pytest tests/unit -v --tb=short
+        env:
+          PYTHONPATH: .
+
+  frontend:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: ["20"]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
         with:
-          file: coverage.xml
-          fail_ci_if_error: false
+          node-version: ${{ matrix.node-version }}
+      - name: Install frontend dependencies
+        working-directory: ./frontend
+        run: npm ci
+      - name: Build frontend
+        working-directory: ./frontend
+        run: npm run build

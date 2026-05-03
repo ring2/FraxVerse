@@ -5,23 +5,6 @@ import { MobileSectionCard } from "../../components/mobile";
 import { monitorService } from "../../services/monitorService";
 import type { ServiceStatus, SystemResource } from "../../types/api-extended";
 
-/* ---- Mock fallback data ---- */
-const MOCK_SERVICES: ServiceStatus[] = [
-  { service: "API Server", status: "healthy", uptime_seconds: 259200, last_error: null },
-  { service: "Agent Engine", status: "healthy", uptime_seconds: 172800, last_error: null },
-  { service: "Market Data", status: "degraded", uptime_seconds: 86400, last_error: "Redis 连接超时，使用本地缓存" },
-  { service: "Database", status: "healthy", uptime_seconds: 259200, last_error: null },
-  { service: "Risk Control", status: "healthy", uptime_seconds: 259200, last_error: null },
-  { service: "Notification", status: "healthy", uptime_seconds: 259200, last_error: null },
-];
-
-const MOCK_RESOURCES: SystemResource = {
-  cpu_percent: 45,
-  memory_percent: 62,
-  memory_mb: 4096,
-  disk_percent: 71,
-};
-
 /* ---- Helpers ---- */
 const STATUS_LABELS: Record<string, string> = {
   healthy: "正常",
@@ -49,8 +32,8 @@ function MobileSystemHealth() {
     let cancelled = false;
 
     Promise.all([
-      monitorService.getServices().catch(() => MOCK_SERVICES),
-      monitorService.getResources().catch(() => MOCK_RESOURCES),
+      monitorService.getServices().catch(() => []),
+      monitorService.getResources().catch(() => null),
     ])
       .then(([s, r]) => {
         if (!cancelled) {
@@ -60,9 +43,9 @@ function MobileSystemHealth() {
       })
       .catch(() => {
         if (!cancelled) {
-          setServices(MOCK_SERVICES);
-          setResources(MOCK_RESOURCES);
-          message.info("已加载模拟数据（API 暂不可用）");
+          setServices([]);
+          setResources(null);
+          console.warn("API 暂不可用");
         }
       })
       .finally(() => {

@@ -1,5 +1,5 @@
 import { useMemo, useEffect, useState } from "react";
-import { App, Row, Col, Card, Typography, Statistic, Space, Spin } from "antd";
+import { Row, Col, Card, Typography, Statistic, Space, Spin } from "antd";
 import ReactECharts from "echarts-for-react";
 import { colors } from "../../theme/colors";
 import { portfolioService } from "../../services/portfolioService";
@@ -7,47 +7,10 @@ import type { PortfolioSummary } from "../../types/api-extended";
 
 const { Title, Text } = Typography;
 
-// ─── Mock Stats (fallback) — TODO: remove once API provides real metrics ─────
-
-const fallbackStats = {
-  totalReturn: 28.65,
-  annualReturn: 15.32,
-  maxDrawdown: -8.43,
-  sharpeRatio: 1.26,
-};
-
-// ─── NAV Data Generator (no backend API for equity curve) ───────────────────
-
-function generateNavData(): { dates: string[]; values: number[] } {
-  const dates: string[] = [];
-  const values: number[] = [];
-  const start = new Date("2026-01-02");
-  const end = new Date("2026-04-30");
-  let nav = 1.0;
-  const targetNav = 1.2865;
-
-  for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-    const day = d.getDay();
-    if (day === 0 || day === 6) continue;
-
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, "0");
-    const dayStr = String(d.getDate()).padStart(2, "0");
-    dates.push(`${y}-${m}-${dayStr}`);
-
-    const drift = (targetNav - 1.0) / 80;
-    const noise = (Math.random() - 0.5) * 0.006;
-    nav = Math.max(0.9, nav + drift + noise);
-    values.push(parseFloat(nav.toFixed(5)));
-  }
-  return { dates, values };
-}
-
 // ─── Component ───────────────────────────────────────────────────────────────
 
 const EquityCurvePage: React.FC = () => {
-  const { message } = App.useApp();
-  const navData = useMemo(() => generateNavData(), []);
+  const navData = useMemo(() => ({ dates: [] as string[], values: [] as number[] }), []);
   const [summary, setSummary] = useState<PortfolioSummary | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -58,24 +21,22 @@ const EquityCurvePage: React.FC = () => {
       })
       .catch((err) => {
         console.error("Failed to load portfolio summary:", err);
-        message.error("加载统计数据失败，使用演示数据");
+        console.warn("加载统计数据失败，使用演示数据");
       })
       .finally(() => setLoading(false));
   }, []);
 
-  // Derive stats from PortfolioSummary if available, else fallback
-  // PortfolioSummary doesn't have total_return/annual_return/max_drawdown/sharpe,
-  // so we compute what we can from the available numeric fields
+  // Derive stats from PortfolioSummary if available, else return 0
   const stats = useMemo(() => {
-    if (!summary) return fallbackStats;
+    if (!summary) return { totalReturn: 0, annualReturn: 0, maxDrawdown: 0, sharpeRatio: 0 };
     const totalAsset = summary.total_asset ? parseFloat(summary.total_asset) : 0;
     // Approximate return from daily_pnl / total_asset (rough estimate)
     // This is a placeholder — real metrics need a dedicated API
     return {
-      totalReturn: totalAsset > 0 ? ((summary.daily_pnl ? parseFloat(summary.daily_pnl) : 0) / totalAsset) * 100 : fallbackStats.totalReturn,
-      annualReturn: fallbackStats.annualReturn,
-      maxDrawdown: fallbackStats.maxDrawdown,
-      sharpeRatio: fallbackStats.sharpeRatio,
+      totalReturn: totalAsset > 0 ? ((summary.daily_pnl ? parseFloat(summary.daily_pnl) : 0) / totalAsset) * 100 : 0,
+      annualReturn: 0,
+      maxDrawdown: 0,
+      sharpeRatio: 0,
     };
   }, [summary]);
 

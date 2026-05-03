@@ -5,13 +5,10 @@ import {
   CloseCircleOutlined,
 } from "@ant-design/icons";
 import { colors } from "../../theme/colors";
+import api from "../../services/api";
 import type { ExperienceItem } from "../../types/api-extended";
 
 const { Title, Text, Paragraph } = Typography;
-
-// ─── Mock Data (fallback) — TODO: remove once API returns real data ──────────
-
-const fallbackExperiences: ExperienceItem[] = [];
 
 // ─── Field Mapping ───────────────────────────────────────────────────────────
 
@@ -45,9 +42,27 @@ const ExperiencePage: React.FC = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // 后端暂未提供 getExperiences 接口，使用 mock 数据
-    setExperiences(fallbackExperiences);
-    setLoading(false);
+    let cancelled = false;
+
+    api
+      .get("/experience/list")
+      .then((res) => {
+        if (!cancelled) {
+          const data = Array.isArray(res.data) ? res.data : [];
+          setExperiences(data);
+          setLoading(false);
+        }
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          console.error("获取经验数据失败:", err);
+          setLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   if (loading) {
@@ -58,7 +73,7 @@ const ExperiencePage: React.FC = () => {
     );
   }
 
-  const items = experiences.length > 0 ? experiences : fallbackExperiences;
+  const items = experiences;
 
   return (
     <div>

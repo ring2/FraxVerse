@@ -5,63 +5,7 @@ import { MobileSectionCard } from "../../components/mobile";
 import { agentService } from "../../services/agentService";
 import type { AgentDiscussionItemEx } from "../../services/agentService";
 
-/* ---- Mock fallback data ---- */
-const MOCK_DISCUSSIONS: AgentDiscussionItemEx[] = [
-  {
-    id: 1,
-    date: "2026-05-02",
-    stockCode: "600519",
-    roundNum: 1,
-    agentName: "hunter",
-    score: 92,
-    buyReasons: ["量能放大突破前高", "短线动能充足"],
-    againstReasons: [],
-    confidence: 0.85,
-    isValid: true,
-    predictedOutcome: "up",
-    actualOutcome: null,
-    promptTokens: 1250,
-    completionTokens: 320,
-    modelName: "deepseek-chat",
-    createdAt: "2026-05-02T10:30:00Z",
-  },
-  {
-    id: 2,
-    date: "2026-05-02",
-    stockCode: "300750",
-    roundNum: 1,
-    agentName: "detector",
-    score: 87,
-    buyReasons: ["北向资金连续净流入", "板块趋势向好"],
-    againstReasons: [],
-    confidence: 0.78,
-    isValid: true,
-    predictedOutcome: "up",
-    actualOutcome: null,
-    promptTokens: 980,
-    completionTokens: 280,
-    modelName: "deepseek-chat",
-    createdAt: "2026-05-02T10:35:00Z",
-  },
-  {
-    id: 3,
-    date: "2026-05-02",
-    stockCode: "000858",
-    roundNum: 2,
-    agentName: "judge",
-    score: 74,
-    buyReasons: ["周期底部确认"],
-    againstReasons: ["量能不足"],
-    confidence: 0.62,
-    isValid: true,
-    predictedOutcome: "neutral",
-    actualOutcome: null,
-    promptTokens: 1100,
-    completionTokens: 300,
-    modelName: "deepseek-chat",
-    createdAt: "2026-05-02T10:40:00Z",
-  },
-];
+
 
 function MobileAi() {
   const { message } = App.useApp();
@@ -80,7 +24,7 @@ function MobileAi() {
       })
       .catch(() => {
         if (!cancelled) {
-          setDiscussions(MOCK_DISCUSSIONS);
+          setDiscussions([]);
           message.info("已加载模拟数据（API 暂不可用）");
         }
       })

@@ -5,48 +5,6 @@ import { MobileSectionCard } from "../../components/mobile";
 import { riskService } from "../../services/riskService";
 import type { RiskEventItem, RiskMetricsItem } from "../../types/api-extended";
 
-/* ---- Mock fallback data ---- */
-const MOCK_EVENTS: RiskEventItem[] = [
-  {
-    id: 1,
-    event_type: "止损触发",
-    event_level: "warning",
-    trigger_reason: "宁德时代(300750) 日内跌幅 5.2%，超过 5% 止损线",
-    action_taken: "自动平仓 200 股",
-    trade_date: "2026-05-02",
-    created_at: "2026-05-02T14:30:00Z",
-  },
-  {
-    id: 2,
-    event_type: "集中度预警",
-    event_level: "info",
-    trigger_reason: "消费电子板块持仓占比 42%，超过 30% 阈值",
-    action_taken: "发送预警通知",
-    trade_date: "2026-05-02",
-    created_at: "2026-05-02T09:15:00Z",
-  },
-  {
-    id: 3,
-    event_type: "波动率异常",
-    event_level: "critical",
-    trigger_reason: "上证指数 30 分钟波动率 3.8%，超过 3% 阈值",
-    action_taken: "暂停新开仓",
-    trade_date: "2026-05-01",
-    created_at: "2026-05-01T10:45:00Z",
-  },
-];
-
-const MOCK_METRICS: RiskMetricsItem[] = [
-  {
-    trade_date: "2026-05-02",
-    daily_drawdown: "2.3",
-    win_rate: "68.5",
-    consecutive_loss_days: 0,
-    total_position_pct: "76.7",
-    risk_status: "normal",
-  },
-];
-
 function MobileMonitor() {
   const { message } = App.useApp();
   const { colors } = useTheme();
@@ -59,8 +17,8 @@ function MobileMonitor() {
     let cancelled = false;
 
     Promise.all([
-      riskService.getEvents().catch(() => MOCK_EVENTS),
-      riskService.getMetrics().catch(() => MOCK_METRICS),
+      riskService.getEvents().catch(() => []),
+      riskService.getMetrics().catch(() => []),
     ])
       .then(([e, m]) => {
         if (!cancelled) {
@@ -70,8 +28,8 @@ function MobileMonitor() {
       })
       .catch(() => {
         if (!cancelled) {
-          setEvents(MOCK_EVENTS);
-          setMetrics(MOCK_METRICS);
+          setEvents([]);
+          setMetrics([]);
           message.info("已加载模拟数据（API 暂不可用）");
         }
       })

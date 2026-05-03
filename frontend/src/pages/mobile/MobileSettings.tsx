@@ -1,8 +1,9 @@
 import { useCallback, useState } from "react";
-import { App } from "antd";
+import { App, Modal, Form, Input } from "antd";
 import { useNavigate } from "react-router-dom";
 import { useTheme } from "../../theme/ThemeContext";
 import { useAuthStore } from "../../stores/useAuthStore";
+import { authService } from "../../services/authService";
 
 /* ===================================================================
    MobileSettings — 12 大分类 50+ 项参数
@@ -277,6 +278,10 @@ function MobileSettings() {
   const { user } = useAuthStore();
   const navigate = useNavigate();
 
+  /* ---- password modal state ---- */
+  const [pwModalOpen, setPwModalOpen] = useState(false);
+  const [pwForm] = Form.useForm();
+
   /* ---- push notification state ---- */
   const [pushStates, setPushStates] = useState({
     risk: true,
@@ -300,11 +305,11 @@ function MobileSettings() {
   }, [navigate]);
 
   const handleChangePassword = useCallback(() => {
-    // TODO: 弹出密码修改模态框，收集旧密码+新密码后调用 authService.changePassword
-    message.info("修改密码 — 将在下轮迭代中弹出模态框");
-  }, [message]);
+    setPwModalOpen(true);
+  }, []);
 
   return (
+    <>
     <div className="page-enter">
       {/* 标题 */}
       <div
@@ -621,6 +626,71 @@ function MobileSettings() {
         </div>
       </div>
     </div>
+
+      <Modal
+        title="修改密码"
+        open={pwModalOpen}
+        onCancel={() => { setPwModalOpen(false); pwForm.resetFields(); }}
+        onOk={async () => {
+          try {
+            const values = await pwForm.validateFields();
+            if (values.newPassword !== values.confirmPassword) {
+              message.error("两次输入的新密码不一致");
+              return;
+            }
+            await authService.changePassword(values.oldPassword, values.newPassword);
+            message.success("密码修改成功，请重新登录");
+            setPwModalOpen(false);
+            pwForm.resetFields();
+            // 自动登出
+            useAuthStore.getState().logout();
+            navigate("/login");
+          } catch (err: any) {
+            if (err?.errorFields) return; // form validation 内部错误，不提示
+            message.error("密码修改失败：" + (err?.response?.data?.detail || err?.message || "未知错误"));
+          }
+        }}
+        okText="确认修改"
+        cancelText="取消"
+      >
+        <Form form={pwForm} layout="vertical">
+          <Form.Item
+            name="oldPassword"
+            label="当前密码"
+            rules={[{ required: true, message: "请输入当前密码" }]}
+          >
+            <Input.Password placeholder="输入当前密码" />
+          </Form.Item>
+          <Form.Item
+            name="newPassword"
+            label="新密码"
+            rules={[
+              { required: true, message: "请输入新密码" },
+              { min: 6, message: "密码至少6位" },
+            ]}
+          >
+            <Input.Password placeholder="输入新密码" />
+          </Form.Item>
+          <Form.Item
+            name="confirmPassword"
+            label="确认新密码"
+            rules={[
+              { required: true, message: "请再次输入新密码" },
+              ({ getFieldValue }) => ({
+                validator(_, value) {
+                  if (!value || getFieldValue("newPassword") === value) {
+                    return Promise.resolve();
+                  }
+                  return Promise.reject(new Error("两次输入的密码不一致"));
+                },
+              }),
+            ]}
+          >
+            <Input.Password placeholder="再次输入新密码" />
+          </Form.Item>
+        </Form>
+      </Modal>
+  </>
   );
 }
 

@@ -4,46 +4,6 @@ import { useTheme } from "../../theme/ThemeContext";
 import { MobileSectionCard } from "../../components/mobile";
 import type { ExperienceItem } from "../../types/api-extended";
 
-/* ---- Mock fallback data ---- */
-const MOCK_EXPERIENCES: ExperienceItem[] = [
-  {
-    id: 1,
-    market_state: "bull",
-    strategy_type: "周期底部",
-    operation: "buy",
-    result: "success",
-    pnl_pct: "+12.5",
-    score: 92,
-    confidence: 0.85,
-    tags: ["量能放大", "突破前高", "主力流入"],
-    created_at: "2026-05-01T10:30:00Z",
-  },
-  {
-    id: 2,
-    market_state: "sideways",
-    strategy_type: "趋势低吸",
-    operation: "sell",
-    result: "success",
-    pnl_pct: "+5.2",
-    score: 78,
-    confidence: 0.72,
-    tags: ["获利了结", "量价背离"],
-    created_at: "2026-04-28T14:20:00Z",
-  },
-  {
-    id: 3,
-    market_state: "bear",
-    strategy_type: "超跌反弹",
-    operation: "buy",
-    result: "fail",
-    pnl_pct: "-8.3",
-    score: 45,
-    confidence: 0.38,
-    tags: ["追高风险", "流动性不足"],
-    created_at: "2026-04-25T09:15:00Z",
-  },
-];
-
 /* ---- Helpers ---- */
 function mapOperation(op: string): string {
   const m: Record<string, string> = { buy: "买入", sell: "卖出", hold: "持有" };
@@ -73,7 +33,7 @@ function MobileExperience() {
       )
       .catch(() => {
         if (!cancelled) {
-          setExperiences(MOCK_EXPERIENCES);
+          setExperiences([]);
           message.info("已加载模拟数据（API 暂不可用）");
         }
       })

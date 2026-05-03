@@ -7,26 +7,7 @@ import { riskService } from "../../services/riskService";
 import type { PortfolioSummary } from "../../types/api-extended";
 import type { RiskMetricsItem } from "../../types/api-extended";
 
-/* ---- Mock fallback data ---- */
-const MOCK_SUMMARY: PortfolioSummary = {
-  total_asset: "1284350.00",
-  available_cash: "298930.00",
-  total_position_pct: "76.7",
-  daily_pnl: "28940.00",
-  unrealized_pnl: "15230.00",
-  position_count: 3,
-};
 
-const MOCK_METRICS: RiskMetricsItem[] = [
-  {
-    trade_date: "2026-05-02",
-    daily_drawdown: "2.3",
-    win_rate: "68.5",
-    consecutive_loss_days: 0,
-    total_position_pct: "76.7",
-    risk_status: "normal",
-  },
-];
 
 function MobileEquity() {
   const { message } = App.useApp();
@@ -40,8 +21,8 @@ function MobileEquity() {
     let cancelled = false;
 
     Promise.all([
-      portfolioService.getSummary().catch(() => MOCK_SUMMARY),
-      riskService.getMetrics().catch(() => MOCK_METRICS),
+      portfolioService.getSummary().catch(() => null),
+      riskService.getMetrics().catch(() => []),
     ])
       .then(([s, m]) => {
         if (!cancelled) {
@@ -51,8 +32,8 @@ function MobileEquity() {
       })
       .catch(() => {
         if (!cancelled) {
-          setSummary(MOCK_SUMMARY);
-          setMetrics(MOCK_METRICS);
+          setSummary(null);
+          setMetrics([]);
           message.info("已加载模拟数据（API 暂不可用）");
         }
       })

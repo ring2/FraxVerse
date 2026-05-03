@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { App, Row, Col, Card, Statistic, Typography, Table, Tag, Space, Spin } from "antd";
+import { Row, Col, Card, Statistic, Typography, Table, Tag, Space, Spin } from "antd";
 import { colors } from "../../theme/colors";
 import { strategyService } from "../../services/strategyService";
 import { tradeService } from "../../services/tradeService";
@@ -7,25 +7,6 @@ import type { BacktestResultItem } from "../../types/api-extended";
 import type { OrderResponse } from "../../types/api-extended";
 
 const { Title, Text } = Typography;
-
-// ─── Mock Data (fallback) — TODO: remove once API returns real data ──────────
-
-const fallbackStrategy1Stats = {
-  winRate: 62.5,
-  totalTrades: 168,
-  profitLossRatio: 1.85,
-  maxDrawdown: -6.32,
-  sharpeRatio: 1.42,
-};
-
-const fallbackStrategy2Stats = {
-  winRate: 55.8,
-  totalTrades: 134,
-  profitLossRatio: 1.53,
-  maxDrawdown: -8.17,
-  sharpeRatio: 0.98,
-};
-
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 const strategyLabels: Record<string, string> = {
@@ -105,7 +86,7 @@ function extractStats(item: BacktestResultItem) {
 
 // ─── Stat Card Sub-component ────────────────────────────────────────────────
 
-function StatCards({ stats, title }: { stats: typeof fallbackStrategy1Stats; title: string }) {
+function StatCards({ stats, title }: { stats: { winRate: number; totalTrades: number; profitLossRatio: number; maxDrawdown: number; sharpeRatio: number }; title: string }) {
   return (
     <>
       <Title level={5} style={{ color: colors.text, marginBottom: 12 }}>
@@ -167,7 +148,6 @@ function StatCards({ stats, title }: { stats: typeof fallbackStrategy1Stats; tit
 // ─── Component ───────────────────────────────────────────────────────────────
 
 const StrategyPerfPage: React.FC = () => {
-  const { message } = App.useApp();
   const [backtestResults, setBacktestResults] = useState<BacktestResultItem[]>([]);
   const [orders, setOrders] = useState<OrderResponse[]>([]);
   const [loading, setLoading] = useState(true);
@@ -182,8 +162,7 @@ const StrategyPerfPage: React.FC = () => {
         setOrders(orderList);
       })
       .catch((err) => {
-        console.error("Failed to load strategy perf data:", err);
-        message.error("加载策略绩效数据失败，使用演示数据");
+        console.warn("Failed to load strategy perf data:", err);
       })
       .finally(() => setLoading(false));
   }, []);
@@ -200,8 +179,8 @@ const StrategyPerfPage: React.FC = () => {
   const strategy1Result = backtestResults.find((r) => r.strategy_type === "trend_following");
   const strategy2Result = backtestResults.find((r) => r.strategy_type === "value_reversion");
 
-  const s1Stats = strategy1Result ? extractStats(strategy1Result) : fallbackStrategy1Stats;
-  const s2Stats = strategy2Result ? extractStats(strategy2Result) : fallbackStrategy2Stats;
+  const s1Stats = strategy1Result ? extractStats(strategy1Result) : null;
+  const s2Stats = strategy2Result ? extractStats(strategy2Result) : null;
 
   return (
     <div>
@@ -209,8 +188,8 @@ const StrategyPerfPage: React.FC = () => {
         修行日记 — 策略绩效统计
       </Title>
 
-      <StatCards stats={s1Stats} title={`策略一 · ${strategyLabels.trend_following ?? "趋势跟踪"}`} />
-      <StatCards stats={s2Stats} title={`策略二 · ${strategyLabels.value_reversion ?? "价值回归"}`} />
+      {s1Stats && <StatCards stats={s1Stats} title={`策略一 · ${strategyLabels.trend_following ?? "趋势跟踪"}`} />}
+      {s2Stats && <StatCards stats={s2Stats} title={`策略二 · ${strategyLabels.value_reversion ?? "价值回归"}`} />}
 
       {/* 历史交易记录 */}
       <Title level={5} style={{ color: colors.text, marginBottom: 12 }}>

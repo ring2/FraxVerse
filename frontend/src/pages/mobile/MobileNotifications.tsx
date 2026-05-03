@@ -5,46 +5,6 @@ import { MobileSectionCard } from "../../components/mobile";
 import { notificationService } from "../../services/notificationService";
 import type { NotificationItem } from "../../types/api-extended";
 
-/* ---- Mock fallback data ---- */
-const MOCK_NOTIFICATIONS: NotificationItem[] = [
-  {
-    id: 1,
-    event_type: "risk_warning",
-    priority: "high",
-    title: "风控预警",
-    content: "宁德时代(300750) 单日跌幅超过 5%，触发止损线",
-    is_read: false,
-    created_at: "2026-05-02T14:30:00Z",
-  },
-  {
-    id: 2,
-    event_type: "trade_executed",
-    priority: "normal",
-    title: "交易执行",
-    content: "贵州茅台(600519) 买入 100 股已成交，成交价 1,680.50",
-    is_read: false,
-    created_at: "2026-05-02T10:15:00Z",
-  },
-  {
-    id: 3,
-    event_type: "system_info",
-    priority: "low",
-    title: "系统通知",
-    content: "日终清算已完成，今日盈亏 +28,940 (+2.3%)",
-    is_read: true,
-    created_at: "2026-05-01T18:00:00Z",
-  },
-  {
-    id: 4,
-    event_type: "agent_alert",
-    priority: "normal",
-    title: "Agent 分析完成",
-    content: "今日 12 只候选股票已完成综合评分，建议关注前 3 只",
-    is_read: true,
-    created_at: "2026-05-01T09:00:00Z",
-  },
-];
-
 /* ---- Helpers ---- */
 function getPriorityColor(priority: string): string {
   const m: Record<string, string> = {
@@ -96,7 +56,7 @@ function MobileNotifications() {
       })
       .catch(() => {
         if (!cancelled) {
-          setNotifications(MOCK_NOTIFICATIONS);
+          setNotifications([]);
           message.info("已加载模拟数据（API 暂不可用）");
         }
       })
