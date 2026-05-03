@@ -24,6 +24,7 @@ from src.api.routes.misc import (
     risk_router,
     strategy_router,
 )
+from src.api.routes.settings import router as settings_router
 from src.config import settings
 from src.db.models import AccountSyncLog, Positions
 from src.db.session import check_db_health, get_session
@@ -53,6 +54,7 @@ app.include_router(risk_router)
 app.include_router(experience_router)
 app.include_router(monitor_router)
 app.include_router(notification_router)
+app.include_router(settings_router)
 
 
 @app.get("/api/v1/health")
