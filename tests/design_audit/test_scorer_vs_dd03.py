@@ -5,8 +5,20 @@
 
 import inspect
 
+from src.config_loader import load_scorer_weights as _load_weights
+
+# 加载当前运行时权重（从 DB）
+def _get_weights():
+    from src.db.session import get_session
+    db = get_session()
+    try:
+        return _load_weights(db)
+    finally:
+        db.close()
+
+_W = _get_weights()
+
 from src.strategy.scorer import (
-    WEIGHTS,
     ScoredCandidate,
     calculate_capital_logic_score,
     calculate_fund_score,
@@ -25,32 +37,32 @@ class TestWeightsVsDesignDoc:
 
     def test_weight_volume_price(self):
         """DD-03: 量价维度权重 20%"""
-        assert WEIGHTS.get("volume_price") == 0.20, \
-            f"量价维度权重应为0.20，当前{WEIGHTS.get('volume_price')}"
+        assert _W.get("volume_price") == 0.20, \
+            f"量价维度权重应为0.20，当前{_W.get('volume_price')}"
 
     def test_weight_fund(self):
         """DD-03: 资金维度权重 25%（最高权重）"""
-        assert WEIGHTS.get("fund") == 0.25, \
-            f"资金维度权重应为0.25，当前{WEIGHTS.get('fund')}"
+        assert _W.get("fund") == 0.25, \
+            f"资金维度权重应为0.25，当前{_W.get('fund')}"
 
     def test_weight_sentiment(self):
         """DD-03: 情绪维度权重 15%"""
-        assert WEIGHTS.get("sentiment") == 0.15, \
-            f"情绪维度权重应为0.15，当前{WEIGHTS.get('sentiment')}"
+        assert _W.get("sentiment") == 0.15, \
+            f"情绪维度权重应为0.15，当前{_W.get('sentiment')}"
 
     def test_weight_mainforce(self):
         """DD-03: 主力行为维度权重 25%"""
-        assert WEIGHTS.get("mainforce") == 0.25, \
-            f"主力行为维度权重应为0.25，当前{WEIGHTS.get('mainforce')}"
+        assert _W.get("mainforce") == 0.25, \
+            f"主力行为维度权重应为0.25，当前{_W.get('mainforce')}"
 
     def test_weight_capital_logic(self):
         """DD-03: 资本市场逻辑维度权重 15%"""
-        assert WEIGHTS.get("capital_logic") == 0.15, \
-            f"资本市场逻辑维度权重应为0.15，当前{WEIGHTS.get('capital_logic')}"
+        assert _W.get("capital_logic") == 0.15, \
+            f"资本市场逻辑维度权重应为0.15，当前{_W.get('capital_logic')}"
 
     def test_weights_sum_to_one(self):
         """DD-03: 五维度权重之和=1.0"""
-        total = sum(WEIGHTS.values())
+        total = sum(_W.values())
         assert abs(total - 1.0) < 0.001, \
             f"权重和应为1.0，当前{total}"
 

@@ -11,13 +11,12 @@ from datetime import date
 import numpy as np
 import pandas as pd
 
+from src.config_loader import load_strategy_config
 from src.data.db import get_db_connection
+from src.db.session import get_session
 
 logger = logging.getLogger(__name__)
 
-
-MIN_KLINES_FOR_SCREEN = 30
-STRATEGY2_MIN_KLINES = 66
 
 
 @dataclass
@@ -32,15 +31,13 @@ class StrategyCandidate:
     detail: dict = field(default_factory=dict)
 
 
-# ── 策略一：周期底部量能异动 ──────────────────────────────────────
-
-# 参数配置
-STRATEGY1_DROP_60D_THRESHOLD = 20.0      # 近60日跌幅 ≥ 20%
-STRATEGY1_DROP_5D_THRESHOLD = -5.0       # 近5日单日跌幅 ≥ 5%
-STRATEGY1_MIN_MARKET_CAP = 5_000_000_000     # 市值 ≥ 50亿
-STRATEGY1_MAX_MARKET_CAP = 50_000_000_000    # 市值 ≤ 500亿
-STRATEGY1_MIN_DAILY_AMOUNT = 100_000_000     # 日均成交额 ≥ 1亿
-STRATEGY1_MIN_DAYS_LISTED = 180            # 上市 ≥ 180天
+def _get_strategy_config():
+    from src.db.session import get_session
+    db = get_session()
+    try:
+        return load_strategy_config(db)
+    finally:
+        db.close()
 
 
 def is_st_stock(stock_name: str | None) -> bool:
@@ -51,12 +48,14 @@ def is_st_stock(stock_name: str | None) -> bool:
     return name.startswith("ST") or name.startswith("*ST") or name.startswith("SST")
 
 
-def is_new_stock(listing_date: date | None, today: date | None = None) -> bool:
+def is_new_stock(listing_date: date | None, today: date | None = None, config: dict | None = None) -> bool:
     """判断是否为次新股（上市不足180天）"""
     if listing_date is None:
         return True
     ref = today or date.today()
-    return (ref - listing_date).days < STRATEGY1_MIN_DAYS_LISTED
+    if config is None:
+        config = _get_strategy_config()
+    return (ref - listing_date).days < config["min_days_listed"]
 
 
 def has_drop_in_window(
@@ -82,16 +81,6 @@ def has_sufficient_liquidity(
     recent = klines.tail(min(window, len(klines)))
     avg_amount = recent["amount"].mean()
     return avg_amount >= min_daily_amount
-
-
-# ── 策略二：趋势动量低吸 ──────────────────────────────────────────
-
-STRATEGY2_SECTOR_CONCENTRATION = 12.0       # 板块资金集中度 ≥ 12%
-STRATEGY2_MIN_ADX = 25.0                    # ADX ≥ 25
-STRATEGY2_VOLUME_RATIO = 0.8               # 缩量 < 5日均量80%
-STRATEGY2_PRICE_DROP_THRESHOLD = -3.0       # 回调跌幅 < 3%
-STRATEGY2_MIN_DAILY_AMOUNT = 300_000_000    # 日均成交额 ≥ 3亿
-STRATEGY2_SECTOR_CHECK_DAYS = 2             # 板块集中度连续检查天数
 
 
 def is_bullish_arrangement(mas: dict[str, float]) -> bool:
@@ -167,15 +156,18 @@ def calculate_adx(klines: pd.DataFrame, period: int = 14) -> float:
     return float(df["adx"].iloc[-1])
 
 
-def screen_strategy2() -> list[StrategyCandidate]:  # noqa: PLR0912, PLR0915
+def screen_strategy2(config: dict | None = None) -> list[StrategyCandidate]:  # noqa: PLR0912, PLR0915
     """策略二「趋势动量低吸」粗筛"""
+    if config is None:
+        config = _get_strategy_config()
+
     candidates: list[StrategyCandidate] = []
 
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
 
-        # 0. 获取热点板块（连续2日资金集中度≥12%）
+        # 0. 获取热点板块（连续N日资金集中度≥阈值）
         cursor.execute("""
             SELECT sector_name, capital_ratio, trade_date
             FROM sector_data
@@ -197,11 +189,12 @@ def screen_strategy2() -> list[StrategyCandidate]:  # noqa: PLR0912, PLR0915
             if ratio is not None:
                 sector_dates[name].append(float(ratio))
 
-        _sc2_days = STRATEGY2_SECTOR_CHECK_DAYS
+        _sector_check_days = config["sector_check_days"]
+        _sector_concentration = config["sector_concentration"]
         for name, ratios in sector_dates.items():
             if (
-                len(ratios) >= STRATEGY2_SECTOR_CHECK_DAYS
-                and all(r >= STRATEGY2_SECTOR_CONCENTRATION for r in ratios[:_sc2_days])
+                len(ratios) >= _sector_check_days
+                and all(r >= _sector_concentration for r in ratios[:_sector_check_days])
             ):
                 hot_sector = name
                 break
@@ -227,7 +220,7 @@ def screen_strategy2() -> list[StrategyCandidate]:  # noqa: PLR0912, PLR0915
         for code, name, listing_date, market_cap in all_stocks:  # noqa: B007
             if is_st_stock(name):  # strategy2 ST排除
                 continue
-            if is_new_stock(listing_date, today):
+            if is_new_stock(listing_date, today, config):
                 continue
 
             cursor.execute("""
@@ -239,7 +232,7 @@ def screen_strategy2() -> list[StrategyCandidate]:  # noqa: PLR0912, PLR0915
             """, (code,))
             rows = cursor.fetchall()
 
-            if len(rows) < STRATEGY2_MIN_KLINES:
+            if len(rows) < config["min_klines_s2"]:
                 continue
 
             df = pd.DataFrame(
@@ -263,23 +256,23 @@ def screen_strategy2() -> list[StrategyCandidate]:  # noqa: PLR0912, PLR0915
             if not is_bullish_arrangement(mas):
                 continue
 
-            # ADX ≥ 25（ADX 计算在正序/倒序上结果一致，但用正序更标准）
+            # ADX ≥ 阈值（ADX 计算在正序/倒序上结果一致，但用正序更标准）
             adx = calculate_adx(df_sorted, period=14)
-            if adx < STRATEGY2_MIN_ADX:
+            if adx < config["min_adx"]:
                 continue
 
             # 缩量回调
-            if not is_volume_shrinking(  # noqa: E501
-                df_sorted, lookback=3, ma_window=5, ratio=STRATEGY2_VOLUME_RATIO
+            if not is_volume_shrinking(
+                df_sorted, lookback=3, ma_window=5, ratio=config["volume_ratio"],
             ):
                 continue
 
             if "pct_change" in df.columns:
                 recent_pct = df.head(3)["pct_change"].mean()
-                if recent_pct < STRATEGY2_PRICE_DROP_THRESHOLD:
+                if recent_pct < config["price_drop_threshold_s2"]:
                     continue
 
-            if not has_sufficient_liquidity(df_sorted, min_daily_amount=STRATEGY2_MIN_DAILY_AMOUNT):
+            if not has_sufficient_liquidity(df_sorted, min_daily_amount=config["min_daily_amount_s2"]):
                 continue
 
             avg_amount = df["amount"].mean()
@@ -304,8 +297,11 @@ def screen_strategy2() -> list[StrategyCandidate]:  # noqa: PLR0912, PLR0915
 
 # ── 策略一：周期底部量能异动 ──────────────────────────────────────
 
-def screen_strategy1() -> list[StrategyCandidate]:
+def screen_strategy1(config: dict | None = None) -> list[StrategyCandidate]:
     """策略一「周期底部量能异动」粗筛"""
+    if config is None:
+        config = _get_strategy_config()
+
     candidates: list[StrategyCandidate] = []
 
     try:
@@ -322,13 +318,13 @@ def screen_strategy1() -> list[StrategyCandidate]:
         today = date.today()
 
         for code, name, listing_date, market_cap in all_stocks:  # noqa: B007
-            if is_st_stock(name):  # strategy2 ST排除
+            if is_st_stock(name):  # strategy1 ST排除
                 continue
-            if is_new_stock(listing_date, today):
+            if is_new_stock(listing_date, today, config):
                 continue
             if market_cap is not None and (
-                market_cap < STRATEGY1_MIN_MARKET_CAP or
-                market_cap > STRATEGY1_MAX_MARKET_CAP
+                market_cap < config["min_market_cap"] or
+                market_cap > config["max_market_cap"]
             ):
                 continue
 
@@ -341,7 +337,7 @@ def screen_strategy1() -> list[StrategyCandidate]:
             """, (code,))
             rows = cursor.fetchall()
 
-            if len(rows) < MIN_KLINES_FOR_SCREEN:
+            if len(rows) < config["min_klines_s1"]:
                 continue
 
             df = pd.DataFrame(
@@ -359,11 +355,11 @@ def screen_strategy1() -> list[StrategyCandidate]:
             else:
                 continue
 
-            if drop_pct < STRATEGY1_DROP_60D_THRESHOLD:
+            if drop_pct < config["drop_60d_threshold"]:
                 continue
-            if not has_drop_in_window(df, window=5, threshold=STRATEGY1_DROP_5D_THRESHOLD):
+            if not has_drop_in_window(df, window=5, threshold=config["drop_5d_threshold"]):
                 continue
-            if not has_sufficient_liquidity(df, min_daily_amount=STRATEGY1_MIN_DAILY_AMOUNT):
+            if not has_sufficient_liquidity(df, min_daily_amount=config["min_daily_amount"]):
                 continue
 
             avg_amount = df["amount"].mean()

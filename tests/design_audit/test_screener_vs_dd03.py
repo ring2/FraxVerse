@@ -6,19 +6,32 @@
 
 import inspect
 
+from src.config_loader import load_strategy_config
+
+# 从 config_loader 读取配置（替代已删除的模块级常量）
+def _get_cfg():
+    from src.db.session import get_session
+    db = get_session()
+    try:
+        return load_strategy_config(db)
+    finally:
+        db.close()
+
+_STRAT_CFG = _get_cfg()
+STRATEGY1_DROP_5D_THRESHOLD = _STRAT_CFG["drop_5d_threshold"]
+STRATEGY1_DROP_60D_THRESHOLD = _STRAT_CFG["drop_60d_threshold"]
+STRATEGY1_MIN_MARKET_CAP = _STRAT_CFG.get("min_market_cap", 5_000_000_000)
+STRATEGY1_MAX_MARKET_CAP = _STRAT_CFG.get("max_market_cap", 50_000_000_000)
+STRATEGY1_MIN_DAILY_AMOUNT = _STRAT_CFG.get("min_daily_amount", 100_000_000)
+STRATEGY2_SECTOR_CONCENTRATION = _STRAT_CFG["sector_concentration"]
+STRATEGY2_MIN_ADX = _STRAT_CFG["min_adx"]
+STRATEGY2_VOLUME_RATIO = _STRAT_CFG.get("volume_ratio", 0.8)
+STRATEGY2_MIN_DAILY_AMOUNT = _STRAT_CFG.get("min_daily_amount_s2", 300_000_000)
+STRATEGY2_SECTOR_CHECK_DAYS = _STRAT_CFG.get("sector_check_days", 2)
+STRATEGY2_PRICE_DROP_THRESHOLD = _STRAT_CFG.get("price_drop_threshold_s2", -3.0)
+STRATEGY1_MIN_DAYS_LISTED = _STRAT_CFG.get("min_days_listed", 180)
+
 from src.strategy.screener import (
-    STRATEGY1_DROP_5D_THRESHOLD,
-    STRATEGY1_DROP_60D_THRESHOLD,
-    STRATEGY1_MAX_MARKET_CAP,
-    STRATEGY1_MIN_DAILY_AMOUNT,
-    STRATEGY1_MIN_DAYS_LISTED,
-    STRATEGY1_MIN_MARKET_CAP,
-    STRATEGY2_MIN_ADX,
-    STRATEGY2_MIN_DAILY_AMOUNT,
-    STRATEGY2_PRICE_DROP_THRESHOLD,
-    STRATEGY2_SECTOR_CHECK_DAYS,
-    STRATEGY2_SECTOR_CONCENTRATION,
-    STRATEGY2_VOLUME_RATIO,
     StrategyCandidate,
     has_drop_in_window,
     has_sufficient_liquidity,
@@ -153,12 +166,12 @@ class TestScreenFunctionsVsDesignDoc:
         """DD-03: 策略一5个筛选条件全部实现"""
         source = inspect.getsource(screen_strategy1)
         checks = [
-            ("跌幅≥20%", "STRATEGY1_DROP_60D_THRESHOLD"),
+            ("跌幅≥20%", '"drop_60d_threshold"'),
             ("近5日大跌", "has_drop_in_window"),
-            ("市值范围50-500亿", "STRATEGY1_MIN_MARKET_CAP"),
+            ("市值范围50-500亿", '"min_market_cap"'),
             ("非ST", "is_st_stock"),
             ("非次新", "is_new_stock"),
-            ("流动性≥1亿", "has_sufficient_liquidity"),
+            ("流动性≥1亿", '"min_daily_amount"'),
         ]
         for name, keyword in checks:
             assert keyword in source, \
@@ -168,11 +181,11 @@ class TestScreenFunctionsVsDesignDoc:
         """DD-03: 策略二6个筛选条件全部实现"""
         source = inspect.getsource(screen_strategy2)
         checks = [
-            ("板块集中度≥12%", "STRATEGY2_SECTOR_CONCENTRATION"),
+            ("板块集中度≥12%", '"sector_concentration"'),
+            ("ADX≥25", '"min_adx"'),
             ("多头排列", "is_bullish_arrangement"),
-            ("ADX≥25", "STRATEGY2_MIN_ADX"),
             ("缩量回踩", "is_volume_shrinking"),
-            ("日均成交额≥3亿", "STRATEGY2_MIN_DAILY_AMOUNT"),
+            ("日均成交额≥3亿", '"min_daily_amount_s2"'),
             ("非ST", "is_st_stock"),
             ("非次新", "is_new_stock"),
         ]
@@ -194,7 +207,7 @@ class TestStrategy1LogicVsDesignDoc:
         # 设计文档用 max_close 方法计算跌幅
         assert "first_close" in source or "max_close" in source or "drop_pct" in source, \
             "策略一应计算近60日跌幅"
-        assert "STRATEGY1_DROP_60D_THRESHOLD" in source, \
+        assert '\"drop_60d_threshold\"' in source or 'STRATEGY1_DROP_60D_THRESHOLD' in source, \
             "应使用60日跌幅阈值过滤"
 
     def test_sharp_drop_in_window(self):
@@ -245,7 +258,7 @@ class TestStrategy2LogicVsDesignDoc:
         source = inspect.getsource(screen_strategy2)
         assert "calculate_adx" in source or "adx" in source.lower(), \
             "策略二应计算或检查ADX"
-        assert "STRATEGY2_MIN_ADX" in source, "应使用ADX阈值过滤"
+        assert '"min_adx"' in source or 'STRATEGY2_MIN_ADX' in source, "应使用ADX阈值过滤"
 
     def test_volume_shrinking(self):
         """DD-03: 近3日均量 < 5日均量×80%"""

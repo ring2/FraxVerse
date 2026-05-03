@@ -18,17 +18,28 @@ P0-4.1: 对粗筛候选标的进行五维度评分、排序、入股票池
 import logging
 from dataclasses import dataclass, field
 
+from sqlalchemy.orm import Session
+
+from src.config_loader import load_scorer_weights
+
 logger = logging.getLogger(__name__)
 
-# ── 评分权重（设计文档固定） ──────────────────────────────────────
+# ── 默认权重（db=None 降级用） ──────────────────────────────────
 
-WEIGHTS: dict[str, float] = {
-    "volume_price": 0.20,      # 量价维度
-    "fund": 0.25,              # 资金维度（最高权重）
-    "sentiment": 0.15,         # 情绪维度
-    "mainforce": 0.25,         # 主力行为维度
-    "capital_logic": 0.15,     # 资本市场逻辑维度
+_DEFAULT_WEIGHTS: dict[str, float] = {
+    "volume_price": 0.20,
+    "fund": 0.25,
+    "sentiment": 0.15,
+    "mainforce": 0.25,
+    "capital_logic": 0.15,
 }
+
+
+def _get_weights(db: Session | None) -> dict[str, float]:
+    """加载权重；db=None 时返回硬编码默认值"""
+    if db is None:
+        return _DEFAULT_WEIGHTS
+    return _get_weights(db)
 
 
 # ── 数据类 ────────────────────────────────────────────────────────
@@ -80,13 +91,13 @@ class ScoredCandidate:
 #   均线排列完整性 ±6 | 量价关系 ±6 | ADX趋势强度 ±6 | 价格位置 ±3
 # ════════════════════════════════════════════════════════════════
 
-def calculate_volume_price_score(klines: list[dict]) -> DimensionScore:
+def calculate_volume_price_score(klines: list[dict], db: Session) -> DimensionScore:
     """量价维度评分 — 基准50，±21分范围，上限100下限0"""
     score = 50.0
     details: list[str] = []
 
     if len(klines) < 5:
-        return DimensionScore("volume_price", score, WEIGHTS["volume_price"], "K线不足5根")
+        return DimensionScore("volume_price", score, _get_weights(db)["volume_price"], "K线不足5根")
 
     latest = klines[0]
 
@@ -155,7 +166,7 @@ def calculate_volume_price_score(klines: list[dict]) -> DimensionScore:
 
     final_score = max(0.0, min(100.0, score))
     return DimensionScore(
-        "volume_price", final_score, WEIGHTS["volume_price"],
+        "volume_price", final_score, _get_weights(db)["volume_price"],
         ", ".join(details) if details else f"基准{score:.0f}",
     )
 
@@ -165,13 +176,13 @@ def calculate_volume_price_score(klines: list[dict]) -> DimensionScore:
 #   主力净流入方向 ±8 | CMF ±6 | 大单占比 ±6 | 净流入相对规模 ±3
 # ════════════════════════════════════════════════════════════════
 
-def calculate_fund_score(fund_flow: list[dict]) -> DimensionScore:
+def calculate_fund_score(fund_flow: list[dict], db: Session) -> DimensionScore:
     """资金维度评分 — 基准50，±23分范围"""
     score = 50.0
     details: list[str] = []
 
     if len(fund_flow) == 0:
-        return DimensionScore("fund", score, WEIGHTS["fund"], "无资金流数据")
+        return DimensionScore("fund", score, _get_weights(db)["fund"], "无资金流数据")
 
     latest_ff = fund_flow[0]
 
@@ -257,7 +268,7 @@ def calculate_fund_score(fund_flow: list[dict]) -> DimensionScore:
 
     final_score = max(0.0, min(100.0, score))
     return DimensionScore(
-        "fund", final_score, WEIGHTS["fund"],
+        "fund", final_score, _get_weights(db)["fund"],
         ", ".join(details) if details else "基准",
     )
 
@@ -267,7 +278,7 @@ def calculate_fund_score(fund_flow: list[dict]) -> DimensionScore:
 #   新闻情绪 ±6 | 板块热度 ±6 | 龙虎榜 ±3 | 时效性 ±3
 # ════════════════════════════════════════════════════════════════
 
-def calculate_sentiment_score(news: list[dict], trade_date: str) -> DimensionScore:
+def calculate_sentiment_score(news: list[dict], trade_date: str, db: Session) -> DimensionScore:
     """情绪维度评分 — 基准50，±18分范围
 
     P0简化版：无新闻源时基于板块热度做简化判断。
@@ -277,7 +288,7 @@ def calculate_sentiment_score(news: list[dict], trade_date: str) -> DimensionSco
     details: list[str] = []
 
     if not news:
-        return DimensionScore("sentiment", score, WEIGHTS["sentiment"], "无新闻数据")
+        return DimensionScore("sentiment", score, _get_weights(db)["sentiment"], "无新闻数据")
 
     # 因子1：新闻情绪标签统计（±6分）
     positive_count = 0
@@ -337,7 +348,7 @@ def calculate_sentiment_score(news: list[dict], trade_date: str) -> DimensionSco
 
     final_score = max(0.0, min(100.0, score))
     return DimensionScore(
-        "sentiment", final_score, WEIGHTS["sentiment"],
+        "sentiment", final_score, _get_weights(db)["sentiment"],
         ", ".join(details) if details else "基准",
     )
 
@@ -348,7 +359,7 @@ def calculate_sentiment_score(news: list[dict], trade_date: str) -> DimensionSco
 #          消息面 ±3(暂不启用) | 大单行为 ±3 | 连流方向 ±3
 # ════════════════════════════════════════════════════════════════
 
-def calculate_mainforce_score(klines: list[dict], fund_flow: list[dict]) -> DimensionScore:
+def calculate_mainforce_score(klines: list[dict], fund_flow: list[dict], db: Session) -> DimensionScore:
     """主力行为维度评分 — 基准50，总分范围0-100
 
     你的核心武器：识别洗盘vs出货。P0实现6因子简化版。
@@ -357,7 +368,7 @@ def calculate_mainforce_score(klines: list[dict], fund_flow: list[dict]) -> Dime
     details: list[str] = []
 
     if len(klines) < 3:
-        return DimensionScore("mainforce", score, WEIGHTS["mainforce"], "K线不足3根")
+        return DimensionScore("mainforce", score, _get_weights(db)["mainforce"], "K线不足3根")
 
     latest = klines[0]
 
@@ -433,7 +444,7 @@ def calculate_mainforce_score(klines: list[dict], fund_flow: list[dict]) -> Dime
 
     final_score = max(0.0, min(100.0, score))
     return DimensionScore(
-        "mainforce", final_score, WEIGHTS["mainforce"],
+        "mainforce", final_score, _get_weights(db)["mainforce"],
         ", ".join(details) if details else "基准",
     )
 
@@ -447,6 +458,7 @@ def calculate_capital_logic_score(
     candidate: dict,
     news: list[dict],
     klines: list[dict],
+    db: Session,
 ) -> DimensionScore:
     """资本市场逻辑维度评分 — 基准50，±17分范围"""
     score = 50.0
@@ -534,7 +546,7 @@ def calculate_capital_logic_score(
 
     final_score = max(0.0, min(100.0, score))
     return DimensionScore(
-        "capital_logic", final_score, WEIGHTS["capital_logic"],
+        "capital_logic", final_score, _get_weights(db)["capital_logic"],
         ", ".join(details) if details else "基准",
     )
 
@@ -549,6 +561,7 @@ def score_candidates(
     fund_flow_map: dict[str, list[dict]] | None = None,
     news_map: dict[str, list[dict]] | None = None,
     trade_date: str | None = None,
+    db: Session | None = None,
 ) -> list[ScoredCandidate]:
     """对候选列表进行五维度评分，返回取前15名
 
@@ -571,11 +584,11 @@ def score_candidates(
         news = (news_map or {}).get(code, [])
 
         # 五维度评分
-        dim_vp = calculate_volume_price_score(klines)
-        dim_fund = calculate_fund_score(fund_flow)
-        dim_sent = calculate_sentiment_score(news, trade_date or "")
-        dim_mf = calculate_mainforce_score(klines, fund_flow)
-        dim_logic = calculate_capital_logic_score(c.detail, news, klines)
+        dim_vp = calculate_volume_price_score(klines, db)
+        dim_fund = calculate_fund_score(fund_flow, db)
+        dim_sent = calculate_sentiment_score(news, trade_date or "", db)
+        dim_mf = calculate_mainforce_score(klines, fund_flow, db)
+        dim_logic = calculate_capital_logic_score(c.detail, news, klines, db)
 
         dims = {
             "volume_price": dim_vp,

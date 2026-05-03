@@ -459,8 +459,10 @@ class PositionManager:
         return self.db.query(Positions).filter(Positions.total_volume > 0).count()
 
     def can_open_new_position(self) -> bool:
-        """能否开新仓（不超过 MAX_POSITIONS）"""
-        return self.get_position_count() < MAX_POSITIONS
+        """能否开新仓（从 DB 读取 max_positions 配置）"""
+        from src.config_loader import load_trade_config
+        cfg = load_trade_config(self.db)
+        return self.get_position_count() < cfg['max_positions']
 
     def calculate_batch_quantity(
         self, stock_code: str, price: Decimal, batch_stage: str,
