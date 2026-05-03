@@ -4,6 +4,8 @@ from typing import Any
 
 from fastapi import APIRouter, Depends
 
+from sqlalchemy.orm import Session
+
 from src.api.deps import get_current_user_id
 from src.db.models import SystemConfig
 from src.db.session import get_session

@@ -52,6 +52,8 @@ LLM_PROVIDERS: dict[str, LLMProvider] = {
         models=[
             "deepseek-chat",
             "deepseek-reasoner",
+            "deepseek-v4-flash",
+            "deepseek-v4-0524",
             "deepseek-v3",
             "deepseek-r1",
         ],
@@ -64,8 +66,10 @@ LLM_PROVIDERS: dict[str, LLMProvider] = {
         models=[
             "glm-4-plus",
             "glm-4-0520",
-            "glm-4-air",
+            "glm-4-air-0111",
+            "glm-4-flash-250331",
             "glm-4-flash",
+            "glm-4v-plus",
         ],
     ),
     "moonshot": LLMProvider(
@@ -77,6 +81,7 @@ LLM_PROVIDERS: dict[str, LLMProvider] = {
             "moonshot-v1-8k",
             "moonshot-v1-32k",
             "moonshot-v1-128k",
+            "moonshot-v1-auto",
         ],
     ),
     "qwen": LLMProvider(
@@ -85,10 +90,15 @@ LLM_PROVIDERS: dict[str, LLMProvider] = {
         base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
         doc_url="https://help.aliyun.com/zh/model-studio/",
         models=[
+            "qwen-plus-2025-04-28",
             "qwen-plus",
+            "qwen-max-2025-04-25",
             "qwen-max",
+            "qwen-turbo-2025-04-28",
             "qwen-turbo",
             "qwen2.5-72b-instruct",
+            "qwen2.5-32b-instruct",
+            "qwen-vl-max",
         ],
     ),
     "baidu": LLMProvider(
@@ -96,9 +106,10 @@ LLM_PROVIDERS: dict[str, LLMProvider] = {
         label="百度文心",
         base_url="https://aip.baidubce.com/rpc/2.0/ai_custom",
         doc_url="https://cloud.baidu.com/doc/WENXINWORKSHOP/s/Fm2vrveyu",
-        api_format="openai",  # 文心4.0+ 支持 OpenAI 兼容
+        api_format="openai",
         models=[
             "ernie-4.0-8k-latest",
+            "ernie-4.0-turbo-8k-latest",
             "ernie-3.5-8k-preview",
             "ernie-speed-128k",
             "ernie-lite-8k-0922",
@@ -110,10 +121,12 @@ LLM_PROVIDERS: dict[str, LLMProvider] = {
         base_url="https://ark.cn-beijing.volces.com/api/v3",
         doc_url="https://www.volcengine.com/docs/82379",
         models=[
-            "doubao-pro-32k",
-            "doubao-pro-128k",
-            "doubao-lite-32k",
-            "doubao-lite-128k",
+            "doubao-pro-32k-250415",
+            "doubao-pro-128k-250415",
+            "doubao-lite-32k-250415",
+            "doubao-lite-128k-250415",
+            "doubao-1.5-pro-256k-250515",
+            "doubao-1.5-lite-32k-250515",
         ],
     ),
     "yi": LLMProvider(
@@ -122,10 +135,12 @@ LLM_PROVIDERS: dict[str, LLMProvider] = {
         base_url="https://api.lingyiwanwu.com/v1",
         doc_url="https://platform.lingyiwanwu.com/docs",
         models=[
+            "yi-lightning-250417",
             "yi-lightning",
             "yi-medium",
             "yi-large",
             "yi-large-turbo",
+            "yi-vision",
         ],
     ),
     "baichuan": LLMProvider(
@@ -134,7 +149,9 @@ LLM_PROVIDERS: dict[str, LLMProvider] = {
         base_url="https://api.baichuan-ai.com/v1",
         doc_url="https://platform.baichuan-ai.com/docs",
         models=[
+            "baichuan4-turbo-2504",
             "baichuan4-turbo",
+            "baichuan4-air-2504",
             "baichuan4-air",
             "baichuan3-turbo",
         ],
@@ -145,6 +162,7 @@ LLM_PROVIDERS: dict[str, LLMProvider] = {
         base_url="https://api.skywork.com/v1",
         doc_url="https://skywork.com/docs",
         models=[
+            "skywork-turbo-2501",
             "skywork-turbo",
             "skywork-premium",
         ],
@@ -155,11 +173,15 @@ LLM_PROVIDERS: dict[str, LLMProvider] = {
         base_url="https://api.siliconflow.cn/v1",
         doc_url="https://docs.siliconflow.cn/api-reference",
         models=[
+            "deepseek-ai/DeepSeek-V3-250324",
             "deepseek-ai/DeepSeek-V3",
+            "deepseek-ai/DeepSeek-R1-250324",
             "deepseek-ai/DeepSeek-R1",
             "Pro/deepseek-ai/DeepSeek-V3",
             "Qwen/Qwen2.5-72B-Instruct-128K",
             "Qwen/Qwen2.5-32B-Instruct",
+            "Qwen/QwQ-32B-Preview",
+            "THUDM/glm-4-9b-chat",
         ],
     ),
     # ─── 国外 ───
@@ -169,13 +191,20 @@ LLM_PROVIDERS: dict[str, LLMProvider] = {
         base_url="https://api.openai.com",
         doc_url="https://platform.openai.com/docs",
         models=[
+            "gpt-4o-2025-04-17",
             "gpt-4o",
+            "gpt-4o-mini-2025-04-17",
             "gpt-4o-mini",
+            "gpt-4.1-2025-04-17",
             "gpt-4.1",
+            "gpt-4.1-mini-2025-04-17",
             "gpt-4.1-mini",
+            "gpt-4.1-nano-2025-04-17",
             "gpt-4.1-nano",
-            "o3",
+            "o4-mini-2025-04-17",
             "o4-mini",
+            "o3-2025-04-17",
+            "o3",
         ],
     ),
     "anthropic": LLMProvider(
@@ -188,6 +217,7 @@ LLM_PROVIDERS: dict[str, LLMProvider] = {
             "claude-sonnet-4-20250514",
             "claude-sonnet-4",
             "claude-opus-4-20250514",
+            "claude-haiku-3-5-20241022",
             "claude-haiku-3-5",
         ],
     ),
@@ -198,9 +228,12 @@ LLM_PROVIDERS: dict[str, LLMProvider] = {
         doc_url="https://ai.google.dev/gemini-api/docs",
         api_format="gemini",
         models=[
+            "gemini-2.5-pro-04-17",
+            "gemini-2.5-flash-04-17",
             "gemini-2.5-pro-exp-03-25",
             "gemini-2.5-flash-preview-04-17",
             "gemini-2.0-flash",
+            "gemini-2.0-flash-lite",
         ],
     ),
     "xai": LLMProvider(
@@ -209,8 +242,11 @@ LLM_PROVIDERS: dict[str, LLMProvider] = {
         base_url="https://api.x.ai",
         doc_url="https://docs.x.ai/docs",
         models=[
+            "grok-3-250422",
             "grok-3",
+            "grok-3-mini-250422",
             "grok-3-mini",
+            "grok-2-250422",
             "grok-2",
         ],
     ),
@@ -220,9 +256,12 @@ LLM_PROVIDERS: dict[str, LLMProvider] = {
         base_url="https://api.mistral.ai/v1",
         doc_url="https://docs.mistral.ai",
         models=[
+            "mistral-large-2504",
             "mistral-large-2411",
             "mistral-small-2501",
+            "pixtral-large-2503",
             "pixtral-large-2411",
+            "codestral-2505",
             "codestral-2501",
         ],
     ),

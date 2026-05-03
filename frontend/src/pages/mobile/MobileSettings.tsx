@@ -217,15 +217,21 @@ const GroupLabel = ({ label }: { label: string }) => {
 };
 
 /* ---- LLM 厂商+模型选择器 ---- */
+const CUSTOM_MODEL_VALUE = "__custom__";
+
 const LLMSelector = ({
   providerKey,
   modelKey,
+  withApiKey,
+  withBaseUrl,
   configs,
   setConfig,
   colors,
 }: {
   providerKey: string;
   modelKey: string;
+  withApiKey?: boolean;
+  withBaseUrl?: boolean;
   configs: SettingsMap;
   setConfig: (key: string, value: string | number | boolean) => void;
   colors: Record<string, any>;
@@ -246,18 +252,35 @@ const LLMSelector = ({
   const selectedProvider = providers.find((p) => p.name === currentProvider);
   const availableModels = selectedProvider?.models ?? [];
 
+  // 判断当前模型是否在预设列表中
+  const isCustomModel = currentModel && !availableModels.includes(currentModel);
+  const modelDisplayValue = isCustomModel ? CUSTOM_MODEL_VALUE : (currentModel || undefined);
+
   const handleProviderChange = (newProvider: string) => {
     setConfig(providerKey, newProvider);
-    // 切换厂商时自动设置为该厂商的默认模型
     const provider = providers.find((p) => p.name === newProvider);
     if (provider?.default_model) {
       setConfig(modelKey, provider.default_model);
     }
   };
 
-  const handleCustomModelChange = (value: string) => {
-    setConfig(modelKey, value);
+  const handleModelChange = (value: string) => {
+    if (value === CUSTOM_MODEL_VALUE) {
+      // 选择"自定义模型"时，清空模型名让用户输入
+      setConfig(modelKey, "");
+    } else {
+      setConfig(modelKey, value);
+    }
   };
+
+  const handleCustomModelInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setConfig(modelKey, e.target.value);
+  };
+
+  // 构造配置key：daily_analysis_provider → daily_analysis_api_key / daily_analysis_base_url
+  const prefix = providerKey.replace("_provider", "");
+  const apiKeyConfigKey = `${prefix}_api_key`;
+  const baseUrlConfigKey = `${prefix}_base_url`;
 
   const selectStyle: React.CSSProperties = {
     width: "100%",
@@ -281,25 +304,115 @@ const LLMSelector = ({
         }))}
       />
 
-      {/* 模型下拉（预设 + 可自定义输入） */}
+      {/* 模型选择：预设列表 + 「自定义模型」选项 */}
       <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
         <div style={{ flex: 1 }}>
-          <Select
-            style={{ width: "100%", fontSize: 12 }}
-            value={currentModel || undefined}
-            onChange={handleCustomModelChange}
-            placeholder="选择或输入模型名"
-            showSearch
-            allowClear
-            options={availableModels.map((m) => ({ value: m, label: m }))}
-          />
+          {isCustomModel ? (
+            <input
+              value={currentModel}
+              onChange={handleCustomModelInput}
+              placeholder="输入自定义模型名"
+              style={{
+                width: "100%",
+                padding: "5px 8px",
+                fontSize: 12,
+                borderRadius: `${colors.radius.sm}px`,
+                border: `1px solid ${colors.border.medium}`,
+                background: colors.bg.surface,
+                outline: "none",
+                color: colors.text.primary,
+                lineHeight: 1.4,
+                boxSizing: "border-box",
+              }}
+            />
+          ) : (
+            <Select
+              style={{ width: "100%", fontSize: 12 }}
+              value={modelDisplayValue}
+              onChange={handleModelChange}
+              placeholder="选择模型"
+              showSearch
+              options={[
+                ...availableModels.map((m) => ({ value: m, label: m })),
+                { value: CUSTOM_MODEL_VALUE, label: "✏️ 自定义模型" },
+              ]}
+            />
+          )}
         </div>
         {selectedProvider && (
-          <span style={{ fontSize: 10, color: colors.text.tertiary, whiteSpace: "nowrap" }}>
-            {selectedProvider.label}
+          <span style={{ fontSize: 10, color: colors.text.tertiary, whiteSpace: "nowrap", cursor: "pointer" }}
+            onClick={() => {
+              setConfig(modelKey, "");
+              // 切到自定义模式
+            }}
+          >
+            {isCustomModel ? "✏️" : selectedProvider.label}
           </span>
         )}
       </div>
+
+      {isCustomModel && (
+        <div style={{ marginTop: 4, fontSize: 11, color: colors.semantic.amber }}>
+          自定义模型名，请确保该模型名在所选厂商的API中有效
+        </div>
+      )}
+
+      {/* API Key（可选，单独配） */}
+      {withApiKey && (
+        <div style={{ marginTop: 8 }}>
+          <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+            <div style={{ flex: 1 }}>
+              <input
+                value={String(configs[apiKeyConfigKey] ?? "")}
+                onChange={(e) => setConfig(apiKeyConfigKey, e.target.value)}
+                placeholder="此模型的 API Key（留空用全局）"
+                type="password"
+                style={{
+                  width: "100%",
+                  padding: "5px 8px",
+                  fontSize: 12,
+                  borderRadius: `${colors.radius.sm}px`,
+                  border: `1px solid ${colors.border.medium}`,
+                  background: colors.bg.surface,
+                  outline: "none",
+                  color: colors.text.primary,
+                  lineHeight: 1.4,
+                  boxSizing: "border-box",
+                }}
+              />
+            </div>
+            <span style={{ fontSize: 10, color: colors.text.tertiary, whiteSpace: "nowrap" }}>API Key</span>
+          </div>
+        </div>
+      )}
+
+      {/* Base URL（可选，单独配） */}
+      {withBaseUrl && (
+        <div style={{ marginTop: 6 }}>
+          <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+            <div style={{ flex: 1 }}>
+              <input
+                value={String(configs[baseUrlConfigKey] ?? "")}
+                onChange={(e) => setConfig(baseUrlConfigKey, e.target.value)}
+                placeholder="Base URL（留空用厂商默认）"
+                style={{
+                  width: "100%",
+                  padding: "5px 8px",
+                  fontSize: 12,
+                  borderRadius: `${colors.radius.sm}px`,
+                  border: `1px solid ${colors.border.medium}`,
+                  background: colors.bg.surface,
+                  outline: "none",
+                  color: colors.text.primary,
+                  lineHeight: 1.4,
+                  boxSizing: "border-box",
+                }}
+              />
+            </div>
+            <span style={{ fontSize: 10, color: colors.text.tertiary, whiteSpace: "nowrap" }}>Base URL</span>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -474,6 +587,8 @@ function MobileSettings() {
           <LLMSelector
             providerKey="daily_analysis_provider"
             modelKey="daily_analysis_model"
+            withApiKey
+            withBaseUrl
             configs={configs}
             setConfig={setConfig}
             colors={colors}
@@ -483,7 +598,7 @@ function MobileSettings() {
         {/* ── 关键决策模型 ── */}
         <div style={{ padding: "10px 14px", borderBottom: `1px solid ${colors.border.light}` }}>
           <div style={{ fontSize: 13, fontWeight: 600, color: colors.text.primary, marginBottom: 6 }}>关键决策模型</div>
-          <div style={{ fontSize: 11, color: colors.text.tertiary, marginBottom: 8 }}>开仓/止损前的复核模型</div>
+          <div style={{ fontSize: 11, color: colors.text.tertiary, marginBottom: 8 }}>开仓/止损前的复核模型（未配则复用每日分析模型配置）</div>
           <LLMSelector
             providerKey="key_decision_provider"
             modelKey="key_decision_model"
@@ -492,16 +607,6 @@ function MobileSettings() {
             colors={colors}
           />
         </div>
-
-        {/* ── API Key ── */}
-        <Row label="API Key" desc={s("llm_api_key") ? `sk-••••${s("llm_api_key").slice(-4)}` : "未配置"}
-          right={<InputField value={s("llm_api_key")} onChange={(v) => setStr("llm_api_key", v)} type="password" placeholder="输入 API Key" />}
-        />
-
-        {/* ── 自定义 Base URL（覆盖） ── */}
-        <Row label="自定义 Base URL" desc="选填，留空则用厂商默认地址"
-          right={<InputField value={s("llm_base_url")} onChange={(v) => setStr("llm_base_url", v)} placeholder="留空=默认" />}
-        />
 
         <Row label="请求超时" right={<InputField value={n("llm_timeout")} onChange={(v) => setNum("llm_timeout", v)} suffix="秒" />} />
         <Row label="最大并发数" right={<InputField value={n("llm_max_concurrent")} onChange={(v) => setNum("llm_max_concurrent", v)} />} />
