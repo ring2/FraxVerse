@@ -8,6 +8,7 @@ import {
   EyeOutlined,
   DashboardOutlined,
   AppstoreAddOutlined,
+  FireOutlined,
 } from "@ant-design/icons";
 
 interface MoreEntry {
@@ -19,6 +20,13 @@ interface MoreEntry {
 }
 
 const ENTRIES: MoreEntry[] = [
+  {
+    key: "hot-news",
+    title: "热闻感知",
+    path: "/m/hot-news",
+    icon: <FireOutlined />,
+    gradient: "linear-gradient(135deg, #E8735A, #D45A40)",
+  },
   {
     key: "ai",
     title: "AI分析",

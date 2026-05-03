@@ -200,6 +200,15 @@ const MobileSystemHealth = lazy(() =>
     ),
   }))
 );
+const MobileHotNews = lazy(() =>
+  import("./pages/mobile/MobileHotNews").catch(() => ({
+    default: () => (
+      <div style={{ padding: 40, color: "#8887a8", textAlign: "center" }}>
+        热闻感知
+      </div>
+    ),
+  }))
+);
 
 // Placeholder for remaining PC routes
 const KlineSignalPage = () => (
@@ -319,6 +328,7 @@ function AppContent() {
             <Route path="/m/equity" element={<MobileEquity />} />
             <Route path="/m/monitor" element={<MobileMonitor />} />
             <Route path="/m/system" element={<MobileSystemHealth />} />
+            <Route path="/m/hot-news" element={<MobileHotNews />} />
           </Route>
 
           <Route path="/" element={<RootRedirect />} />
