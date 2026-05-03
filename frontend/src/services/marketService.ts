@@ -62,4 +62,13 @@ export const marketService = {
     }
     return { items: [], total: 0 };
   },
+
+  /**
+   * GET /api/v1/market/stock-detail?code=XXX
+   * 个股详情（实时行情 + 日K）
+   */
+  async getStockDetail(code: string): Promise<Record<string, unknown>> {
+    const res = await api.get("/market/stock-detail", { params: { code } });
+    return (res.data || {}) as Record<string, unknown>;
+  },
 };

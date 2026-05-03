@@ -52,6 +52,41 @@ class MarketStateResponse(BaseModel):
     confidence: float | None = None
 
 
+class KlineSimpleItem(BaseModel):
+    """简化日K线（前端绘图用）"""
+    trade_date: str
+    open: float
+    high: float
+    low: float
+    close: float
+    volume: float
+    change_pct: float = 0.0
+
+
+class StockDetailResponse(BaseModel):
+    """个股详情（实时行情 + 日K）"""
+    code: str
+    name: str
+    price: float = 0.0
+    change_pct: float = 0.0
+    change_amount: float = 0.0
+    open: float = 0.0
+    high: float = 0.0
+    low: float = 0.0
+    pre_close: float = 0.0
+    volume: float = 0.0          # 成交量（手）
+    amount: float = 0.0          # 成交额（亿）
+    turnover_rate: float = 0.0   # 换手率（%）
+    volume_ratio: float = 0.0    # 量比
+    inner_disc: float = 0.0      # 内盘
+    outer_disc: float = 0.0      # 外盘
+    total_value: float = 0.0     # 总市值（亿）
+    circulate_value: float = 0.0 # 流通市值（亿）
+    pe: float = 0.0              # 市盈率
+    pb: float = 0.0              # 市净率
+    klines: list[KlineSimpleItem] = []
+
+
 class MacroeconomicItem(BaseModel):
     indicator_name: str
     value: Decimal | None = None

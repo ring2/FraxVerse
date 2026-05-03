@@ -4,10 +4,16 @@ import { useTheme } from "../../theme/ThemeContext";
 import {
   MobileMetricCard,
   MobileSectionCard,
+  StockDetailDrawer,
 } from "../../components/mobile";
 import { strategyService } from "../../services/strategyService";
 
 const STRATEGY_FILTERS = ["全部", "周期底部", "趋势低吸"];
+
+const STRATEGY_NAMES: Record<string, string> = {
+  bottom_reversal: "底部反转",
+  trend_momentum: "趋势跟踪",
+};
 
 function MobileStockPool() {
   const { message } = App.useApp();
@@ -17,14 +23,9 @@ function MobileStockPool() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [items, setItems] = useState<Record<string, any>[]>([]);
   const [activeFilter, setActiveFilter] = useState("全部");
+  const [detailCode, setDetailCode] = useState<string | null>(null);
+  const [detailOpen, setDetailOpen] = useState(false);
 
-  // Helper: derive sub-scores deterministically from total score
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const deriveSubScore = (code: string, total: number, seed: number): number => {
-    const hash = code.split("").reduce((acc, ch) => acc + ch.charCodeAt(0), seed);
-    const variation = (hash % 21) - 10;
-    return Math.max(0, Math.min(100, total + variation));
-  };
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const parseScore = (s: string | null | undefined): number => {
     if (!s) return 0;
@@ -38,20 +39,8 @@ function MobileStockPool() {
     return {
       code: item.stock_code || "--",
       name: item.stock_name || item.stock_code?.replace(".SH","").replace(".SZ","") || "",
-      strategy: item.strategy_type || "未知",
+      strategy: STRATEGY_NAMES[item.strategy_type] || item.strategy_type || "未知",
       score: totalScore,
-      metrics: {
-        liangjia: deriveSubScore(item.stock_code || "", totalScore, 1),
-        zijin: deriveSubScore(item.stock_code || "", totalScore, 2),
-        qingxu: deriveSubScore(item.stock_code || "", totalScore, 3),
-        zhuli: deriveSubScore(item.stock_code || "", totalScore, 4),
-      },
-      change: item.position_pct
-        ? `${item.position_pct.startsWith("-") ? "" : "+"}${item.position_pct}%`
-        : "--",
-      changeUp: item.position_pct
-        ? !item.position_pct.startsWith("-")
-        : false,
     };
   };
 
@@ -105,16 +94,10 @@ function MobileStockPool() {
 
   const handleView = useCallback(
     (code: string) => {
-      const item = items.find((i) => i.code === code);
-      if (item) {
-        message.info(
-          `[${item.code}] ${item.name} | 策略: ${item.strategy} | 评分: ${item.score} | 量价: ${item.metrics.liangjia} 资金: ${item.metrics.zijin} 情绪: ${item.metrics.qingxu} 主力: ${item.metrics.zhuli} | 涨跌: ${item.change}`
-        );
-      } else {
-        message.info(`标的 ${code} 详情 — 建设中`);
-      }
+      setDetailCode(code);
+      setDetailOpen(true);
     },
-    [message, items]
+    []
   );
 
   const filteredItems =
@@ -279,25 +262,10 @@ function MobileStockPool() {
           }}
         >
           <span style={{ width: 80, flexShrink: 0 }}>代码</span>
-          <span style={{ width: 70, flexShrink: 0 }}>名称</span>
-          <span style={{ width: 70, flexShrink: 0 }}>策略</span>
+          <span style={{ width: 85, flexShrink: 0 }}>名称</span>
+          <span style={{ width: 55, flexShrink: 0 }}>策略</span>
           <span style={{ width: 50, flexShrink: 0, textAlign: "right" }}>
             评分
-          </span>
-          <span style={{ width: 40, flexShrink: 0, textAlign: "right" }}>
-            量价
-          </span>
-          <span style={{ width: 40, flexShrink: 0, textAlign: "right" }}>
-            资金
-          </span>
-          <span style={{ width: 40, flexShrink: 0, textAlign: "right" }}>
-            情绪
-          </span>
-          <span style={{ width: 40, flexShrink: 0, textAlign: "right" }}>
-            主力
-          </span>
-          <span style={{ width: 55, flexShrink: 0, textAlign: "right" }}>
-            涨跌
           </span>
           <span style={{ width: 50, flexShrink: 0, textAlign: "center" }}>
             操作
@@ -334,14 +302,14 @@ function MobileStockPool() {
               </span>
               <span
                 style={{
-                  width: 70,
+                  width: 85,
                   flexShrink: 0,
                   color: colors.text.secondary,
                 }}
               >
                 {item.name}
               </span>
-              <span style={{ width: 70, flexShrink: 0 }}>
+              <span style={{ width: 55, flexShrink: 0 }}>
                 <span
                   style={{
                     display: "inline-flex",
@@ -377,59 +345,6 @@ function MobileStockPool() {
               </span>
               <span
                 style={{
-                  width: 40,
-                  flexShrink: 0,
-                  textAlign: "right",
-                  color: colors.text.secondary,
-                }}
-              >
-                {item.metrics.liangjia}
-              </span>
-              <span
-                style={{
-                  width: 40,
-                  flexShrink: 0,
-                  textAlign: "right",
-                  color: colors.text.secondary,
-                }}
-              >
-                {item.metrics.zijin}
-              </span>
-              <span
-                style={{
-                  width: 40,
-                  flexShrink: 0,
-                  textAlign: "right",
-                  color: colors.text.secondary,
-                }}
-              >
-                {item.metrics.qingxu}
-              </span>
-              <span
-                style={{
-                  width: 40,
-                  flexShrink: 0,
-                  textAlign: "right",
-                  color: colors.text.secondary,
-                }}
-              >
-                {item.metrics.zhuli}
-              </span>
-              <span
-                style={{
-                  width: 55,
-                  flexShrink: 0,
-                  textAlign: "right",
-                  fontWeight: 500,
-                  color: item.changeUp
-                    ? colors.semantic.up
-                    : colors.semantic.down,
-                }}
-              >
-                {item.change}
-              </span>
-              <span
-                style={{
                   width: 50,
                   flexShrink: 0,
                   textAlign: "center",
@@ -461,6 +376,16 @@ function MobileStockPool() {
           ))}
         </div>
       </MobileSectionCard>
+
+      {/* 股票详情弹窗 */}
+      <StockDetailDrawer
+        code={detailCode || ""}
+        open={detailOpen}
+        onClose={() => {
+          setDetailOpen(false);
+          setDetailCode(null);
+        }}
+      />
     </div>
   );
 }

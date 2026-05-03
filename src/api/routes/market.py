@@ -1,8 +1,12 @@
 """行情路由 — /api/v1/market/*"""
 
+import re
 from datetime import date
 
-from fastapi import APIRouter, Depends, Query
+import akshare as ak
+import pandas as pd
+import requests
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from src.api.deps import get_current_user_id
@@ -10,10 +14,12 @@ from src.db.models import DailyKlines, MarketStateLog, News, SectorData
 from src.db.session import get_session
 from src.schemas.market import (
     KlineItem,
+    KlineSimpleItem,
     MarketStateResponse,
     NewsItem,
     NewsPageResponse,
     SectorItem,
+    StockDetailResponse,
 )
 
 router = APIRouter(prefix="/api/v1/market", tags=["market"])
@@ -90,3 +96,103 @@ def get_market_state(
         )
         for log in logs
     ]
+
+
+@router.get("/stock-detail", response_model=StockDetailResponse)
+def get_stock_detail(
+    code: str = Query(..., description="股票代码，如 600519"),
+    user_id: int = Depends(get_current_user_id),
+):
+    """个股详情：东方财富 push2 实时行情 + AKShare hist 日K"""
+    raw = code.upper().strip()
+    raw = re.sub(r"\.(SH|SZ|BJ)$", "", raw)
+
+    # 交易所 secid 映射
+    if raw.startswith(("6", "9")):
+        market = 1  # 上交所
+    elif raw.startswith(("0", "3")):
+        market = 0  # 深交所
+    elif raw.startswith(("4", "8")):
+        market = 2  # 北交所
+    else:
+        market = 1
+
+    # 1) 实时行情 — 东方财富 push2 个股接口
+    try:
+        url = "http://push2.eastmoney.com/api/qt/stock/get"
+        params = {
+            "secid": f"{market}.{raw}",
+            "fields": (
+                "f43,f44,f45,f46,f47,f48,f49,f50,"
+                "f57,f58,f116,f117,"
+                "f162,f167,f168,f169,f170,f171,f292"
+            ),
+        }
+        resp = requests.get(url, params=params, timeout=5)
+        body = resp.json()
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"获取实时行情失败: {e}")
+
+    if body.get("rc") != 0 or not body.get("data"):
+        raise HTTPException(status_code=404, detail=f"未找到股票 {raw}")
+
+    d = body["data"]
+
+    def _v(key: str, div: int = 1, default: float = 0.0) -> float:
+        val = d.get(key)
+        if val is None:
+            return default
+        return float(val) / div
+
+    # 昨收：用前收盘价 f60 或 f46 倒推
+    pre_close = _v("f46", 100)  # 昨收缺省用今开
+    # 尝试用 hist 拿更准的昨收（在下面补充）
+    amount_yuan = _v("f48")
+
+    detail = StockDetailResponse(
+        code=raw,
+        name=str(d.get("f58", "")),
+        price=_v("f43", 100),
+        change_pct=_v("f170", 100),
+        change_amount=_v("f169", 100),
+        open=_v("f46", 100),
+        high=_v("f44", 100),
+        low=_v("f45", 100),
+        pre_close=pre_close,
+        volume=_v("f47"),
+        amount=amount_yuan,
+        turnover_rate=_v("f168", 100),
+        volume_ratio=_v("f49", 10000),
+        pe=_v("f162", 100),
+        pb=_v("f167", 100),
+        total_value=_v("f116"),
+        circulate_value=_v("f117"),
+    )
+
+    # 2) 日K + 补充换手率/昨收 — AKShare hist
+    try:
+        hist = ak.stock_zh_a_hist(symbol=raw, period="daily", adjust="qfq")
+        if not hist.empty:
+            hist = hist.tail(90)
+            latest = hist.iloc[-1]
+            if latest.get("换手率"):
+                detail.turnover_rate = float(latest["换手率"])
+            if len(hist) >= 2:
+                detail.pre_close = float(hist.iloc[-2].get("收盘", 0) or 0)
+            klines = [
+                KlineSimpleItem(
+                    trade_date=str(hrow["日期"]),
+                    open=float(hrow.get("开盘", 0)),
+                    high=float(hrow.get("最高", 0)),
+                    low=float(hrow.get("最低", 0)),
+                    close=float(hrow.get("收盘", 0)),
+                    volume=float(hrow.get("成交量", 0)),
+                    change_pct=float(hrow.get("涨跌幅", 0) or 0),
+                )
+                for _, hrow in hist.iterrows()
+            ]
+            detail.klines = klines
+    except Exception:
+        pass
+
+    return detail
