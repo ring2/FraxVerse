@@ -7,18 +7,18 @@ import type {
 } from "../types/api-extended";
 
 export interface KlinesParams {
-  stock_code: string;
+  code: string;
   period?: string;
   limit?: number;
 }
 
 export const marketService = {
   /**
-   * GET /api/v1/market/klines?stock_code=XXX&period=daily&limit=N
-   * 日K线数据 — 返回 KlineItem[] 数组
+   * GET /api/v1/market/klines-multi?code=XXX&period=daily&limit=N
+   * 多周期K线 — 支持 daily|weekly|monthly|1|5|15|30|60
    */
   async getKlines(params: KlinesParams): Promise<KlineItem[]> {
-    const res = await api.get("/market/klines", { params });
+    const res = await api.get("/market/klines-multi", { params });
     return Array.isArray(res.data) ? res.data : [];
   },
 

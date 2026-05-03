@@ -16,6 +16,7 @@ from src.schemas.market import (
     KlineItem,
     KlineSimpleItem,
     MarketStateResponse,
+    MultiPeriodKlineItem,
     NewsItem,
     NewsPageResponse,
     SectorItem,
@@ -96,6 +97,87 @@ def get_market_state(
         )
         for log in logs
     ]
+
+
+@router.get("/klines-multi", response_model=list[MultiPeriodKlineItem])
+def get_klines_multi(
+    code: str = Query(..., description="股票代码，如 600519"),
+    period: str = Query("daily", description="周期: daily|weekly|monthly|1|15|30"),
+    limit: int = Query(120, ge=10, le=500),
+    user_id: int = Depends(get_current_user_id),
+):
+    """多周期K线 — 通过AKShare实时获取，前端绘图用"""
+    raw = code.upper().strip()
+    raw = re.sub(r"\.(SH|SZ|BJ)$", "", raw)
+
+    # 分时周期（1/5/15/30/60分钟）→ stock_zh_a_hist_min_em
+    minute_periods = {"1", "5", "15", "30", "60"}
+    # 日/周/月周期
+    date_periods = {"daily": "daily", "weekly": "weekly", "monthly": "monthly"}
+
+    try:
+        if period in date_periods:
+            df = ak.stock_zh_a_hist(symbol=raw, period=period, adjust="qfq")
+            if df is None or df.empty:
+                return []
+            df = df.tail(limit)
+
+            rows: list[MultiPeriodKlineItem] = []
+            for _, row in df.iterrows():
+                rows.append(MultiPeriodKlineItem(
+                    timestamp=str(row.get("日期", "")),
+                    open=float(row.get("开盘", 0) or 0),
+                    high=float(row.get("最高", 0) or 0),
+                    low=float(row.get("最低", 0) or 0),
+                    close=float(row.get("收盘", 0) or 0),
+                    volume=float(row.get("成交量", 0) or 0),
+                    amount=float(row.get("成交额", 0) or 0),
+                    change_pct=float(row.get("涨跌幅", 0) or 0),
+                ))
+            return rows
+
+        elif period in minute_periods:
+            # 取最近7天的分钟线
+            from datetime import datetime, timedelta
+
+            end = datetime.now()
+            start = end - timedelta(days=30)  # 给足够窗口
+            start_str = start.strftime("%Y-%m-%d 09:00:00")
+            end_str = end.strftime("%Y-%m-%d %H:%M:%S")
+
+            df = ak.stock_zh_a_hist_min_em(
+                symbol=raw,
+                period=period,
+                start_date=start_str,
+                end_date=end_str,
+                adjust="qfq",
+            )
+            if df is None or df.empty:
+                return []
+            df = df.tail(limit)
+
+            rows: list[MultiPeriodKlineItem] = []
+            for _, row in df.iterrows():
+                ts = str(row.get("时间", row.get("day", "")))
+                rows.append(MultiPeriodKlineItem(
+                    timestamp=ts,
+                    open=float(row.get("开盘", 0) or 0),
+                    high=float(row.get("最高", 0) or 0),
+                    low=float(row.get("最低", 0) or 0),
+                    close=float(row.get("收盘", 0) or 0),
+                    volume=float(row.get("成交量", 0) or 0),
+                    amount=float(row.get("成交额", 0) or 0),
+                    change_pct=float(row.get("涨跌幅", 0) or 0),
+                ))
+            return rows
+
+        else:
+            raise HTTPException(status_code=400, detail=f"不支持的周期: {period}")
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"获取{period}K线失败: {e}")
 
 
 @router.get("/stock-detail", response_model=StockDetailResponse)

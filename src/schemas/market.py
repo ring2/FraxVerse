@@ -63,6 +63,18 @@ class KlineSimpleItem(BaseModel):
     change_pct: float = 0.0
 
 
+class MultiPeriodKlineItem(BaseModel):
+    """多周期K线（1/5/15/30/60分钟 + 日/周）"""
+    timestamp: str
+    open: float
+    high: float
+    low: float
+    close: float
+    volume: float
+    amount: float = 0.0
+    change_pct: float = 0.0
+
+
 class StockDetailResponse(BaseModel):
     """个股详情（实时行情 + 日K）"""
     code: str

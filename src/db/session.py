@@ -17,9 +17,10 @@ SYNC_DB_URL = os.getenv(
 engine = create_engine(
     SYNC_DB_URL,
     pool_pre_ping=True,
-    pool_size=10,
-    max_overflow=20,
-    pool_timeout=30,
+    pool_size=20,
+    max_overflow=40,
+    pool_timeout=60,
+    pool_recycle=300,
 )
 SessionLocal = sessionmaker(bind=engine)
 
