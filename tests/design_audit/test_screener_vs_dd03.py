@@ -271,7 +271,7 @@ class TestStrategy2LogicVsDesignDoc:
     def test_price_drop_check(self):
         """DD-03: 3日回踩跌幅<3%"""
         source = inspect.getsource(screen_strategy2)
-        assert "STRATEGY2_PRICE_DROP_THRESHOLD" in source or "drop_3d" in source, \
+        assert '"price_drop_threshold_s2"' in source or 'STRATEGY2_PRICE_DROP_THRESHOLD' in source or 'drop_3d' in source, \
             "策略二应检查3日回踩跌幅"
 
     def test_liquidity_gte_3e8(self):
@@ -282,7 +282,7 @@ class TestStrategy2LogicVsDesignDoc:
     def test_sector_consecutive_days_check(self):
         """DD-03: 板块资金集中度连续N天检查"""
         source = inspect.getsource(screen_strategy2)
-        assert "STRATEGY2_SECTOR_CHECK_DAYS" in source or "consecutive" in source.lower(), \
+        assert '"sector_check_days"' in source or 'STRATEGY2_SECTOR_CHECK_DAYS' in source or 'consecutive' in source.lower(), \
             "策略二应检查连续天数"
 
     def test_non_st_screening(self):

