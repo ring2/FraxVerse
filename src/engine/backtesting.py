@@ -161,6 +161,7 @@ class BacktestingEngine:
         self._capital: float = 100000.0
         self._commission: float = COMMISSION_RATE
         self._slippage: float = SLIPPAGE_RATE
+        self._stamp_tax: float = STAMP_TAX_RATE
         self._signals: list[TradeSignal] = []
         self._position: int = 0
         self._entry_price: float = 0.0
@@ -182,6 +183,7 @@ class BacktestingEngine:
         capital: float = 100000.0,
         commission: float = COMMISSION_RATE,
         slippage: float = SLIPPAGE_RATE,
+        stamp_tax: float = STAMP_TAX_RATE,
         signals: list[TradeSignal] | None = None,
     ) -> None:  # noqa: PLR0913
         """设置回测参数"""
@@ -194,6 +196,7 @@ class BacktestingEngine:
         self._capital = capital
         self._commission = commission
         self._slippage = slippage
+        self._stamp_tax = stamp_tax
         if signals is not None:
             self._signals = signals
 
@@ -314,7 +317,7 @@ class BacktestingEngine:
                     # 卖出手续费
                     sell_value = position * close * (1 - self._slippage)
                     fee = sell_value * self._commission
-                    stamp = sell_value * STAMP_TAX_RATE
+                    stamp = sell_value * self._stamp_tax
                     revenue = sell_value - fee - stamp
                     pnl = revenue - position * entry_price
 
@@ -366,7 +369,7 @@ class BacktestingEngine:
                 if loss_pct <= -signal.stop_loss:
                     sell_value = position * close * (1 - self._slippage)
                     fee = sell_value * self._commission
-                    stamp = sell_value * STAMP_TAX_RATE
+                    stamp = sell_value * self._stamp_tax
                     revenue = sell_value - fee - stamp
                     pnl = revenue - position * entry_price
 
@@ -393,7 +396,7 @@ class BacktestingEngine:
             close_price = float(last_row["Close"])
             sell_value = position * close_price * (1 - self._slippage)
             fee = sell_value * self._commission
-            stamp = sell_value * STAMP_TAX_RATE
+            stamp = sell_value * self._stamp_tax
             revenue = sell_value - fee - stamp
             pnl = revenue - position * entry_price
 
@@ -436,7 +439,7 @@ class BacktestingEngine:
         # 最后一天卖出
         sell_value = shares * last_close * (1 - self._slippage)
         sell_fee = sell_value * self._commission
-        stamp = sell_value * STAMP_TAX_RATE
+        stamp = sell_value * self._stamp_tax
         revenue = sell_value - sell_fee - stamp
         final_cash = cash + revenue
 

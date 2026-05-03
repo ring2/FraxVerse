@@ -86,6 +86,9 @@ def load_trade_config(db: Session) -> dict[str, Any]:
         "flat_avg_threshold_pct": Decimal("-0.5"),
         "stop_loss_cooldown_hours": 24,
         "stop_profit_cooldown_hours": 12,
+        "commission_rate": Decimal(str(cfg.get("trade_commission_rate", 3))) / Decimal("10000"),  # 万分之 → decimal
+        "stamp_tax_rate": Decimal(str(cfg.get("trade_stamp_tax_rate", 1))) / Decimal("1000"),  # 千分之 → decimal
+        "slippage": int(cfg.get("trade_slippage", 1)),
         "stop_profit_tiers": [
             {"stage": "first_take", "trigger_pct": Decimal(cfg.get("strategy_take_profit_pct", 10)), "sell_pct": Decimal("30")},
             {"stage": "second_take", "trigger_pct": Decimal(str(float(cfg.get("strategy_take_profit_pct", 10)) * 2)), "sell_pct": Decimal("40")},
