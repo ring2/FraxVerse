@@ -81,6 +81,28 @@ services:
     networks:
       - fraxverse-net
 
+  # ── 调度器（新闻采集 + 止损监视 + 数据质量 + 开盘复核）───────────────
+  scheduler:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: fraxverse-scheduler
+    environment:
+      DATABASE_URL: "postgresql+asyncpg://fraxverse:fraxverse_dev@postgres:5432/fraxverse"
+      SYNC_DATABASE_URL: "postgresql://fraxverse:fraxverse_dev@postgres:5432/fraxverse"
+      REDIS_URL: "redis://redis:6379/0"
+      JWT_SECRET_KEY: "${JWT_SECRET_KEY:-dev-secret-key-change-in-production}"
+      TZ: Asia/Shanghai
+    command: ["python", "-m", "src.cron_scheduler", "--mode", "all"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - fraxverse-net
+
   # ── 前端 SPA ──────────────────────────────────────────────────────────────
   frontend:
     build:

@@ -47,9 +47,13 @@ class StopLossMonitor:
         self._running = True
         logger.info(f"止损监视器启动 (间隔 {self.scan_interval}s)")
 
-        # 优雅退出
-        signal.signal(signal.SIGINT, self._handle_signal)
-        signal.signal(signal.SIGTERM, self._handle_signal)
+        try:
+            # 优雅退出
+            signal.signal(signal.SIGINT, self._handle_signal)
+            signal.signal(signal.SIGTERM, self._handle_signal)
+        except ValueError:
+            # 非主线程不支持 signal，忽略
+            pass
 
         while self._running:
             try:
