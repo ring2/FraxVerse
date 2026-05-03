@@ -5,6 +5,10 @@ import { MobileSectionCard } from "../../components/mobile";
 import { marketService } from "../../services/marketService";
 import type { HotNewsItem } from "../../types/api-extended";
 
+/* ---- Constants ---- */
+
+const PAGE_SIZE = 20;
+
 /* ---- Helpers ---- */
 
 function getSentimentInfo(sentiment: string | null | undefined): {
@@ -25,7 +29,6 @@ function formatTimeAgo(iso: string): string {
   const d = new Date(iso);
   const now = new Date();
   const diffMs = now.getTime() - d.getTime();
-  // 未来时间或刚刚发生
   if (diffMs < 0) return "刚刚";
   const diffMin = Math.floor(diffMs / 60000);
   if (diffMin < 60) return `${diffMin}分钟前`;
@@ -36,47 +39,77 @@ function formatTimeAgo(iso: string): string {
   return iso.slice(0, 10);
 }
 
+function openNews(url: string | null | undefined) {
+  if (!url) return;
+  window.open(url, "_blank", "noopener,noreferrer");
+}
+
+/* ---- Component ---- */
+
 const MobileHotNews: React.FC = () => {
   const { message } = App.useApp();
   const { colors } = useTheme();
 
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [news, setNews] = useState<HotNewsItem[]>([]);
+  const [total, setTotal] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
+  /** 加载数据 — append=true 时追加，否则替换 */
   const fetchNews = useCallback(
-    async (silent = false) => {
-      if (!silent) setLoading(true);
-      setError(null);
+    async (append: boolean, silent: boolean) => {
+      if (!silent && !append) setLoading(true);
+      if (append) setLoadingMore(true);
+
       try {
-        const data = (await marketService.getNews()) as HotNewsItem[];
-        setNews(data);
-        if (data.length === 0 && !silent) {
-          message.info("暂无热点资讯，稍后再来看看吧");
+        const offset = append ? news.length : 0;
+        const result = await marketService.getNews({
+          offset,
+          limit: PAGE_SIZE,
+        });
+        const items = result.items as HotNewsItem[];
+        if (append) {
+          setNews((prev) => [...prev, ...items]);
+        } else {
+          setNews(items);
+          setError(null);
         }
+        setTotal(result.total);
       } catch {
-        setError("获取资讯失败");
-        if (!silent) {
-          message.info("获取资讯失败，请稍后重试");
+        if (!append) {
+          setError("获取资讯失败");
+          setNews([]);
+          setTotal(0);
         }
-        setNews([]);
+        message.info("获取资讯失败，请稍后重试");
       } finally {
         setLoading(false);
-        setRefreshing(false);
+        setLoadingMore(false);
       }
     },
-    [message],
+    [message, news.length],
   );
 
+  // 首次加载
   useEffect(() => {
-    fetchNews();
-  }, [fetchNews]);
+    fetchNews(false, false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleRefresh = () => {
-    setRefreshing(true);
-    fetchNews(true);
+    // 刷新时清空 news.length 让 offset=0
+    setNews([]);
+    fetchNews(false, true);
   };
+
+  const handleLoadMore = () => {
+    fetchNews(true, false);
+  };
+
+  const hasMore = news.length < total;
+
+  /* ---- Render ---- */
 
   return (
     <div className="page-enter" style={{ paddingBottom: 16 }}>
@@ -109,7 +142,7 @@ const MobileHotNews: React.FC = () => {
               fontWeight: 400,
             }}
           >
-            · 市场的心念
+            · {total} 条
           </span>
         </div>
         <span
@@ -124,7 +157,7 @@ const MobileHotNews: React.FC = () => {
             background: colors.bg.subtle,
           }}
         >
-          {refreshing ? "刷新中..." : "刷新"}
+          {loading ? "加载中..." : "刷新"}
         </span>
       </div>
 
@@ -158,32 +191,39 @@ const MobileHotNews: React.FC = () => {
             </div>
           </div>
         </MobileSectionCard>
-      ) : (
-        <MobileSectionCard title={`资讯 (${news.length})`}>
-          {news.length === 0 ? (
-            <div
-              style={{
-                padding: "40px 14px",
-                textAlign: "center",
-                color: colors.text.tertiary,
-                fontSize: 13,
-                lineHeight: 1.8,
-              }}
-            >
-              暂无热点资讯
-              <div style={{ fontSize: 12, marginTop: 8, opacity: 0.6 }}>
-                数据采集器尚未运行，新闻数据将在采集开始后自动显示
-              </div>
+      ) : news.length === 0 ? (
+        <MobileSectionCard title="热闻感知">
+          <div
+            style={{
+              padding: "40px 14px",
+              textAlign: "center",
+              color: colors.text.tertiary,
+              fontSize: 13,
+              lineHeight: 1.8,
+            }}
+          >
+            暂无热点资讯
+            <div style={{ fontSize: 12, marginTop: 8, opacity: 0.6 }}>
+              数据采集器尚未运行，新闻数据将在采集开始后自动显示
             </div>
-          ) : (
-            news.map((item) => {
+          </div>
+        </MobileSectionCard>
+      ) : (
+        <>
+          <MobileSectionCard title={`资讯 (${news.length}/${total})`}>
+            {news.map((item) => {
               const sentiment = getSentimentInfo(item.sentiment);
+              const clickable = !!item.url;
               return (
                 <div
                   key={item.id}
+                  onClick={() => openNews(item.url)}
                   style={{
                     padding: "14px 14px",
                     borderBottom: `1px solid ${colors.border.light}`,
+                    cursor: clickable ? "pointer" : "default",
+                    transition: "background 0.15s",
+                    WebkitTapHighlightColor: "transparent",
                   }}
                 >
                   {/* 来源 + 时间 */}
@@ -248,8 +288,7 @@ const MobileHotNews: React.FC = () => {
                       {sentiment.label}
                     </span>
 
-                    {/* 热点标记 */}
-                    {(item as any).is_hot && (
+                    {item.is_hot && (
                       <span
                         style={{
                           fontSize: 10,
@@ -264,7 +303,6 @@ const MobileHotNews: React.FC = () => {
                       </span>
                     )}
 
-                    {/* 关联股票 */}
                     {item.related_stocks &&
                       item.related_stocks.slice(0, 3).map((stock) => (
                         <span
@@ -284,9 +322,54 @@ const MobileHotNews: React.FC = () => {
                   </div>
                 </div>
               );
-            })
+            })}
+          </MobileSectionCard>
+
+          {/* 加载更多 */}
+          {hasMore && (
+            <div
+              onClick={handleLoadMore}
+              style={{
+                display: "flex",
+                justifyContent: "center",
+                alignItems: "center",
+                padding: "16px 0",
+                cursor: "pointer",
+                userSelect: "none",
+              }}
+            >
+              <span
+                style={{
+                  fontSize: 13,
+                  color: colors.purple[500],
+                  background: colors.bg.subtle,
+                  padding: "8px 28px",
+                  borderRadius: colors.radius.md + "px",
+                  fontWeight: 500,
+                }}
+              >
+                {loadingMore
+                  ? "加载中..."
+                  : `加载更多 (${news.length}/${total})`}
+              </span>
+            </div>
           )}
-        </MobileSectionCard>
+
+          {/* 已全部加载 */}
+          {!hasMore && news.length > 0 && (
+            <div
+              style={{
+                textAlign: "center",
+                padding: "16px 0 8px",
+                fontSize: 12,
+                color: colors.text.tertiary,
+                opacity: 0.5,
+              }}
+            >
+              — 已显示全部 {total} 条 —
+            </div>
+          )}
+        </>
       )}
     </div>
   );

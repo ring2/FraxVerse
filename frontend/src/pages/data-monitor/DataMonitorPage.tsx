@@ -81,7 +81,7 @@ const DataMonitorPage: React.FC = () => {
         if (sectorsRes.status === "fulfilled") setSectors(sectorsRes.value);
         else console.warn("获取板块数据失败", sectorsRes.reason);
 
-        if (newsRes.status === "fulfilled") setNews(newsRes.value);
+        if (newsRes.status === "fulfilled") setNews(newsRes.value.items);
         else console.warn("获取新闻数据失败", newsRes.reason);
 
         if (metricsRes.status === "fulfilled") setMetrics(metricsRes.value);

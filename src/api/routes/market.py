@@ -8,7 +8,13 @@ from sqlalchemy.orm import Session
 from src.api.deps import get_current_user_id
 from src.db.models import DailyKlines, MarketStateLog, News, SectorData
 from src.db.session import get_session
-from src.schemas.market import KlineItem, MarketStateResponse, NewsItem, SectorItem
+from src.schemas.market import (
+    KlineItem,
+    MarketStateResponse,
+    NewsItem,
+    NewsPageResponse,
+    SectorItem,
+)
 
 router = APIRouter(prefix="/api/v1/market", tags=["market"])
 
@@ -31,21 +37,24 @@ def get_klines(
     return q.order_by(DailyKlines.trade_date.desc()).limit(limit).all()
 
 
-@router.get("/news", response_model=list[NewsItem])
+@router.get("/news", response_model=NewsPageResponse)
 def get_news(
     source: str | None = None,
     hot_only: bool = False,
-    limit: int = Query(50, le=200),
+    offset: int = Query(0, ge=0),
+    limit: int = Query(20, ge=1, le=200),
     db: Session = Depends(get_session),
     user_id: int = Depends(get_current_user_id),
 ):
-    """查询新闻 — 按热度分页，再按时间排序"""
+    """查询新闻 — 按热度分页，再按时间排序，返回 {items, total}"""
     q = db.query(News).order_by(News.hot_score.desc(), News.published_at.desc())
     if source:
         q = q.filter(News.source == source)
     if hot_only:
         q = q.filter(News.is_hot)
-    return q.limit(limit).all()
+    total = q.count()
+    items = q.offset(offset).limit(limit).all()
+    return {"items": items, "total": total}
 
 
 @router.get("/sectors", response_model=list[SectorItem])

@@ -47,10 +47,19 @@ export const marketService = {
 
   /**
    * GET /api/v1/market/news
-   * 新闻 — 返回 NewsItem[] 数组
+   * 新闻分页 — 返回 { items, total }
    */
-  async getNews(): Promise<NewsItem[]> {
-    const res = await api.get("/market/news");
-    return Array.isArray(res.data) ? res.data : [];
+  async getNews(params?: {
+    offset?: number;
+    limit?: number;
+    source?: string;
+    hot_only?: boolean;
+  }): Promise<{ items: NewsItem[]; total: number }> {
+    const res = await api.get("/market/news", { params });
+    const data = res.data;
+    if (data && "items" in data && "total" in data) {
+      return { items: data.items as NewsItem[], total: data.total as number };
+    }
+    return { items: [], total: 0 };
   },
 };

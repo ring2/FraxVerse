@@ -24,6 +24,7 @@ class NewsItem(BaseModel):
     source: str
     source_display: str = ""
     title: str
+    url: str | None = None
     published_at: datetime
     sentiment: str | None = None
     related_stocks: list[str] = []
@@ -37,6 +38,11 @@ class SectorItem(BaseModel):
     change_pct: Decimal | None = None
     capital_ratio: Decimal | None = None
     leader_stocks: list[str] = []
+
+
+class NewsPageResponse(BaseModel):
+    items: list[NewsItem]
+    total: int
 
 
 class MarketStateResponse(BaseModel):

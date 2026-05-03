@@ -45,6 +45,7 @@ export type NewsItem = components["schemas"]["NewsItem"];
 export interface HotNewsItem extends NewsItem {
   source_display: string;
   hot_score: number;
+  url: string | null;
 }
 export type BacktestResultItem = components["schemas"]["BacktestResultItem"];
 // Agent types are defined inline in agentService.ts (AgentDiscussionItemEx etc.)
