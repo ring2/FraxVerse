@@ -6,7 +6,6 @@ import {
   MobileSectionCard,
 } from "../../components/mobile";
 import { strategyService } from "../../services/strategyService";
-import { agentService } from "../../services/agentService";
 
 const STRATEGY_FILTERS = ["全部", "周期底部", "趋势低吸"];
 
@@ -19,6 +18,43 @@ function MobileStockPool() {
   const [items, setItems] = useState<Record<string, any>[]>([]);
   const [activeFilter, setActiveFilter] = useState("全部");
 
+  // Helper: derive sub-scores deterministically from total score
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const deriveSubScore = (code: string, total: number, seed: number): number => {
+    const hash = code.split("").reduce((acc, ch) => acc + ch.charCodeAt(0), seed);
+    const variation = (hash % 21) - 10;
+    return Math.max(0, Math.min(100, total + variation));
+  };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const parseScore = (s: string | null | undefined): number => {
+    if (!s) return 0;
+    const n = parseFloat(s);
+    return isNaN(n) ? 0 : Math.max(0, Math.min(100, n));
+  };
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const transformItem = (item: Record<string, any>) => {
+    const totalScore = parseScore(item.score_total);
+    return {
+      code: item.stock_code || "--",
+      name: item.stock_code || "",
+      strategy: item.strategy_type || "未知",
+      score: totalScore,
+      metrics: {
+        liangjia: deriveSubScore(item.stock_code || "", totalScore, 1),
+        zijin: deriveSubScore(item.stock_code || "", totalScore, 2),
+        qingxu: deriveSubScore(item.stock_code || "", totalScore, 3),
+        zhuli: deriveSubScore(item.stock_code || "", totalScore, 4),
+      },
+      change: item.position_pct
+        ? `${item.position_pct.startsWith("-") ? "" : "+"}${item.position_pct}%`
+        : "--",
+      changeUp: item.position_pct
+        ? !item.position_pct.startsWith("-")
+        : false,
+    };
+  };
+
   useEffect(() => {
     let cancelled = false;
 
@@ -26,45 +62,9 @@ function MobileStockPool() {
       .getPool()
       .then((data) => {
         if (!cancelled) {
-          // Transform API data into display format if needed
           if (data && data.length > 0) {
-            // Helper: derive sub-scores deterministically from total score
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const deriveSubScore = (code: string, total: number, seed: number): number => {
-              const hash = code.split("").reduce((acc, ch) => acc + ch.charCodeAt(0), seed);
-              const variation = (hash % 21) - 10;
-              return Math.max(0, Math.min(100, total + variation));
-            };
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const parseScore = (s: string | null | undefined): number => {
-              if (!s) return 0;
-              const n = parseFloat(s);
-              return isNaN(n) ? 0 : Math.max(0, Math.min(100, n));
-            };
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            setItems(
-              data.map((item: Record<string, any>) => {
-                const totalScore = parseScore(item.score_total);
-                return {
-                  code: item.stock_code || "--",
-                  name: item.stock_code || "",
-                  strategy: item.strategy_type || "未知",
-                  score: totalScore,
-                  metrics: {
-                    liangjia: deriveSubScore(item.stock_code || "", totalScore, 1),
-                    zijin: deriveSubScore(item.stock_code || "", totalScore, 2),
-                    qingxu: deriveSubScore(item.stock_code || "", totalScore, 3),
-                    zhuli: deriveSubScore(item.stock_code || "", totalScore, 4),
-                  },
-                  change: item.position_pct
-                    ? `${item.position_pct.startsWith("-") ? "" : "+"}${item.position_pct}%`
-                    : "--",
-                  changeUp: item.position_pct
-                    ? !item.position_pct.startsWith("-")
-                    : false,
-                };
-              })
-            );
+            setItems(data.map((item: Record<string, any>) => transformItem(item)));
           } else {
             setItems([]);
           }
@@ -86,14 +86,20 @@ function MobileStockPool() {
 
   const handleRescan = useCallback(async () => {
     try {
-      const result = await agentService.triggerAnalysis();
-      if (result.taskId) {
-        message.success(`扫描已触发，正在分析 ${result.stockCount} 只标的...`);
-      } else {
-        message.success("扫描已触发，正在分析...");
-      }
+      const result = await strategyService.scan();
+      message.success(result.message || "扫描完成");
+      // 自动刷新列表
+      strategyService.getPool().then((data) => {
+        if (data && data.length > 0) {
+          setItems(data.map((item: Record<string, any>) => transformItem(item)));
+        } else {
+          setItems([]);
+        }
+      }).catch(() => {
+        setItems([]);
+      });
     } catch {
-      message.error("扫描触发失败");
+      message.error("扫描失败，请稍后重试");
     }
   }, [message]);
 

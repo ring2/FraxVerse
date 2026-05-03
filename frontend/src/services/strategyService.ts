@@ -41,4 +41,15 @@ export const strategyService = {
     const res = await api.get("/strategy/backtest-results");
     return Array.isArray(res.data) ? res.data : [];
   },
+
+  /**
+   * POST /api/v1/strategy/scan
+   * 触发股票池扫描 — 拉取K线+评分+入库
+   */
+  async scan(): Promise<{ message: string; data?: any }> {
+    const res = await api.post("/strategy/scan");
+    const d = res.data;
+    if (d && d.data) return { message: d.message, data: d.data };
+    return { message: "扫描完成" };
+  },
 };

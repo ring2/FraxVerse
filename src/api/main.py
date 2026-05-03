@@ -25,6 +25,7 @@ from src.api.routes.misc import (
     strategy_router,
 )
 from src.api.routes.settings import router as settings_router
+from src.api.routes.strategy_scan import router as strategy_scan_router
 from src.config import settings
 from src.db.models import AccountSyncLog, Positions
 from src.db.session import check_db_health, get_session
@@ -55,6 +56,7 @@ app.include_router(experience_router)
 app.include_router(monitor_router)
 app.include_router(notification_router)
 app.include_router(settings_router)
+app.include_router(strategy_scan_router)
 
 
 @app.get("/api/v1/health")
