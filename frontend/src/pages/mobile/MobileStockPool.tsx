@@ -8,7 +8,7 @@ import {
 } from "../../components/mobile";
 import { strategyService } from "../../services/strategyService";
 
-const STRATEGY_FILTERS = ["全部", "周期底部", "趋势低吸"];
+const STRATEGY_FILTERS = ["全部", "底部反转", "趋势跟踪"];
 
 const STRATEGY_NAMES: Record<string, string> = {
   bottom_reversal: "底部反转",
