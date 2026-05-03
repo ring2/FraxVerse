@@ -5,7 +5,7 @@ import { useTheme } from "../../theme/ThemeContext";
 import { useAuthStore } from "../../stores/useAuthStore";
 import { authService } from "../../services/authService";
 import { settingsService } from "../../services/settingsService";
-import type { SettingsMap, LLMProvider, LLMConnection } from "../../services/settingsService";
+import type { SettingsMap, LLMProvider, LLMConnection, TradeModeInfo } from "../../services/settingsService";
 
 /* ===================================================================
    MobileSettings — 12 大分类 50+ 项参数
@@ -517,6 +517,13 @@ function MobileSettings() {
   const [allProviders, setAllProviders] = useState<LLMProvider[]>([]);
   const [llmConnectionsLoading, setLlmConnectionsLoading] = useState(true);
 
+  /* ---- 交易模式 ---- */
+  const [tradeMode, setTradeMode] = useState<TradeModeInfo>({
+    current_mode: "SIMULATION",
+    confirm_mode: "advisory",
+    emergency_stop: false,
+  });
+
   /* ---- load configs on mount ---- */
   useEffect(() => {
     settingsService.getConfigs()
@@ -538,6 +545,11 @@ function MobileSettings() {
     }).finally(() => setLlmConnectionsLoading(false));
   }, []);
   useEffect(() => { loadLLMConnections(); }, []);
+
+  /* ---- load TradeMode ---- */
+  useEffect(() => {
+    settingsService.getTradeMode().then(setTradeMode).catch(() => {});
+  }, []);
 
   /* ---- generic setter: saves single key to API ---- */
   const setConfig = useCallback((key: string, value: string | number | boolean) => {
@@ -744,13 +756,42 @@ function MobileSettings() {
 
       {/* 6. 交易配置 */}
       <CollapseCard title="交易配置" dotColor={colors.semantic.amber}>
-        <Row label="当前模式" right={<Badge label={s("trade_mode", "SIMULATION")} />} />
-        <Row label="确认模式" desc="manual=手动确认 auto=自动下单"
+        <div style={{ padding: "10px 14px", borderBottom: `1px solid ${colors.border.light}` }}>
+          <div style={{ fontSize: 12, fontWeight: 600, color: colors.text.primary, marginBottom: 2 }}>交易模式</div>
+          <div style={{ fontSize: 10, color: colors.text.tertiary, marginBottom: 6 }}>
+            SIMULATION=模拟(默认) / PAPER=模拟真金 / LIVE=实盘
+          </div>
+          <Select
+            style={{ width: "100%", fontSize: 12 }}
+            value={tradeMode.current_mode}
+            onChange={(value: string) => {
+              settingsService.updateTradeMode(value).then(() => {
+                message.success(`交易模式已切换为 ${value}`);
+                setTradeMode((prev: any) => ({ ...prev, current_mode: value }));
+              }).catch((e: any) => message.error("切换失败: " + (e?.response?.data?.detail || e.message)));
+            }}
+            options={[
+              { value: "SIMULATION", label: "🟢 模拟（SIMULATION）" },
+              { value: "PAPER", label: "🟡 模拟真金（PAPER）" },
+              { value: "LIVE", label: "🔴 实盘（LIVE）" },
+            ]}
+          />
+        </div>
+        <Row label="确认模式" desc="advisory=顾问建议 semi_auto=半自动 full_auto=全自动"
           right={
             <span style={{ fontSize: 11, color: colors.text.tertiary, cursor: "pointer" }}
-              onClick={() => setConfig("trade_confirm_mode", configs["trade_confirm_mode"] === "manual" ? "auto" : "manual")}
+              onClick={() => {
+                const modes = ["advisory", "semi_auto", "full_auto"];
+                const idx = modes.indexOf(tradeMode.confirm_mode);
+                const next = modes[(idx + 1) % modes.length];
+                settingsService.updateTradeMode(undefined, next).then(() => {
+                  message.success(`确认模式已切换为 ${next}`);
+                  setTradeMode((prev: any) => ({ ...prev, confirm_mode: next }));
+                }).catch((_: any) => message.error("切换失败"));
+              }}
             >
-              {s("trade_confirm_mode", "manual") === "manual" ? "手动确认" : "自动下单"}
+              {tradeMode.confirm_mode === "advisory" ? "💡 顾问建议" :
+               tradeMode.confirm_mode === "semi_auto" ? "⚡ 半自动" : "🤖 全自动"}
             </span>
           }
         />

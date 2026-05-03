@@ -60,7 +60,8 @@ class TradeModeResponse(BaseModel):
 
 
 class TradeModeUpdateRequest(BaseModel):
-    target_mode: str = Field(..., pattern="^(SIMULATION|PAPER|LIVE)$")
+    target_mode: str | None = Field(None, pattern="^(SIMULATION|PAPER|LIVE)$")
+    confirm_mode: str | None = Field(None, pattern="^(advisory|semi_auto|full_auto)$")
     mode_password: str | None = None
 
 

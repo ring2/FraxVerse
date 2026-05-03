@@ -156,10 +156,18 @@ def update_trade_mode(
     mode = db.query(TradeMode).first()
     if not mode:
         raise HTTPException(status_code=500, detail="trade_mode 表未初始化")
-    mode.current_mode = req.target_mode
+    if req.target_mode:
+        mode.current_mode = req.target_mode
+    if req.confirm_mode:
+        mode.confirm_mode = req.confirm_mode
     mode.updated_at = datetime.now()
     db.commit()
-    return {"message": f"交易模式已切换为 {req.target_mode}"}
+    parts = []
+    if req.target_mode:
+        parts.append(f"交易模式={req.target_mode}")
+    if req.confirm_mode:
+        parts.append(f"确认模式={req.confirm_mode}")
+    return {"message": "已更新: " + ", ".join(parts)}
 
 
 @router.post("/emergency-stop")

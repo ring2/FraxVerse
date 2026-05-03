@@ -20,6 +20,12 @@ export interface LLMConnection {
   base_url: string;
 }
 
+export interface TradeModeInfo {
+  current_mode: string;
+  confirm_mode: string;
+  emergency_stop: boolean;
+}
+
 async function getConfigs(): Promise<SettingsMap> {
   const res = await api.get<Record<string, string | number | boolean>>("/settings/configs");
   return res.data ?? {};
@@ -60,6 +66,23 @@ async function deleteLLMConnection(provider_name: string): Promise<void> {
   await api.delete(`/settings/llm-connections/${provider_name}`);
 }
 
+/* ─── 交易模式 ─── */
+
+async function getTradeMode(): Promise<TradeModeInfo> {
+  const res = await api.get<TradeModeInfo>("/trade/mode");
+  return res.data;
+}
+
+async function updateTradeMode(
+  target_mode?: string,
+  confirm_mode?: string,
+): Promise<void> {
+  await api.post("/trade/mode", {
+    ...(target_mode ? { target_mode } : {}),
+    ...(confirm_mode ? { confirm_mode } : {}),
+  });
+}
+
 export const settingsService = {
   getConfigs,
   updateConfigs,
@@ -67,4 +90,6 @@ export const settingsService = {
   getLLMConnections,
   upsertLLMConnection,
   deleteLLMConnection,
+  getTradeMode,
+  updateTradeMode,
 };
