@@ -267,9 +267,6 @@ function MobileStockPool() {
           <span style={{ width: 50, flexShrink: 0, textAlign: "right" }}>
             评分
           </span>
-          <span style={{ width: 50, flexShrink: 0, textAlign: "center" }}>
-            操作
-          </span>
         </div>{/* 表头结束 */}
 
         {/* 表体 */}
@@ -301,10 +298,16 @@ function MobileStockPool() {
                 {item.code}
               </span>
               <span
+                onClick={() => handleView(item.code)}
                 style={{
                   width: 85,
                   flexShrink: 0,
-                  color: colors.text.secondary,
+                  color: colors.text.primary,
+                  fontWeight: 500,
+                  cursor: "pointer",
+                  textDecoration: "underline",
+                  textDecorationColor: colors.text.tertiary,
+                  textUnderlineOffset: 2,
                 }}
               >
                 {item.name}
@@ -342,35 +345,6 @@ function MobileStockPool() {
                 }}
               >
                 {item.score.toFixed(1)}
-              </span>
-              <span
-                style={{
-                  width: 50,
-                  flexShrink: 0,
-                  textAlign: "center",
-                }}
-              >
-                <button
-                  onClick={() => handleView(item.code)}
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    padding: "3px 10px",
-                    borderRadius: `${colors.radius.sm}px`,
-                    fontSize: 11,
-                    fontWeight: 500,
-                    lineHeight: 1.3,
-                    cursor: "pointer",
-                    border: `1px solid ${colors.border.medium}`,
-                    outline: "none",
-                    background: "transparent",
-                    color: colors.text.secondary,
-                    transition: "all 0.15s ease",
-                  }}
-                >
-                  查看
-                </button>
               </span>
             </div>
           ))}
