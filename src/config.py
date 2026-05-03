@@ -48,6 +48,8 @@ class Settings(BaseSettings):
 
     # LLM
     DEEPSEEK_API_KEY: str = os.getenv("DEEPSEEK_API_KEY", "")
+    LLM_PROVIDER: str = os.getenv("LLM_PROVIDER", "deepseek")
+    LLM_BASE_URL: str = os.getenv("LLM_BASE_URL", "")
 
     # quant-qmt-proxy (LIVE 模式对接)
     QMT_PROXY_URL: str = os.getenv("QMT_PROXY_URL", "http://127.0.0.1:8000")

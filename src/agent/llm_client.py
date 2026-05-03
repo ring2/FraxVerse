@@ -442,9 +442,15 @@ def call_llm_api(
     model: str = DEFAULT_MODEL,
     timeout: int = 60,
     max_retries: int = 2,
+    api_key_override: str | None = None,
+    provider_override: str | None = None,
+    base_url_override: str | None = None,
 ) -> LLMResponse:
     """
     调用 LLM API（同步）。
+
+    从 DB 配置中读取厂商、模型、API Key、Base URL。
+    支持通过参数覆盖（用于测试或特殊场景）。
 
     重试策略（DD-04 第6.3节）：
     - 重试次数: 2次（共3次机会）
@@ -452,78 +458,41 @@ def call_llm_api(
     - 重试条件: 网络超时/5xx错误/429限流
     - 不重试: 4xx错误(除429)/响应格式错误
     """
-    api_key = settings.DEEPSEEK_API_KEY
+    # 从参数或 settings 获取 API Key
+    api_key = api_key_override or settings.DEEPSEEK_API_KEY
     if not api_key:
-        logger.warning("DEEPSEEK_API_KEY not configured, using mock LLM")
+        logger.warning("API Key not configured, using mock LLM")
         return _mock_llm_call(system_prompt, user_prompt)
 
-    url = "https://api.deepseek.com/v1/chat/completions"
-    headers = {
-        "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json",
-    }
-    # 仅当 prompt 包含 "json" 关键词时才用 json_object 模式（DeepSeek 要求）
-    use_json = "json" in (system_prompt + user_prompt).lower()
-    payload = {
-        "model": model,
-        "messages": [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt},
-        ],
-        "temperature": 0.7,
-        "max_tokens": 2048,
-    }
-    if use_json:
-        payload["response_format"] = {"type": "json_object"}
+    # 确定厂商和模型
+    provider_name = provider_override or settings.LLM_PROVIDER or "deepseek"
+    actual_model = model
+    actual_base_url = base_url_override or settings.LLM_BASE_URL or None
 
-    last_error = None
-    for attempt in range(max_retries + 1):
-        try:
-            start_time = time.monotonic()
-            with httpx.Client(timeout=httpx.Timeout(timeout)) as client:
-                resp = client.post(url, headers=headers, json=payload)
-            latency = int((time.monotonic() - start_time) * 1000)
+    try:
+        from src.agent.llm_providers import call_llm_with_provider
+        content, used_model, usage = call_llm_with_provider(
+            provider_name=provider_name,
+            api_key=api_key,
+            model=actual_model,
+            system_prompt=system_prompt,
+            user_prompt=user_prompt,
+            timeout=timeout,
+            base_url_override=actual_base_url,
+            max_retries=max_retries,
+        )
+    except RuntimeError as e:
+        raise
+    except Exception as e:
+        raise RuntimeError(f"LLM API call failed: {e}") from e
 
-            if resp.status_code == 200:
-                data = resp.json()
-                choice = data["choices"][0]
-                content = choice["message"]["content"]
-                usage = data.get("usage", {})
-                return LLMResponse(
-                    content=content,
-                    model=data.get("model", model),
-                    prompt_tokens=usage.get("prompt_tokens", 0),
-                    completion_tokens=usage.get("completion_tokens", 0),
-                    latency_ms=latency,
-                )
-            elif resp.status_code == 429 or resp.status_code >= 500:
-                last_error = f"HTTP {resp.status_code}: {resp.text}"
-                if attempt < max_retries:
-                    wait = 2 ** attempt  # 1s → 2s → 4s
-                    logger.warning("LLM API retry %d/%d after %ds: %s", attempt + 1, max_retries, wait, last_error)
-                    time.sleep(wait)
-                    continue
-            else:
-                # 4xx 错误(除429) → 不重试
-                last_error = f"HTTP {resp.status_code}: {resp.text}"
-                break
-
-        except httpx.TimeoutException as e:
-            last_error = f"timeout: {e}"
-            if attempt < max_retries:
-                wait = 2 ** attempt
-                logger.warning("LLM API timeout, retry %d/%d after %ds", attempt + 1, max_retries, wait)
-                time.sleep(wait)
-                continue
-        except Exception as e:
-            last_error = str(e)
-            if attempt < max_retries:
-                wait = 2 ** attempt
-                logger.warning("LLM API error, retry %d/%d after %ds: %s", attempt + 1, max_retries, wait, last_error)
-                time.sleep(wait)
-                continue
-
-    raise RuntimeError(f"LLM API call failed after {max_retries + 1} attempts: {last_error}")
+    return LLMResponse(
+        content=content,
+        model=used_model,
+        prompt_tokens=usage.get("prompt_tokens", 0),
+        completion_tokens=usage.get("completion_tokens", 0),
+        latency_ms=0,  # 内部已计时
+    )
 
 
 def _mock_llm_call(system_prompt: str, user_prompt: str) -> LLMResponse:

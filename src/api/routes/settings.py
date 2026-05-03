@@ -3,7 +3,6 @@
 from typing import Any
 
 from fastapi import APIRouter, Depends
-from sqlalchemy.orm import Session
 
 from src.api.deps import get_current_user_id
 from src.db.models import SystemConfig
@@ -101,3 +100,12 @@ def update_configs(
     db.commit()
     msg = f"已更新 {len(updated)} 项，新增 {len(created)} 项"
     return {"message": msg, "updated": str(updated), "created": str(created)}
+
+
+@router.get("/llm-providers")
+def get_llm_providers(
+    user_id: int = Depends(get_current_user_id),
+) -> list[dict[str, Any]]:
+    """获取所有 LLM 厂商预设（用于前端下拉菜单）"""
+    from src.agent.llm_providers import get_all_providers
+    return get_all_providers()

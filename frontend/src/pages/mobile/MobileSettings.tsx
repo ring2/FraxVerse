@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
-import { App, Modal, Form, Input, Spin } from "antd";
+import { App, Modal, Form, Input, Select, Spin } from "antd";
 import { useNavigate } from "react-router-dom";
 import { useTheme } from "../../theme/ThemeContext";
 import { useAuthStore } from "../../stores/useAuthStore";
 import { authService } from "../../services/authService";
 import { settingsService } from "../../services/settingsService";
-import type { SettingsMap } from "../../services/settingsService";
+import type { SettingsMap, LLMProvider } from "../../services/settingsService";
 
 /* ===================================================================
    MobileSettings — 12 大分类 50+ 项参数
@@ -216,6 +216,94 @@ const GroupLabel = ({ label }: { label: string }) => {
   );
 };
 
+/* ---- LLM 厂商+模型选择器 ---- */
+const LLMSelector = ({
+  providerKey,
+  modelKey,
+  configs,
+  setConfig,
+  colors,
+}: {
+  providerKey: string;
+  modelKey: string;
+  configs: SettingsMap;
+  setConfig: (key: string, value: string | number | boolean) => void;
+  colors: Record<string, any>;
+}) => {
+  const [providers, setProviders] = useState<LLMProvider[]>([]);
+  const [providersLoaded, setProvidersLoaded] = useState(false);
+
+  useEffect(() => {
+    settingsService.getLLMProviders().then((list) => {
+      setProviders(list);
+      setProvidersLoaded(true);
+    }).catch(() => setProvidersLoaded(true));
+  }, []);
+
+  const currentProvider = String(configs[providerKey] ?? "deepseek");
+  const currentModel = String(configs[modelKey] ?? "");
+
+  const selectedProvider = providers.find((p) => p.name === currentProvider);
+  const availableModels = selectedProvider?.models ?? [];
+
+  const handleProviderChange = (newProvider: string) => {
+    setConfig(providerKey, newProvider);
+    // 切换厂商时自动设置为该厂商的默认模型
+    const provider = providers.find((p) => p.name === newProvider);
+    if (provider?.default_model) {
+      setConfig(modelKey, provider.default_model);
+    }
+  };
+
+  const handleCustomModelChange = (value: string) => {
+    setConfig(modelKey, value);
+  };
+
+  const selectStyle: React.CSSProperties = {
+    width: "100%",
+    fontSize: 12,
+    marginBottom: 6,
+  };
+
+  return (
+    <div>
+      {/* 厂商下拉 */}
+      <Select
+        showSearch
+        style={selectStyle}
+        value={currentProvider}
+        onChange={handleProviderChange}
+        placeholder="选择厂商"
+        loading={!providersLoaded}
+        options={providers.map((p) => ({
+          value: p.name,
+          label: p.label,
+        }))}
+      />
+
+      {/* 模型下拉（预设 + 可自定义输入） */}
+      <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+        <div style={{ flex: 1 }}>
+          <Select
+            style={{ width: "100%", fontSize: 12 }}
+            value={currentModel || undefined}
+            onChange={handleCustomModelChange}
+            placeholder="选择或输入模型名"
+            showSearch
+            allowClear
+            options={availableModels.map((m) => ({ value: m, label: m }))}
+          />
+        </div>
+        {selectedProvider && (
+          <span style={{ fontSize: 10, color: colors.text.tertiary, whiteSpace: "nowrap" }}>
+            {selectedProvider.label}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+};
+
 /* ---- Text input field ---- */
 const InputField = ({
   value,
@@ -378,22 +466,43 @@ function MobileSettings() {
 
       {/* 2. LLM 配置 */}
       <CollapseCard title="LLM 配置" dotColor={colors.purple[400]}>
-        <Row label="每日分析模型" desc="Agent 日常分析使用的模型"
-          right={<InputField value={s("daily_analysis_model")} onChange={(v) => setStr("daily_analysis_model", v)} />}
+
+        {/* ── 每日分析模型 ── */}
+        <div style={{ padding: "10px 14px", borderBottom: `1px solid ${colors.border.light}` }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: colors.text.primary, marginBottom: 6 }}>每日分析模型</div>
+          <div style={{ fontSize: 11, color: colors.text.tertiary, marginBottom: 8 }}>Agent 日常分析使用的模型</div>
+          <LLMSelector
+            providerKey="daily_analysis_provider"
+            modelKey="daily_analysis_model"
+            configs={configs}
+            setConfig={setConfig}
+            colors={colors}
+          />
+        </div>
+
+        {/* ── 关键决策模型 ── */}
+        <div style={{ padding: "10px 14px", borderBottom: `1px solid ${colors.border.light}` }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: colors.text.primary, marginBottom: 6 }}>关键决策模型</div>
+          <div style={{ fontSize: 11, color: colors.text.tertiary, marginBottom: 8 }}>开仓/止损前的复核模型</div>
+          <LLMSelector
+            providerKey="key_decision_provider"
+            modelKey="key_decision_model"
+            configs={configs}
+            setConfig={setConfig}
+            colors={colors}
+          />
+        </div>
+
+        {/* ── API Key ── */}
+        <Row label="API Key" desc={s("llm_api_key") ? `sk-••••${s("llm_api_key").slice(-4)}` : "未配置"}
+          right={<InputField value={s("llm_api_key")} onChange={(v) => setStr("llm_api_key", v)} type="password" placeholder="输入 API Key" />}
         />
-        <Row label="关键决策模型" desc="开仓/止损前的复核模型"
-          right={<InputField value={s("key_decision_model")} onChange={(v) => setStr("key_decision_model", v)} />}
+
+        {/* ── 自定义 Base URL（覆盖） ── */}
+        <Row label="自定义 Base URL" desc="选填，留空则用厂商默认地址"
+          right={<InputField value={s("llm_base_url")} onChange={(v) => setStr("llm_base_url", v)} placeholder="留空=默认" />}
         />
-        <Row label="DeepSeek API Key" desc={s("deepseek_api_key") ? `sk-••••${s("deepseek_api_key").slice(-4)}` : "未配置"}
-          right={
-            <InputField value={s("deepseek_api_key")} onChange={(v) => setStr("deepseek_api_key", v)} type="password" />
-          }
-        />
-        <Row label="Claude API Key" desc={s("claude_api_key") ? `sk-••••${s("claude_api_key").slice(-4)}` : "未配置"}
-          right={
-            <InputField value={s("claude_api_key")} onChange={(v) => setStr("claude_api_key", v)} type="password" />
-          }
-        />
+
         <Row label="请求超时" right={<InputField value={n("llm_timeout")} onChange={(v) => setNum("llm_timeout", v)} suffix="秒" />} />
         <Row label="最大并发数" right={<InputField value={n("llm_max_concurrent")} onChange={(v) => setNum("llm_max_concurrent", v)} />} />
         <Row label="每月 Token 上限" right={<InputField value={n("llm_monthly_token_limit")} onChange={(v) => setNum("llm_monthly_token_limit", v)} />} />
