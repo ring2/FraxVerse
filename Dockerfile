@@ -31,7 +31,7 @@ RUN pip install --no-cache-dir \
     pydantic-settings \
     python-jose \
     passlib \
-    bcrypt \
+    bcrypt==4.0.1 \
     akshare \
     psutil \
     python-multipart \

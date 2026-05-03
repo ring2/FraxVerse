@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "npm run gen:api && tsc --noEmit --project tsconfig.build.json && vite build",
+    "build": "tsc --noEmit --project tsconfig.build.json && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",
