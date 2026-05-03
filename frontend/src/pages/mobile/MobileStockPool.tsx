@@ -8,7 +8,8 @@ import {
 } from "../../components/mobile";
 import { strategyService } from "../../services/strategyService";
 
-const STRATEGY_FILTERS = ["全部", "趋势跟踪"];
+const STRATEGY_FILTERS = ["全部", "底部反转", "趋势跟踪"];
+const BOTTOM_KEYS = new Set(["bottom_reversal", "bottom_volume"]);
 
 const STRATEGY_NAMES: Record<string, string> = {
   bottom_reversal: "底部反转",
@@ -105,7 +106,9 @@ function MobileStockPool() {
   const filteredItems =
     activeFilter === "全部"
       ? items
-      : items.filter((item) => item.strategy === activeFilter);
+      : activeFilter === "底部反转"
+        ? items.filter((item) => BOTTOM_KEYS.has(item.strategyKey))
+        : items.filter((item) => item.strategy === activeFilter);
 
   const countTotal = items.length;
   const countNewToday = items.filter(
