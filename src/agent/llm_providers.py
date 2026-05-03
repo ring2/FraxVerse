@@ -342,37 +342,14 @@ def get_all_providers_with_models() -> list[dict[str, Any]]:
     return result
 
 
-# ─── 连接管理（DB） ──────────────────────────────────────────
+# ─── 连接管理（DB — 纯SQL，无ORM） ──────────────────────────
 
 
-class LLMProviderConnection(Base):
-    """厂商连接配置 — 用户保存的 API Key / Base URL 覆盖"""
-    __tablename__ = "llm_provider_connections"
-
-    id: int = None  # auto PK
-    provider_name: str = None  # 厂商名（对应预设中的 name）
-    label: str = ""  # 用户自定义标签（可选）
-    api_key: str = ""  # 加密存储（TODO）
-    base_url: str = ""  # 留空 = 使用厂商预设的默认 URL
-    is_deleted: bool = False
-    created_at: Any = None
-    updated_at: Any = None
-
-    # 用 sqlalchemy 的 Column 定义
-    from sqlalchemy import Column, Integer, String, Boolean, DateTime, Text
-    from sqlalchemy import text as sa_text
-
-    __table_args__ = (
-        # provider_name 应唯一（每厂商只配一条连接）
-    )
-
-
-def create_connections_table_if_not_exists(db: Session):
+def _ensure_connections_table(db):
     """创建 llm_provider_connections 表（如果不存在）"""
     from sqlalchemy import inspect, text as sa_text
     inspector = inspect(db.bind)
     if not inspector.has_table("llm_provider_connections"):
-        # 建表
         db.execute(sa_text("""
             CREATE TABLE IF NOT EXISTS llm_provider_connections (
                 id SERIAL PRIMARY KEY,
@@ -391,7 +368,7 @@ def create_connections_table_if_not_exists(db: Session):
 def get_connections(db: Session) -> list[dict[str, Any]]:
     """获取用户配置的所有厂商连接"""
     from sqlalchemy import text as sa_text
-    create_connections_table_if_not_exists(db)
+    _ensure_connections_table(db)
     rows = db.execute(
         sa_text("SELECT * FROM llm_provider_connections WHERE is_deleted = FALSE ORDER BY provider_name")
     ).fetchall()
@@ -410,7 +387,7 @@ def get_connections(db: Session) -> list[dict[str, Any]]:
 def get_connection(db: Session, provider_name: str) -> dict[str, Any] | None:
     """获取指定厂商的连接（含真实 API Key）"""
     from sqlalchemy import text as sa_text
-    create_connections_table_if_not_exists(db)
+    _ensure_connections_table(db)
     row = db.execute(
         sa_text("SELECT * FROM llm_provider_connections WHERE provider_name = :pn AND is_deleted = FALSE"),
         {"pn": provider_name},
@@ -435,7 +412,7 @@ def upsert_connection(
 ) -> dict[str, Any]:
     """创建或更新厂商连接"""
     from sqlalchemy import text as sa_text
-    create_connections_table_if_not_exists(db)
+    _ensure_connections_table(db)
     existing = db.execute(
         sa_text("SELECT id FROM llm_provider_connections WHERE provider_name = :pn"),
         {"pn": provider_name},

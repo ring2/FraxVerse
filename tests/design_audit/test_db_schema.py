@@ -45,8 +45,9 @@ def test_all_tables_created():
     expected = set(EXPECTED_TABLES)
     missing = expected - actual
     extra = actual - expected
-    # alembic_version 是 Alembic 自动维护的系统表，不属于业务表，不报错
+    # alembic_version 是 Alembic 自动维护的系统表；llm_provider_connections 是运行时自动建的非业务表，不属于业务表，不报错
     extra.discard("alembic_version")
+    extra.discard("llm_provider_connections")
     errors = []
     if missing:
         errors.append(f"缺失表: {sorted(missing)}")
