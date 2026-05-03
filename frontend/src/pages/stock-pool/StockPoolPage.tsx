@@ -25,7 +25,7 @@ interface StockCandidate {
   fundFlow: number;       // 资金评分
   sentiment: number;      // 情绪评分
   dominantForce: number;  // 主力评分
-  logicScore: number;     // 逻辑评分
+  boardScore: number;     // 板块评分
   strategy: StrategyType;
   changePct: number;      // 涨跌幅（%）
   status: ConfirmStatus;
@@ -76,26 +76,6 @@ const mapDecisionToStatus = (decision: string | null | undefined): ConfirmStatus
     return "已过期";
   }
   return "待确认";
-};
-
-/**
- * Derive a deterministic sub-score from the total score using a hash of the
- * stock code, so every row shows slight variation while staying consistent
- * across renders.
- */
-const deriveSubScore = (code: string, total: number, seed: number): number => {
-  const hash = code.split("").reduce((acc, ch) => acc + ch.charCodeAt(0), seed);
-  const variation = (hash % 21) - 10; // -10 ~ +10
-  return Math.max(0, Math.min(100, total + variation));
-};
-
-/**
- * Parse position_pct (string|null) as a percentage number for changePct display.
- */
-const parseChangePct = (pct: string | null | undefined): number => {
-  if (!pct) return 0;
-  const n = parseFloat(pct);
-  return isNaN(n) ? 0 : n;
 };
 
 /**
@@ -191,15 +171,15 @@ const StockPoolPage: React.FC = () => {
           const strategyType = mapStrategyType(item.strategy_type);
           return {
             code: item.stock_code,
-            name: item.stock_code, // backend has no name field; show code as name
+            name: item.stock_name || item.stock_code,
             compositeScore: totalScore,
-            priceVolume: deriveSubScore(item.stock_code, totalScore, 1),
-            fundFlow: deriveSubScore(item.stock_code, totalScore, 2),
-            sentiment: deriveSubScore(item.stock_code, totalScore, 3),
-            dominantForce: deriveSubScore(item.stock_code, totalScore, 4),
-            logicScore: deriveSubScore(item.stock_code, totalScore, 5),
+            priceVolume: parseScore(item.score_volume),
+            fundFlow: parseScore(item.score_fund),
+            sentiment: parseScore(item.score_sentiment),
+            dominantForce: parseScore(item.score_mainforce),
+            boardScore: parseScore(item.score_board),
             strategy: strategyType,
-            changePct: parseChangePct(item.position_pct),
+            changePct: 0, // 后端暂未返回涨跌幅
             status: mapDecisionToStatus(item.final_decision),
           };
         });
@@ -319,12 +299,12 @@ const StockPoolPage: React.FC = () => {
       render: (val: number) => <ScoreCell value={val} />,
     },
     {
-      title: "逻辑",
-      dataIndex: "logicScore",
-      key: "logicScore",
+      title: "板块",
+      dataIndex: "boardScore",
+      key: "boardScore",
       width: 70,
       sorter: (a: StockCandidate, b: StockCandidate) =>
-        a.logicScore - b.logicScore,
+        a.boardScore - b.boardScore,
       render: (val: number) => <ScoreCell value={val} />,
     },
     {

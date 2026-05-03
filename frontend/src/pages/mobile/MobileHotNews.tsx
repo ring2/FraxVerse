@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { App } from "antd";
 import { useTheme } from "../../theme/ThemeContext";
 import { MobileSectionCard } from "../../components/mobile";
@@ -55,6 +55,12 @@ const MobileHotNews: React.FC = () => {
   const [news, setNews] = useState<HotNewsItem[]>([]);
   const [total, setTotal] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const newsRef = useRef<HotNewsItem[]>([]);
+
+  // 保持 ref 同步
+  useEffect(() => {
+    newsRef.current = news;
+  }, [news]);
 
   /** 加载数据 — append=true 时追加，否则替换 */
   const fetchNews = useCallback(
@@ -63,7 +69,7 @@ const MobileHotNews: React.FC = () => {
       if (append) setLoadingMore(true);
 
       try {
-        const offset = append ? news.length : 0;
+        const offset = append ? newsRef.current.length : 0;
         const result = await marketService.getNews({
           offset,
           limit: PAGE_SIZE,
@@ -88,7 +94,7 @@ const MobileHotNews: React.FC = () => {
         setLoadingMore(false);
       }
     },
-    [message, news.length],
+    [message],
   );
 
   // 首次加载
@@ -97,14 +103,45 @@ const MobileHotNews: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handleRefresh = () => {
-    // 刷新时清空 news.length 让 offset=0
+  const handleRefresh = useCallback(() => {
+    // 刷新时用回调形式重置（避免闭包问题）
     setNews([]);
-    fetchNews(false, true);
-  };
+    // 直接内联发起请求
+    (async () => {
+      try {
+        const result = await marketService.getNews({ offset: 0, limit: PAGE_SIZE });
+        const items = result.items as HotNewsItem[];
+        setNews(items);
+        setError(null);
+        setTotal(result.total);
+      } catch {
+        setError("获取资讯失败");
+        setNews([]);
+        setTotal(0);
+        message.info("获取资讯失败，请稍后重试");
+      }
+    })();
+  }, [message]);
 
   const handleLoadMore = () => {
-    fetchNews(true, false);
+    // 加载更多用 setNews 回调形式获取最新数据
+    setNews((prev) => {
+      const offset = prev.length;
+      // 异步发起，但用 setTimeout 确保拿到最新 state
+      setTimeout(async () => {
+        try {
+          setLoadingMore(true);
+          const result = await marketService.getNews({ offset, limit: PAGE_SIZE });
+          setNews((p) => [...p, ...(result.items as HotNewsItem[])]);
+          setTotal(result.total);
+        } catch {
+          message.info("获取资讯失败，请稍后重试");
+        } finally {
+          setLoadingMore(false);
+        }
+      }, 0);
+      return prev;
+    });
   };
 
   const hasMore = news.length < total;

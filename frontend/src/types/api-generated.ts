@@ -1156,12 +1156,24 @@ export interface components {
             date: string;
             /** Stock Code */
             stock_code: string;
+            /** Stock Name */
+            stock_name?: string | null;
             /** Strategy Type */
             strategy_type: string;
             /** Pass Coarse */
             pass_coarse: boolean;
             /** Score Total */
             score_total?: string | null;
+            /** Score Volume (量价) */
+            score_volume?: string | null;
+            /** Score Fund (资金) */
+            score_fund?: string | null;
+            /** Score Sentiment (情绪) */
+            score_sentiment?: string | null;
+            /** Score Mainforce (主力) */
+            score_mainforce?: string | null;
+            /** Score Board (板块) */
+            score_board?: string | null;
             /** Final Decision */
             final_decision?: string | null;
             /** Position Pct */

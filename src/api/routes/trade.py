@@ -145,6 +145,11 @@ def get_stock_pool(
             strategy_type=pool.strategy_type,
             pass_coarse=pool.pass_coarse,
             score_total=pool.score_total,
+            score_volume=pool.score_volume,
+            score_fund=pool.score_fund,
+            score_sentiment=pool.score_sentiment,
+            score_mainforce=pool.score_mainforce,
+            score_board=None,  # 兼容旧数据
             final_decision=pool.final_decision,
             position_pct=pool.position_pct,
             reject_reason=pool.reject_reason,

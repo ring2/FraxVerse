@@ -72,6 +72,11 @@ class StockPoolItem(BaseModel):
     strategy_type: str
     pass_coarse: bool
     score_total: Decimal | None = None
+    score_volume: Decimal | None = Field(None, alias="score_volume")
+    score_fund: Decimal | None = Field(None, alias="score_fund")
+    score_sentiment: Decimal | None = Field(None, alias="score_sentiment")
+    score_mainforce: Decimal | None = Field(None, alias="score_mainforce")
+    score_board: Decimal | None = Field(None, alias="score_board")
     final_decision: str | None = None
     position_pct: Decimal | None = None
     reject_reason: str | None = None
