@@ -13,20 +13,6 @@ import { marketService } from "../../services/marketService";
 import { agentService } from "../../services/agentService";
 import type { AgentDecisionItemEx, AgentDiscussionItemEx } from "../../services/agentService";
 
-/* ---- Mock fallback data (仅用于 portfolio/trade/market) ---- */
-const MOCK_SUMMARY = {
-  total_asset: 1284350,
-  available_cash: 298930,
-  daily_pnl: 28940,
-  daily_pnl_pct: 2.3,
-  position_count: 3,
-  total_position_pct: 76.7,
-};
-
-const MOCK_TRADE_MODE = { current_mode: "SIMULATION" };
-
-const MOCK_MARKET_STATE = { current_state: "bull", main_line_sector: "消费电子" };
-
 /* ---- Signal display helper ---- */
 interface SignalItem {
   code: string;
@@ -88,9 +74,9 @@ function MobileDashboard() {
 
   const loadData = useCallback(async () => {
     const results = await Promise.all([
-      portfolioService.getSummary().catch(() => MOCK_SUMMARY),
-      tradeService.getMode().catch(() => MOCK_TRADE_MODE),
-      marketService.getMarketState().catch(() => MOCK_MARKET_STATE),
+      portfolioService.getSummary().catch(() => null),
+      tradeService.getMode().catch(() => null),
+      marketService.getMarketState().catch(() => null),
       agentService.getDecisions({ pageSize: 3 }).catch(() => null),
       agentService.getDiscussions({ pageSize: 3 }).catch(() => null),
     ]);
@@ -297,12 +283,12 @@ function MobileDashboard() {
           >
             <MobileMetricCard
               label="总资产"
-              value={`¥${summary?.total_asset != null ? Number(summary.total_asset).toLocaleString() : "1,284,350"}`}
+              value={`¥${summary?.total_asset != null ? Number(summary.total_asset).toLocaleString() : "0"}`}
               change={{ text: "+2.3% 今日", type: "up" }}
             />
             <MobileMetricCard
               label="今日盈亏"
-              value={`+¥${summary?.daily_pnl != null ? Number(summary.daily_pnl).toLocaleString() : "28,940"}`}
+              value={`+¥${summary?.daily_pnl != null ? Number(summary.daily_pnl).toLocaleString() : "0"}`}
               change={{ text: "+1.8%", type: "up" }}
               valueColor={colors.semantic.up}
             />

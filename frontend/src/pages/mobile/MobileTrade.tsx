@@ -8,73 +8,6 @@ import {
 import { portfolioService } from "../../services/portfolioService";
 import { tradeService } from "../../services/tradeService";
 
-/* ---- Mock fallback data ---- */
-const MOCK_POSITIONS = [
-  {
-    stock_code: "600519",
-    stock_name: "贵州茅台",
-    total_volume: 200,
-    cost_price: "1,552.30",
-    current_price: "1,680.50",
-    market_value: "336,100",
-    unrealized_pnl_pct: "8.2",
-    unrealized_pnl: "25,640",
-  },
-  {
-    stock_code: "300750",
-    stock_name: "宁德时代",
-    total_volume: 500,
-    cost_price: "223.00",
-    current_price: "218.30",
-    market_value: "109,150",
-    unrealized_pnl_pct: "-2.1",
-    unrealized_pnl: "-2,350",
-  },
-  {
-    stock_code: "000858",
-    stock_name: "五粮液",
-    total_volume: 300,
-    cost_price: "151.40",
-    current_price: "156.80",
-    market_value: "47,040",
-    unrealized_pnl_pct: "3.5",
-    unrealized_pnl: "1,620",
-  },
-];
-
-const MOCK_ORDERS = [
-  {
-    id: "ord_001",
-    stock_code: "600519",
-    direction: "buy",
-    order_type: "限价",
-    price: "1,670.00",
-    volume: 100,
-    filled_volume: 100,
-    status: "filled",
-    created_at: "09:32",
-  },
-  {
-    id: "ord_002",
-    stock_code: "300750",
-    direction: "sell",
-    order_type: "市价",
-    price: "-",
-    volume: 200,
-    filled_volume: 200,
-    status: "filled",
-    created_at: "10:15",
-  },
-];
-
-const MOCK_PORTFOLIO = {
-  total_market_value: 985420,
-  total_pnl: 32180,
-  total_pnl_pct: 3.38,
-  available_cash: 298930,
-  total_position_pct: 76.7,
-};
-
 function MobileTrade() {
   const { message, modal } = App.useApp();
   const { colors } = useTheme();
@@ -96,19 +29,19 @@ function MobileTrade() {
     cancelledRef.current = false;
     try {
       const [p, o, s] = await Promise.all([
-        portfolioService.getPositions().catch(() => MOCK_POSITIONS),
-        tradeService.getOrders().catch(() => MOCK_ORDERS),
-        portfolioService.getSummary().catch(() => MOCK_PORTFOLIO),
+        portfolioService.getPositions().catch(() => null),
+        tradeService.getOrders().catch(() => null),
+        portfolioService.getSummary().catch(() => null),
       ]);
       if (cancelledRef.current) return;
-      setPositions(p && p.length > 0 ? p : MOCK_POSITIONS);
-      setOrders(o && o.length > 0 ? o : MOCK_ORDERS);
-      setPortfolio(s || MOCK_PORTFOLIO);
+      setPositions(p || []);
+      setOrders(o || []);
+      setPortfolio(s);
     } catch {
       if (!cancelledRef.current) {
-        setPositions(MOCK_POSITIONS);
-        setOrders(MOCK_ORDERS);
-        setPortfolio(MOCK_PORTFOLIO);
+        setPositions([]);
+        setOrders([]);
+        setPortfolio(null);
       }
     } finally {
       if (!cancelledRef.current) setLoading(false);
@@ -194,11 +127,11 @@ function MobileTrade() {
     message.info("导出报表 — 开发中");
   }, [message]);
 
-  const portfolioValue = portfolio?.total_market_value ?? 985420;
-  const portfolioPnl = portfolio?.total_pnl ?? 32180;
-  const portfolioPnlPct = portfolio?.total_pnl_pct ?? 3.38;
-  const availableCash = portfolio?.available_cash ?? 298930;
-  const positionPct = portfolio?.total_position_pct ?? 76.7;
+  const portfolioValue = portfolio?.total_market_value ?? 0;
+  const portfolioPnl = portfolio?.total_pnl ?? 0;
+  const portfolioPnlPct = portfolio?.total_pnl_pct ?? 0;
+  const availableCash = portfolio?.available_cash ?? 0;
+  const positionPct = portfolio?.total_position_pct ?? 0;
 
   if (loading) {
     return (

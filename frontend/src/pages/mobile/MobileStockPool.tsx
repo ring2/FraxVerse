@@ -8,55 +8,6 @@ import {
 import { strategyService } from "../../services/strategyService";
 import { agentService } from "../../services/agentService";
 
-/* ---- Mock fallback data ---- */
-const MOCK_POOL = [
-  {
-    code: "600519",
-    name: "贵州茅台",
-    strategy: "周期底部",
-    score: 92,
-    metrics: { liangjia: 88, zijin: 95, qingxu: 85, zhuli: 96 },
-    change: "+3.2%",
-    changeUp: true,
-  },
-  {
-    code: "300750",
-    name: "宁德时代",
-    strategy: "趋势低吸",
-    score: 87,
-    metrics: { liangjia: 82, zijin: 90, qingxu: 80, zhuli: 92 },
-    change: "+2.1%",
-    changeUp: true,
-  },
-  {
-    code: "000858",
-    name: "五粮液",
-    strategy: "周期底部",
-    score: 74,
-    metrics: { liangjia: 70, zijin: 78, qingxu: 72, zhuli: 76 },
-    change: "+1.5%",
-    changeUp: true,
-  },
-  {
-    code: "601318",
-    name: "中国平安",
-    strategy: "趋势低吸",
-    score: 68,
-    metrics: { liangjia: 62, zijin: 72, qingxu: 65, zhuli: 70 },
-    change: "-0.8%",
-    changeUp: false,
-  },
-  {
-    code: "002475",
-    name: "立讯精密",
-    strategy: "周期底部",
-    score: 55,
-    metrics: { liangjia: 50, zijin: 58, qingxu: 52, zhuli: 60 },
-    change: "-1.2%",
-    changeUp: false,
-  },
-];
-
 const STRATEGY_FILTERS = ["全部", "周期底部", "趋势低吸"];
 
 function MobileStockPool() {
@@ -115,13 +66,13 @@ function MobileStockPool() {
               })
             );
           } else {
-            setItems(MOCK_POOL);
+            setItems([]);
           }
         }
       })
       .catch(() => {
         if (!cancelled) {
-          setItems(MOCK_POOL);
+          setItems([]);
         }
       })
       .finally(() => {
@@ -174,7 +125,7 @@ function MobileStockPool() {
   const avgScore =
     items.length > 0
       ? (items.reduce((sum, i) => sum + i.score, 0) / items.length).toFixed(1)
-      : "78.5";
+      : "0";
 
   if (loading) {
     return (
