@@ -1,31 +1,75 @@
 """策略扫描路由 — /api/v1/strategy/scan
 
-用于前端"重新扫描"按钮：拉取样本股票K线、五维度评分、入库 stock_pool。
+用于前端"重新扫描"按钮：多维度评分→筛选候选→入库 stock_pool。
+
+评分引擎: src.engine.score_engine.ScoreEngine
+数据源: 东方财富 push2 免费API（板块资金流、个股资金流、实时行情）
 """
 
 import logging
 from datetime import date, datetime
 
-import akshare as ak
-import pandas as pd
 from fastapi import APIRouter, Depends
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from src.api.deps import get_current_user_id
 from src.db.session import get_session
+from src.engine.score_engine import batch_score
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/strategy", tags=["strategy"])
 
-# 20只A股样本（同 run_p0.py）
+# 30只A股样本（沪深300核心权重股 + 各行业龙头）
 _STOCK_SAMPLE = [
-    "600519", "000858", "600036", "601166", "600900",
-    "601318", "000333", "600276", "002415", "300750",
-    "600887", "002594", "601857", "600028", "688981",
-    "601728", "601899", "000002", "601012", "600941",
+    # 消费/白酒
+    "600519", "000858", "600887", "002304", "000568",
+    # 新能源/汽车
+    "300750", "002594", "601012", "300274", "002129",
+    # 金融
+    "600036", "601166", "601318", "600030", "000002",
+    # 科技/制造
+    "002415", "000333", "600276", "688981", "002371",
+    # 能源/资源
+    "601857", "600028", "601899", "600900", "000630",
+    # 通信/基建
+    "601728", "600941", "601668", "600585", "000001",
 ]
+
+# 策略权重配置
+_STRATEGY_CONFIG = {
+    "bottom_reversal": {
+        "weights": {
+            "volume_price": 0.35,  # 量价权重加大（找超跌反弹）
+            "fund_flow": 0.20,
+            "sector": 0.15,
+            "order_book": 0.15,
+            "sentiment": 0.15,
+        },
+        "min_score": 50,
+    },
+    "trend_momentum": {
+        "weights": {
+            "volume_price": 0.25,
+            "fund_flow": 0.25,     # 资金权重加大（找主力介入）
+            "sector": 0.20,
+            "order_book": 0.15,
+            "sentiment": 0.15,
+        },
+        "min_score": 50,
+    },
+    "bottom_volume": {
+        "weights": {
+            "volume_price": 0.30,
+            "fund_flow": 0.25,
+            "sector": 0.20,
+            "order_book": 0.15,
+            "sentiment": 0.10,
+        },
+        "min_score": 50,
+    },
+}
 
 
 @router.post("/scan")
@@ -33,115 +77,64 @@ def scan_stock_pool(
     db: Session = Depends(get_session),
     user_id: int = Depends(get_current_user_id),
 ):
-    """执行股票池扫描：拉取20只样本股票最新K线 → 简略评分 → 入库。
+    """多维度评分扫描：全样本评分→分策略筛选→入库
 
-    返回扫描摘要（扫描到的股票数、入库数）。
+    返回扫描摘要。
     """
     today = date.today().isoformat()
+    all_candidates = []
 
-    # ── 1. 从 AKShare 获取真实K线 ──
-    klines_dict: dict[str, pd.DataFrame] = {}
-    stock_names: dict[str, str] = {}
-    success = 0
+    # ── 1. 对每个策略做一次评分筛选 ──
+    for strategy_name, config in _STRATEGY_CONFIG.items():
+        results = batch_score(
+            codes=_STOCK_SAMPLE,
+            weights=config["weights"],
+            strategy=strategy_name,
+        )
+        for r in results:
+            if r["score_total"] >= config["min_score"]:
+                full_code = _to_full_code(r["details"].get("code", _extract_code(r)))
+                all_candidates.append({
+                    "stock_code": full_code,
+                    "stock_name": r["details"].get("name", ""),
+                    "strategy_type": strategy_name,
+                    "score_total": r["score_total"],
+                    "score_volume": r["score_volume"],
+                    "score_fund": r["score_fund"],
+                    "score_sector": r["score_sector"],
+                    "score_order_book": r["score_order_book"],
+                    "score_sentiment": r["score_sentiment"],
+                })
 
-    for code in _STOCK_SAMPLE:
-        try:
-            prefix = "sh" if code.startswith("6") or code.startswith("9") else "sz"
-            df = ak.stock_zh_a_daily(symbol=f"{prefix}{code}", adjust="qfq")
-            if df.empty:
-                continue
-            df = df.rename(columns={
-                "open": "Open", "high": "High", "low": "Low",
-                "close": "Close", "volume": "Volume", "amount": "amount",
-            })
-            df["date"] = pd.to_datetime(df["date"])
-            # 过滤最近60个交易日
-            df = df.tail(60)
-            if df.empty:
-                continue
-            df["pct_change"] = df["Close"].pct_change() * 100
-            df = df.sort_values("date").reset_index(drop=True)
+    # 去重：同一只股票优先保留评分最高的策略
+    seen: dict[str, dict] = {}
+    for c in all_candidates:
+        code = c["stock_code"]
+        if code not in seen or c["score_total"] > seen[code]["score_total"]:
+            seen[code] = c
+    all_candidates = list(seen.values())
 
-            full_code = f"{code}.SH" if code.startswith("6") or code.startswith("9") else f"{code}.SZ"
-            klines_dict[full_code] = df
-            stock_names[full_code] = code
-            success += 1
-        except Exception as e:
-            logger.warning("获取 %s 失败: %s", code, e)
+    # 按评分降序
+    all_candidates.sort(key=lambda x: x["score_total"], reverse=True)
 
-    logger.info("扫描获取 %d/20 只股票K线", success)
-
-    # ── 2. 简略评分（基于最近5日涨跌幅分布） ──
-    candidates_s1 = []  # 策略一：周期底部
-    candidates_s2 = []  # 策略二：趋势动量
-
-    for code, df in klines_dict.items():
-        if df.empty:
-            continue
-        latest = df.iloc[-1]
-        pct = float(latest.get("pct_change", 0)) if pd.notna(latest.get("pct_change")) else 0.0
-
-        # 最近5日平均涨跌幅
-        recent = df.tail(5)
-        avg_pct = float(recent["pct_change"].mean()) if len(recent) > 0 else 0.0
-
-        # 策略一：底部量能异动（大跌后企稳）
-        if avg_pct < -1.0:
-            score = 50 + abs(avg_pct) * 8
-            candidates_s1.append({
-                "stock_code": code,
-                "stock_name": stock_names.get(code, code),
-                "score_total": min(round(score, 1), 95.0),
-                "strategy_type": "bottom_volume",
-                "pct": pct,
-                "avg_pct": round(avg_pct, 2),
-            })
-
-        # 策略二：趋势动量低吸（小涨/横盘）
-        if -0.8 < avg_pct < 1.2:
-            score = 50 + (1.2 - abs(avg_pct)) * 15
-            candidates_s2.append({
-                "stock_code": code,
-                "stock_name": stock_names.get(code, code),
-                "score_total": min(round(score, 1), 90.0),
-                "strategy_type": "trend_momentum",
-                "pct": pct,
-                "avg_pct": round(avg_pct, 2),
-            })
-
-    # 按评分降序，各取前15
-    candidates_s1.sort(key=lambda x: x["score_total"], reverse=True)
-    candidates_s2.sort(key=lambda x: x["score_total"], reverse=True)
-    candidates_s1 = candidates_s1[:15]
-    candidates_s2 = candidates_s2[:15]
-    all_candidates = candidates_s1 + candidates_s2
-
-    # ── 3. 写入 stock_pool 表 ──
-    # 从 AKShare 获取股票中文名，补充 stocks 表
-    name_map: dict[str, str] = {}
+    # ── 2. 写入 stocks 表（中文名） ──
     for c in all_candidates:
         code = c["stock_code"]
         short_code = code.replace(".SH", "").replace(".SZ", "")
-        # 从 AKShare 获取中文名
-        try:
-            info = ak.stock_individual_info_em(symbol=short_code)
-            stock_name = info.loc[info["item"] == "股票简称", "value"].iloc[0] if not info.empty else short_code
-        except Exception:
-            stock_name = short_code
-        name_map[code] = stock_name
+        name = c.get("stock_name", short_code)
         try:
             db.execute(
                 text("""INSERT INTO stocks (code, name, market)
                         VALUES (:c, :n, :m)
                         ON CONFLICT (code) DO UPDATE SET name = :n"""),
-                {"c": code, "n": stock_name, "m": "SH" if ".SH" in code else "SZ"},
+                {"c": code, "n": name, "m": "SH" if ".SH" in code else "SZ"},
             )
         except Exception as e:
             logger.warning("更新stocks失败 %s: %s", code, e)
 
     db.commit()
 
-    # 删除该日存在的数据（重新扫描覆盖）
+    # ── 3. 写入 stock_pool 表 ──
     try:
         db.execute(text("DELETE FROM stock_pool WHERE date = :d"), {"d": today})
         db.commit()
@@ -160,14 +153,18 @@ def scan_stock_pool(
                          score_sentiment, score_mainforce)
                     VALUES
                         (:date, :stock_code, :strategy_type, TRUE,
-                         :score_total, 0, :score_total, :score_total,
-                         :score_total, :score_total)
+                         :score_total, 0, :score_volume, :score_fund,
+                         :score_sentiment, :score_order_book)
                 """),
                 {
                     "date": today,
                     "stock_code": c["stock_code"],
                     "strategy_type": c["strategy_type"],
                     "score_total": c["score_total"],
+                    "score_volume": c["score_volume"],
+                    "score_fund": c["score_fund"],
+                    "score_sentiment": c["score_sentiment"],
+                    "score_order_book": c["score_order_book"],
                 },
             )
             inserted += 1
@@ -175,17 +172,31 @@ def scan_stock_pool(
             logger.warning("入库失败 %s: %s", c["stock_code"], e)
 
     db.commit()
-    logger.info("扫描完成，入库 %d/%d 条", inserted, len(all_candidates))
+
+    logger.info("多维度扫描完成，入库 %d/%d 条", inserted, len(all_candidates))
 
     return {
         "code": 0,
-        "message": f"扫描完成，获取 {success} 只股票K线，入库 {inserted} 只标的",
+        "message": f"多维度评分扫描完成，入库 {inserted} 只标的",
         "data": {
             "total": len(all_candidates),
             "inserted": inserted,
-            "stockCount": success,
-            "candidates_s1": len(candidates_s1),
-            "candidates_s2": len(candidates_s2),
+            "stockCount": len(_STOCK_SAMPLE),
             "timestamp": datetime.now().isoformat(),
         },
     }
+
+
+def _to_full_code(raw: str) -> str:
+    """补全交易所后缀"""
+    r = raw.strip().upper()
+    if "." in r:
+        return r
+    if r.startswith(("6", "9")):
+        return f"{r}.SH"
+    return f"{r}.SZ"
+
+
+def _extract_code(r: dict) -> str:
+    """从评分结果中提取代码——兜底"""
+    return r.get("code", "")
