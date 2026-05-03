@@ -2,7 +2,8 @@
 
 from typing import Any
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
 
 from sqlalchemy.orm import Session
 
@@ -104,10 +105,69 @@ def update_configs(
     return {"message": msg, "updated": str(updated), "created": str(created)}
 
 
+# ─── LLM 厂商预设（V2 — 改用新函数） ──────────────────────────
+
+
 @router.get("/llm-providers")
 def get_llm_providers(
     user_id: int = Depends(get_current_user_id),
 ) -> list[dict[str, Any]]:
-    """获取所有 LLM 厂商预设（用于前端下拉菜单）"""
-    from src.agent.llm_providers import get_all_providers
-    return get_all_providers()
+    """获取所有 LLM 厂商预设 + 模型列表（用于前端下拉菜单）"""
+    from src.agent.llm_providers import get_all_providers_with_models
+    return get_all_providers_with_models()
+
+
+# ─── LLM 厂商连接 CRUD ─────────────────────────────────────────
+
+
+class ConnectionUpsert(BaseModel):
+    provider_name: str
+    api_key: str = ""
+    base_url: str = ""
+    label: str = ""
+
+
+@router.get("/llm-connections")
+def get_llm_connections(
+    db: Session = Depends(get_session),
+    user_id: int = Depends(get_current_user_id),
+):
+    """获取所有厂商连接（返回不含 API Key 的摘要）"""
+    from src.agent.llm_providers import get_connections
+    return {"connections": get_connections(db)}
+
+
+@router.put("/llm-connections")
+def upsert_llm_connection(
+    body: ConnectionUpsert,
+    db: Session = Depends(get_session),
+    user_id: int = Depends(get_current_user_id),
+):
+    """创建/更新厂商连接"""
+    from src.agent.llm_providers import upsert_connection, get_connection
+    result = upsert_connection(
+        db,
+        provider_name=body.provider_name,
+        api_key=body.api_key,
+        base_url=body.base_url,
+        label=body.label,
+    )
+    # 返回时隐藏 API Key（只返回 has_api_key）
+    return {
+        "provider_name": result["provider_name"],
+        "label": result["label"],
+        "has_api_key": bool(result["api_key"]),
+        "base_url": result["base_url"],
+    }
+
+
+@router.delete("/llm-connections/{provider_name}")
+def delete_llm_connection(
+    provider_name: str,
+    db: Session = Depends(get_session),
+    user_id: int = Depends(get_current_user_id),
+):
+    """删除厂商连接"""
+    from src.agent.llm_providers import delete_connection
+    delete_connection(db, provider_name)
+    return {"message": f"已删除 {provider_name} 的连接"}

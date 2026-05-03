@@ -5,7 +5,7 @@ import { useTheme } from "../../theme/ThemeContext";
 import { useAuthStore } from "../../stores/useAuthStore";
 import { authService } from "../../services/authService";
 import { settingsService } from "../../services/settingsService";
-import type { SettingsMap, LLMProvider } from "../../services/settingsService";
+import type { SettingsMap, LLMProvider, LLMConnection } from "../../services/settingsService";
 
 /* ===================================================================
    MobileSettings — 12 大分类 50+ 项参数
@@ -216,202 +216,235 @@ const GroupLabel = ({ label }: { label: string }) => {
   );
 };
 
-/* ---- LLM 厂商+模型选择器 ---- */
+/* ---- LLM 厂商连接+模型使用分配（V2 重构） ---- */
 const CUSTOM_MODEL_VALUE = "__custom__";
 
-const LLMSelector = ({
+/**
+ * 「我的 API 连接」— 每个厂商一张小卡片，配 Key 和 URL
+ */
+const ConnectionCard = ({
+  provider,
+  connection,
+  onSave,
+  onDelete,
+  colors,
+}: {
+  provider: { name: string; label: string; default_base_url: string };
+  connection?: { has_api_key: boolean; base_url: string };
+  onSave: (providerName: string, apiKey: string, baseUrl: string) => void;
+  onDelete: (providerName: string) => void;
+  colors: Record<string, any>;
+}) => {
+  const [apiKey, setApiKey] = useState(
+    connection?.has_api_key ? "••••••••" : "",
+  );
+  const [baseUrl, setBaseUrl] = useState(connection?.base_url ?? "");
+  const [changed, setChanged] = useState(false);
+
+  const handleSave = () => {
+    const finalKey = apiKey === "••••••••" ? "" : apiKey;
+    onSave(provider.name, finalKey, baseUrl);
+    setChanged(false);
+  };
+
+  return (
+    <div style={{
+      padding: "8px 10px",
+      borderBottom: `1px solid ${colors.border.light}`,
+    }}>
+      <div style={{
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+        marginBottom: 4,
+      }}>
+        <span style={{ fontSize: 12, fontWeight: 600, color: colors.text.primary }}>
+          {provider.label}
+        </span>
+        {connection ? (
+          <span
+            onClick={() => onDelete(provider.name)}
+            style={{ fontSize: 10, color: colors.semantic.down, cursor: "pointer" }}
+          >删除</span>
+        ) : (
+          <span style={{ fontSize: 10, color: colors.text.tertiary }}>未配置</span>
+        )}
+      </div>
+      <div style={{ display: "flex", gap: 4, alignItems: "center", marginBottom: 4 }}>
+        <input
+          value={apiKey}
+          onChange={(e) => { setApiKey(e.target.value); setChanged(true); }}
+          placeholder="API Key"
+          type="password"
+          style={{
+            flex: 1, padding: "4px 6px", fontSize: 11,
+            borderRadius: `${colors.radius.sm}px`,
+            border: `1px solid ${colors.border.medium}`,
+            background: colors.bg.surface, outline: "none",
+            color: colors.text.primary,
+          }}
+        />
+        <span style={{ fontSize: 10, color: colors.text.tertiary, whiteSpace: "nowrap" }}>Key</span>
+      </div>
+      <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+        <input
+          value={baseUrl}
+          onChange={(e) => { setBaseUrl(e.target.value); setChanged(true); }}
+          placeholder={provider.default_base_url}
+          style={{
+            flex: 1, padding: "4px 6px", fontSize: 11,
+            borderRadius: `${colors.radius.sm}px`,
+            border: `1px solid ${colors.border.medium}`,
+            background: colors.bg.surface, outline: "none",
+            color: colors.text.primary,
+          }}
+        />
+        <span style={{ fontSize: 10, color: colors.text.tertiary, whiteSpace: "nowrap" }}>URL</span>
+        {changed && (
+          <button
+            onClick={handleSave}
+            style={{
+              padding: "3px 8px", fontSize: 10, borderRadius: `${colors.radius.sm}px`,
+              border: "none", background: colors.purple[500], color: "#fff",
+              cursor: "pointer", lineHeight: 1.3,
+            }}
+          >保存</button>
+        )}
+      </div>
+    </div>
+  );
+};
+
+/**
+ * 「模型使用分配」— 选择已配置的厂商 + 模型
+ */
+const UsageSlot = ({
+  title,
+  desc,
   providerKey,
   modelKey,
-  withApiKey,
-  withBaseUrl,
+  reuseKey,
+  connections,
+  allProviders,
   configs,
   setConfig,
   colors,
 }: {
+  title: string;
+  desc: string;
   providerKey: string;
   modelKey: string;
-  withApiKey?: boolean;
-  withBaseUrl?: boolean;
+  reuseKey?: string;         // 如 'daily_analysis' — 勾选复用
+  connections: string[];     // 已配 Key 的厂商列表
+  allProviders: LLMProvider[];
   configs: SettingsMap;
   setConfig: (key: string, value: string | number | boolean) => void;
   colors: Record<string, any>;
 }) => {
-  const [providers, setProviders] = useState<LLMProvider[]>([]);
-  const [providersLoaded, setProvidersLoaded] = useState(false);
-
-  useEffect(() => {
-    settingsService.getLLMProviders().then((list) => {
-      setProviders(list);
-      setProvidersLoaded(true);
-    }).catch(() => setProvidersLoaded(true));
-  }, []);
-
-  const currentProvider = String(configs[providerKey] ?? "deepseek");
+  const currentProvider = String(configs[providerKey] ?? "");
   const currentModel = String(configs[modelKey] ?? "");
+  const currentReuse = String(configs[reuseKey ? reuseKey + "_reuse" : ""] ?? "false");
 
-  const selectedProvider = providers.find((p) => p.name === currentProvider);
-  const availableModels = selectedProvider?.models ?? [];
+  // 找到当前选中的厂商的预设信息
+  const selectedProviderInfo = allProviders.find((p) => p.name === currentProvider);
+  const availableModels = selectedProviderInfo?.models ?? [];
 
-  // 判断当前模型是否在预设列表中
+  // 判断是否是自定义模型
   const isCustomModel = currentModel && !availableModels.includes(currentModel);
-  const modelDisplayValue = isCustomModel ? CUSTOM_MODEL_VALUE : (currentModel || undefined);
 
   const handleProviderChange = (newProvider: string) => {
     setConfig(providerKey, newProvider);
-    const provider = providers.find((p) => p.name === newProvider);
-    if (provider?.default_model) {
-      setConfig(modelKey, provider.default_model);
+    // 自动选该厂商的默认模型
+    const info = allProviders.find((p) => p.name === newProvider);
+    if (info?.default_model) {
+      setConfig(modelKey, info.default_model);
     }
   };
 
-  const handleModelChange = (value: string) => {
-    if (value === CUSTOM_MODEL_VALUE) {
-      // 选择"自定义模型"时，清空模型名让用户输入
-      setConfig(modelKey, "");
-    } else {
-      setConfig(modelKey, value);
-    }
-  };
-
-  const handleCustomModelInput = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setConfig(modelKey, e.target.value);
-  };
-
-  // 构造配置key：daily_analysis_provider → daily_analysis_api_key / daily_analysis_base_url
-  const prefix = providerKey.replace("_provider", "");
-  const apiKeyConfigKey = `${prefix}_api_key`;
-  const baseUrlConfigKey = `${prefix}_base_url`;
-
-  const selectStyle: React.CSSProperties = {
-    width: "100%",
-    fontSize: 12,
-    marginBottom: 6,
-  };
+  // 已配 Key 的厂商列表
+  const providerOptions = allProviders.map((p) => ({
+    value: p.name,
+    label: p.label + (connections.includes(p.name) ? "" : "（未配 Key）"),
+    disabled: !connections.includes(p.name) && p.name !== currentProvider,
+  }));
 
   return (
-    <div>
-      {/* 厂商下拉 */}
-      <Select
-        showSearch
-        style={selectStyle}
-        value={currentProvider}
-        onChange={handleProviderChange}
-        placeholder="选择厂商"
-        loading={!providersLoaded}
-        options={providers.map((p) => ({
-          value: p.name,
-          label: p.label,
-        }))}
-      />
+    <div style={{ padding: "10px 14px", borderBottom: `1px solid ${colors.border.light}` }}>
+      <div style={{ fontSize: 13, fontWeight: 600, color: colors.text.primary, marginBottom: 4 }}>
+        {title}
+      </div>
+      <div style={{ fontSize: 11, color: colors.text.tertiary, marginBottom: 8 }}>{desc}</div>
 
-      {/* 模型选择：预设列表 + 「自定义模型」选项 */}
-      <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-        <div style={{ flex: 1 }}>
-          {isCustomModel ? (
-            <input
-              value={currentModel}
-              onChange={handleCustomModelInput}
-              placeholder="输入自定义模型名"
-              style={{
-                width: "100%",
-                padding: "5px 8px",
-                fontSize: 12,
-                borderRadius: `${colors.radius.sm}px`,
-                border: `1px solid ${colors.border.medium}`,
-                background: colors.bg.surface,
-                outline: "none",
-                color: colors.text.primary,
-                lineHeight: 1.4,
-                boxSizing: "border-box",
-              }}
-            />
-          ) : (
+      {reuseKey && (
+        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
+          <input
+            type="checkbox"
+            checked={currentReuse === "true"}
+            onChange={() => {
+              setConfig(reuseKey + "_reuse", currentReuse === "true" ? "false" : "true");
+            }}
+            style={{ cursor: "pointer" }}
+          />
+          <span style={{ fontSize: 11, color: colors.text.secondary }}>
+            复用「{reuseKey === "daily_analysis" ? "每日分析" : reuseKey}」模型的配置
+          </span>
+        </div>
+      )}
+
+      {currentReuse !== "true" && (
+        <>
+          {/* 厂商选择 */}
+          <Select
+            showSearch
+            style={{ width: "100%", fontSize: 12, marginBottom: 6 }}
+            value={currentProvider || undefined}
+            onChange={handleProviderChange}
+            placeholder="选择厂商"
+            options={providerOptions}
+          />
+
+          {/* 模型选择 */}
+          {currentProvider && (
             <Select
-              style={{ width: "100%", fontSize: 12 }}
-              value={modelDisplayValue}
-              onChange={handleModelChange}
-              placeholder="选择模型"
               showSearch
+              style={{ width: "100%", fontSize: 12 }}
+              value={isCustomModel ? CUSTOM_MODEL_VALUE : (currentModel || undefined)}
+              onChange={(value: string) => {
+                if (value === CUSTOM_MODEL_VALUE) {
+                  setConfig(modelKey, "");
+                } else {
+                  setConfig(modelKey, value);
+                }
+              }}
+              placeholder="选择模型"
               options={[
-                ...availableModels.map((m) => ({ value: m, label: m })),
+                ...availableModels.map((m: string) => ({ value: m, label: m })),
                 { value: CUSTOM_MODEL_VALUE, label: "✏️ 自定义模型" },
               ]}
             />
           )}
-        </div>
-        {selectedProvider && (
-          <span style={{ fontSize: 10, color: colors.text.tertiary, whiteSpace: "nowrap", cursor: "pointer" }}
-            onClick={() => {
-              setConfig(modelKey, "");
-              // 切到自定义模式
-            }}
-          >
-            {isCustomModel ? "✏️" : selectedProvider.label}
-          </span>
-        )}
-      </div>
 
-      {isCustomModel && (
-        <div style={{ marginTop: 4, fontSize: 11, color: colors.semantic.amber }}>
-          自定义模型名，请确保该模型名在所选厂商的API中有效
-        </div>
-      )}
+          {/* 自定义模型输入 */}
+          {isCustomModel && (
+            <input
+              value={currentModel}
+              onChange={(e) => setConfig(modelKey, e.target.value)}
+              placeholder="输入自定义模型名"
+              style={{
+                width: "100%", marginTop: 6, padding: "5px 8px", fontSize: 12,
+                borderRadius: `${colors.radius.sm}px`,
+                border: `1px solid ${colors.border.medium}`,
+                background: colors.bg.surface, outline: "none",
+                color: colors.text.primary,
+                boxSizing: "border-box",
+              }}
+            />
+          )}
 
-      {/* API Key（可选，单独配） */}
-      {withApiKey && (
-        <div style={{ marginTop: 8 }}>
-          <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-            <div style={{ flex: 1 }}>
-              <input
-                value={String(configs[apiKeyConfigKey] ?? "")}
-                onChange={(e) => setConfig(apiKeyConfigKey, e.target.value)}
-                placeholder="此模型的 API Key（留空用全局）"
-                type="password"
-                style={{
-                  width: "100%",
-                  padding: "5px 8px",
-                  fontSize: 12,
-                  borderRadius: `${colors.radius.sm}px`,
-                  border: `1px solid ${colors.border.medium}`,
-                  background: colors.bg.surface,
-                  outline: "none",
-                  color: colors.text.primary,
-                  lineHeight: 1.4,
-                  boxSizing: "border-box",
-                }}
-              />
+          {isCustomModel && (
+            <div style={{ marginTop: 4, fontSize: 11, color: colors.semantic.amber }}>
+              自定义模型名，请确保该模型名在所选厂商的API中有效
             </div>
-            <span style={{ fontSize: 10, color: colors.text.tertiary, whiteSpace: "nowrap" }}>API Key</span>
-          </div>
-        </div>
-      )}
-
-      {/* Base URL（可选，单独配） */}
-      {withBaseUrl && (
-        <div style={{ marginTop: 6 }}>
-          <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-            <div style={{ flex: 1 }}>
-              <input
-                value={String(configs[baseUrlConfigKey] ?? "")}
-                onChange={(e) => setConfig(baseUrlConfigKey, e.target.value)}
-                placeholder="Base URL（留空用厂商默认）"
-                style={{
-                  width: "100%",
-                  padding: "5px 8px",
-                  fontSize: 12,
-                  borderRadius: `${colors.radius.sm}px`,
-                  border: `1px solid ${colors.border.medium}`,
-                  background: colors.bg.surface,
-                  outline: "none",
-                  color: colors.text.primary,
-                  lineHeight: 1.4,
-                  boxSizing: "border-box",
-                }}
-              />
-            </div>
-            <span style={{ fontSize: 10, color: colors.text.tertiary, whiteSpace: "nowrap" }}>Base URL</span>
-          </div>
-        </div>
+          )}
+        </>
       )}
     </div>
   );
@@ -479,6 +512,11 @@ function MobileSettings() {
   const [pwModalOpen, setPwModalOpen] = useState(false);
   const [pwForm] = Form.useForm();
 
+  /* ---- LLM 连接 + 厂商预设 ---- */
+  const [llmConnections, setLlmConnections] = useState<LLMConnection[]>([]);
+  const [allProviders, setAllProviders] = useState<LLMProvider[]>([]);
+  const [llmConnectionsLoading, setLlmConnectionsLoading] = useState(true);
+
   /* ---- load configs on mount ---- */
   useEffect(() => {
     settingsService.getConfigs()
@@ -486,6 +524,20 @@ function MobileSettings() {
       .catch(() => message.error("加载配置失败"))
       .finally(() => setLoading(false));
   }, []);
+
+  /* ---- load LLM providers + connections on mount ---- */
+  const loadLLMConnections = useCallback(() => {
+    Promise.all([
+      settingsService.getLLMProviders(),
+      settingsService.getLLMConnections(),
+    ]).then(([providers, conns]) => {
+      setAllProviders(providers);
+      setLlmConnections(conns);
+    }).catch(() => {
+      // ignore
+    }).finally(() => setLlmConnectionsLoading(false));
+  }, []);
+  useEffect(() => { loadLLMConnections(); }, []);
 
   /* ---- generic setter: saves single key to API ---- */
   const setConfig = useCallback((key: string, value: string | number | boolean) => {
@@ -577,36 +629,81 @@ function MobileSettings() {
         />
       </CollapseCard>
 
-      {/* 2. LLM 配置 */}
+      {/* 2. LLM 配置 — V2：连接+使用分配 */}
       <CollapseCard title="LLM 配置" dotColor={colors.purple[400]}>
 
-        {/* ── 每日分析模型 ── */}
+        {/* ── 我的 API 连接 ── */}
         <div style={{ padding: "10px 14px", borderBottom: `1px solid ${colors.border.light}` }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: colors.text.primary, marginBottom: 6 }}>每日分析模型</div>
-          <div style={{ fontSize: 11, color: colors.text.tertiary, marginBottom: 8 }}>Agent 日常分析使用的模型</div>
-          <LLMSelector
-            providerKey="daily_analysis_provider"
-            modelKey="daily_analysis_model"
-            withApiKey
-            withBaseUrl
-            configs={configs}
-            setConfig={setConfig}
-            colors={colors}
-          />
+          <div style={{ fontSize: 12, fontWeight: 600, color: colors.text.primary, marginBottom: 2 }}>🔌 我的 API 连接</div>
+          <div style={{ fontSize: 10, color: colors.text.tertiary, marginBottom: 8 }}>每个厂商配一次 Key 和 URL，后续所有模型使用分配都用这些连接</div>
+          {(llmConnectionsLoading || allProviders.length === 0) ? (
+            <span style={{ fontSize: 11, color: colors.text.tertiary }}>加载中...</span>
+          ) : (
+            allProviders.map((p) => {
+              const conn = llmConnections.find((c) => c.provider_name === p.name);
+              return (
+                <ConnectionCard
+                  key={p.name}
+                  provider={p}
+                  connection={conn}
+                  onSave={(providerName, apiKey, baseUrl) => {
+                    settingsService.upsertLLMConnection(providerName, apiKey, baseUrl).then(() => {
+                      message.success(`${p.label} 连接已保存`);
+                      loadLLMConnections();
+                    }).catch((e) => message.error("保存失败: " + (e?.response?.data?.detail || e.message)));
+                  }}
+                  onDelete={(providerName) => {
+                    Modal.confirm({
+                      title: `删除 ${p.label} 的连接？`,
+                      content: "API Key 将从系统中移除",
+                      onOk: () => settingsService.deleteLLMConnection(providerName).then(() => {
+                        message.success("已删除");
+                        loadLLMConnections();
+                      }),
+                    });
+                  }}
+                  colors={colors}
+                />
+              );
+            })
+          )}
+          <div style={{ padding: "8px 10px" }}>
+            <span style={{ fontSize: 10, color: colors.text.tertiary }}>
+              厂商列表中附带模型预设供选择，如需其他厂商请修改预设
+            </span>
+          </div>
         </div>
 
-        {/* ── 关键决策模型 ── */}
-        <div style={{ padding: "10px 14px", borderBottom: `1px solid ${colors.border.light}` }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: colors.text.primary, marginBottom: 6 }}>关键决策模型</div>
-          <div style={{ fontSize: 11, color: colors.text.tertiary, marginBottom: 8 }}>开仓/止损前的复核模型（未配则复用每日分析模型配置）</div>
-          <LLMSelector
-            providerKey="key_decision_provider"
-            modelKey="key_decision_model"
-            configs={configs}
-            setConfig={setConfig}
-            colors={colors}
-          />
+        {/* ── 模型使用分配 ── */}
+        <GroupLabel label="模型使用分配" />
+        <div style={{ fontSize: 10, color: colors.text.tertiary, padding: "0 14px 8px" }}>
+          每个任务指定用什么厂商的什么模型。未配 Key 的厂商不可选。
         </div>
+
+        <UsageSlot
+          title="每日分析"
+          desc="Agent 日常分析使用的模型"
+          providerKey="daily_analysis_provider"
+          modelKey="daily_analysis_model"
+          connections={llmConnections.map((c) => c.provider_name)}
+          allProviders={allProviders}
+          configs={configs}
+          setConfig={setConfig}
+          colors={colors}
+        />
+
+        <UsageSlot
+          title="关键决策"
+          desc="开仓/止损前的复核模型"
+          providerKey="key_decision_provider"
+          modelKey="key_decision_model"
+          reuseKey="daily_analysis"
+          connections={llmConnections.map((c) => c.provider_name)}
+          allProviders={allProviders}
+          configs={configs}
+          setConfig={setConfig}
+          colors={colors}
+        />
 
         <Row label="请求超时" right={<InputField value={n("llm_timeout")} onChange={(v) => setNum("llm_timeout", v)} suffix="秒" />} />
         <Row label="最大并发数" right={<InputField value={n("llm_max_concurrent")} onChange={(v) => setNum("llm_max_concurrent", v)} />} />

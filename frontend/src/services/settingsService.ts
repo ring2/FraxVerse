@@ -7,10 +7,17 @@ export interface SettingsMap {
 export interface LLMProvider {
   name: string;
   label: string;
-  base_url: string;
+  default_base_url: string;
   api_format: string;
   models: string[];
   default_model: string;
+}
+
+export interface LLMConnection {
+  provider_name: string;
+  label: string;
+  has_api_key: boolean;
+  base_url: string;
 }
 
 async function getConfigs(): Promise<SettingsMap> {
@@ -27,4 +34,37 @@ async function getLLMProviders(): Promise<LLMProvider[]> {
   return res.data ?? [];
 }
 
-export const settingsService = { getConfigs, updateConfigs, getLLMProviders };
+/* ─── 厂商连接管理 ─── */
+
+async function getLLMConnections(): Promise<LLMConnection[]> {
+  const res = await api.get<{ connections: LLMConnection[] }>("/settings/llm-connections");
+  return res.data?.connections ?? [];
+}
+
+async function upsertLLMConnection(
+  provider_name: string,
+  api_key: string,
+  base_url?: string,
+  label?: string,
+): Promise<LLMConnection> {
+  const res = await api.put<LLMConnection>("/settings/llm-connections", {
+    provider_name,
+    api_key,
+    base_url: base_url ?? "",
+    label: label ?? "",
+  });
+  return res.data;
+}
+
+async function deleteLLMConnection(provider_name: string): Promise<void> {
+  await api.delete(`/settings/llm-connections/${provider_name}`);
+}
+
+export const settingsService = {
+  getConfigs,
+  updateConfigs,
+  getLLMProviders,
+  getLLMConnections,
+  upsertLLMConnection,
+  deleteLLMConnection,
+};

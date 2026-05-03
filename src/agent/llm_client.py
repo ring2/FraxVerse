@@ -436,6 +436,12 @@ def parse_llm_json_response(raw: str) -> dict[str, Any]:
     return json.loads(text)
 
 
+def _get_db() -> Any:
+    """获取数据库 Session（延迟导入避免循环依赖）"""
+    from src.db.session import session_local
+    return session_local()
+
+
 def call_llm_api(
     system_prompt: str,
     user_prompt: str,
@@ -445,12 +451,19 @@ def call_llm_api(
     api_key_override: str | None = None,
     provider_override: str | None = None,
     base_url_override: str | None = None,
+    db: Any = None,
+    usage_key: str | None = None,
 ) -> LLMResponse:
     """
     调用 LLM API（同步）。
 
-    从 DB 配置中读取厂商、模型、API Key、Base URL。
+    从 DB 连接表 + 用途配置中读取厂商、模型、API Key、Base URL。
     支持通过参数覆盖（用于测试或特殊场景）。
+
+    配置解析优先级：
+    1. 显式参数（api_key_override / provider_override / base_url_override）
+    2. usage_key 指定用途（如 'daily_analysis'），从 DB 读取
+    3. 默认值（deepseek / deepseek-chat）
 
     重试策略（DD-04 第6.3节）：
     - 重试次数: 2次（共3次机会）
@@ -458,23 +471,41 @@ def call_llm_api(
     - 重试条件: 网络超时/5xx错误/429限流
     - 不重试: 4xx错误(除429)/响应格式错误
     """
-    # 从参数或 settings 获取 API Key
-    api_key = api_key_override or settings.DEEPSEEK_API_KEY
-    if not api_key:
+    # 如果有显式覆盖参数，优先使用
+    if api_key_override and provider_override:
+        pass  # 直接走下面的调用
+    elif usage_key:
+        # 从 DB 读取用途配置
+        close_db = False
+        if db is None:
+            db = _get_db()
+            close_db = True
+        try:
+            from src.agent.llm_providers import resolve_llm_config
+            resolved = resolve_llm_config(db, usage_key=usage_key)
+            api_key_override = resolved["api_key"]
+            provider_override = resolved["provider_name"]
+            base_url_override = base_url_override or resolved["base_url"]
+            model = model or resolved["model"]
+        finally:
+            if close_db:
+                db.close()
+
+    # 最终确定参数
+    actual_api_key = api_key_override or ""
+    actual_provider = provider_override or "deepseek"
+    actual_base_url = base_url_override or None
+
+    if not actual_api_key:
         logger.warning("API Key not configured, using mock LLM")
         return _mock_llm_call(system_prompt, user_prompt)
-
-    # 确定厂商和模型
-    provider_name = provider_override or settings.LLM_PROVIDER or "deepseek"
-    actual_model = model
-    actual_base_url = base_url_override or settings.LLM_BASE_URL or None
 
     try:
         from src.agent.llm_providers import call_llm_with_provider
         content, used_model, usage = call_llm_with_provider(
-            provider_name=provider_name,
-            api_key=api_key,
-            model=actual_model,
+            provider_name=actual_provider,
+            api_key=actual_api_key,
+            model=model,
             system_prompt=system_prompt,
             user_prompt=user_prompt,
             timeout=timeout,
