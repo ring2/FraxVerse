@@ -22,6 +22,10 @@ export default defineConfig({
       "/api": {
         changeOrigin: true,
       },
+      "/api/v1/ws": {
+        target: "http://localhost:8000",
+        ws: true,
+      },
     },
   },
   build: {

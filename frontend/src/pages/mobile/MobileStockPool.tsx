@@ -18,21 +18,12 @@ const STRATEGY_NAMES: Record<string, string> = {
   bottom_volume: "底部反转",
 };
 
-/** 获取所有可用的交易日（从数据中提取） */
-function extractDates(items: StockPoolItem[]): string[] {
-  const set = new Set<string>();
-  for (const item of items) {
-    if (item.date) set.add(item.date);
-  }
-  return Array.from(set).sort().reverse(); // 最新的在前
-}
-
 function MobileStockPool() {
   const { message } = App.useApp();
   const { colors } = useTheme();
 
   const [loading, setLoading] = useState(true);
-  const [items, setItems] = useState<StockPoolItem[]>([]);
+  const [allItems, setAllItems] = useState<StockPoolItem[]>([]);
   const [activeFilter, setActiveFilter] = useState("全部");
   const [selectedDate, setSelectedDate] = useState<string>("");
   const [detailCode, setDetailCode] = useState<string | null>(null);
@@ -44,64 +35,45 @@ function MobileStockPool() {
     return isNaN(n) ? 0 : Math.max(0, Math.min(100, n));
   };
 
-  /** 带日期参数的加载 */
-  const loadPool = useCallback(async (poolDate?: string) => {
-    try {
-      const data = await strategyService.getPool(poolDate);
-      setItems(data || []);
-    } catch {
-      setItems([]);
-    } finally {
-      setLoading(false);
+  const availableDates = useMemo(() => {
+    const set = new Set<string>();
+    for (const item of allItems) {
+      if (item.date) set.add(item.date);
     }
-  }, []);
+    return Array.from(set).sort().reverse();
+  }, [allItems]);
 
-  /** 首次加载：先查最新的（不传参数），再设 selectedDate */
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
     strategyService.getPool().then((data) => {
       if (cancelled) return;
       const pool = data || [];
-      setItems(pool);
-      // 如果有数据，自动选中最新日期
-      const dates = extractDates(pool);
-      if (dates.length > 0) {
-        setSelectedDate(dates[0]);
-      }
+      setAllItems(pool);
+      const dates = Array.from(new Set(pool.map((i) => i.date))).sort().reverse();
+      if (dates.length > 0 && !cancelled) setSelectedDate(dates[0]);
     }).catch(() => {
-      if (!cancelled) setItems([]);
+      if (!cancelled) setAllItems([]);
     }).finally(() => {
       if (!cancelled) setLoading(false);
     });
     return () => { cancelled = true; };
   }, []);
 
-  /** 切换日期时重新查询 */
-  const handleDateChange = useCallback((date: string) => {
-    setSelectedDate(date);
-    setLoading(true);
-    loadPool(date);
-  }, [loadPool]);
-
   const handleRescan = useCallback(async () => {
     try {
       const result = await strategyService.scan();
       message.success(result.message || "扫描完成");
-      // 重新加载最新数据
       setLoading(true);
-      strategyService.getPool().then((data) => {
-        const pool = data || [];
-        setItems(pool);
-        const dates = extractDates(pool);
-        if (dates.length > 0) setSelectedDate(dates[0]);
-      }).catch(() => {
-        setItems([]);
-      }).finally(() => {
-        setLoading(false);
-      });
+      const data = await strategyService.getPool();
+      const pool = data || [];
+      setAllItems(pool);
+      const dates = Array.from(new Set(pool.map((i) => i.date))).sort().reverse();
+      if (dates.length > 0) setSelectedDate(dates[0]);
     } catch {
       message.error("扫描失败，请稍后重试");
+    } finally {
+      setLoading(false);
     }
   }, [message]);
 
@@ -110,24 +82,21 @@ function MobileStockPool() {
     setDetailOpen(true);
   }, []);
 
-  const availableDates = useMemo(() => extractDates(items), [items]);
-  const latestDate = availableDates.length > 0 ? availableDates[0] : "--";
-  // 当前选中的日期的数据（用于筛选）
-  const dateFilteredItems = selectedDate
-    ? items.filter((i) => i.date === selectedDate)
-    : items;
+  const dateItems = selectedDate
+    ? allItems.filter((i) => i.date === selectedDate)
+    : [];
 
   const filteredItems =
     activeFilter === "全部"
-      ? dateFilteredItems
+      ? dateItems
       : activeFilter === "底部反转"
-        ? dateFilteredItems.filter((item) => BOTTOM_KEYS.has(item.strategy_type))
-        : dateFilteredItems.filter((item) => STRATEGY_NAMES[item.strategy_type] === activeFilter);
+        ? dateItems.filter((item) => BOTTOM_KEYS.has(item.strategy_type))
+        : dateItems.filter((item) => STRATEGY_NAMES[item.strategy_type] === activeFilter);
 
-  const countTotal = dateFilteredItems.length;
+  const countTotal = dateItems.length;
   const avgScore =
-    dateFilteredItems.length > 0
-      ? (dateFilteredItems.reduce((sum, i) => sum + parseScore(i.score_total), 0) / dateFilteredItems.length).toFixed(1)
+    dateItems.length > 0
+      ? (dateItems.reduce((sum, i) => sum + parseScore(i.score_total), 0) / dateItems.length).toFixed(1)
       : "0";
 
   if (loading) {
@@ -155,35 +124,40 @@ function MobileStockPool() {
               borderRadius: `${colors.radius.md}px`, fontSize: 13, fontWeight: 500, lineHeight: 1.4,
               cursor: "pointer", border: "none", outline: "none",
               background: colors.gradient.primary, color: colors.text.inverse,
-              boxShadow: colors.btnShadow, transition: "all 0.15s ease" }}>
+              boxShadow: colors.btnShadow }}>
             重新扫描
           </button>
         </div>
       </div>
 
-      {/* ===== 指标卡片 (2列) ===== */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
+      {/* ===== 概况卡片 ===== */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 14 }}>
         <MobileMetricCard label="池中数量" value={countTotal}
-          change={{ text: selectedDate ? selectedDate : latestDate, type: "up" }} />
+          change={{ text: selectedDate || "--", type: "up" }} />
         <MobileMetricCard label="平均评分" value={avgScore}
-          change={{ text: "评分制 0-100", type: "up" }} />
+          change={{ text: "0-100", type: "up" }} />
       </div>
 
-      {/* ===== 日期选择器 ===== */}
+      {/* ===== 日期选择：pill 样式 ===== */}
       {availableDates.length > 0 && (
-        <div style={{ display: "flex", gap: 6, marginBottom: 10, overflowX: "auto", scrollbarWidth: "none" }}>
-          {availableDates.map((d) => (
-            <span key={d} onClick={() => handleDateChange(d)}
-              style={{ display: "inline-flex", alignItems: "center", fontSize: 12, fontWeight: 500,
-                lineHeight: 1.3, padding: "4px 12px", borderRadius: 20, cursor: "pointer",
-                userSelect: "none", whiteSpace: "nowrap", flexShrink: 0,
-                background: selectedDate === d ? colors.gradient.primary : colors.bg.subtle,
-                color: selectedDate === d ? colors.text.inverse : colors.text.secondary,
-                border: selectedDate === d ? "none" : `1px solid ${colors.border.light}`,
-                transition: "all 0.15s ease" }}>
-              {d}
-            </span>
-          ))}
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ fontSize: 10, color: colors.text.tertiary, marginBottom: 6 }}>
+            选择交易日
+          </div>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            {availableDates.map((d) => (
+              <span key={d} onClick={() => setSelectedDate(d)}
+                style={{ display: "inline-flex", alignItems: "center", fontSize: 12, fontWeight: 500,
+                  lineHeight: 1.3, padding: "5px 12px", borderRadius: 20, cursor: "pointer",
+                  userSelect: "none", whiteSpace: "nowrap",
+                  background: selectedDate === d ? colors.gradient.primary : colors.bg.subtle,
+                  color: selectedDate === d ? colors.text.inverse : colors.text.secondary,
+                  border: selectedDate === d ? "none" : `1px solid ${colors.border.light}`,
+                  transition: "all 0.15s ease" }}>
+                {d.replace(/-/g, "/")}
+              </span>
+            ))}
+          </div>
         </div>
       )}
 
@@ -205,36 +179,35 @@ function MobileStockPool() {
 
       {/* ===== 候选股票表格 ===== */}
       <MobileSectionCard title={`候选股票 (${filteredItems.length})`}>
-        <div style={{ overflowX: "auto", scrollbarWidth: "thin" }}>
+        <div style={{ overflowX: "auto" }}>
           {/* 表头 */}
           <div style={{ display: "flex", padding: "8px 14px", borderBottom: `1px solid ${colors.border.light}`,
             fontSize: 11, color: colors.text.tertiary, fontWeight: 500, gap: 6 }}>
-            <span style={{ width: 75, flexShrink: 0 }}>代码</span>
-            <span style={{ width: 90, flexShrink: 0 }}>名称</span>
-            <span style={{ width: 60, flexShrink: 0 }}>策略</span>
-            <span style={{ width: 50, flexShrink: 0, textAlign: "right" }}>评分</span>
+            <span style={{ width: 70, flexShrink: 0 }}>代码</span>
+            <span style={{ flex: 1, minWidth: 60 }}>名称</span>
+            <span style={{ width: 58, flexShrink: 0, textAlign: "center" }}>策略</span>
+            <span style={{ width: 40, flexShrink: 0, textAlign: "right" }}>评分</span>
           </div>
 
           {/* 表体 */}
           {filteredItems.map((item, idx) => {
             const score = parseScore(item.score_total);
             const strategyName = STRATEGY_NAMES[item.strategy_type] || item.strategy_type || "未知";
+            const shortCode = (item.stock_code || "").replace(".SH","").replace(".SZ","");
             return (
               <div key={idx}
                 style={{ display: "flex", alignItems: "center", padding: "10px 14px", gap: 6,
                   fontSize: 12, color: colors.text.primary,
-                  borderBottom: idx < filteredItems.length - 1 ? `1px solid ${colors.border.light}` : "none",
-                  whiteSpace: "nowrap" }}>
-                <span style={{ width: 75, flexShrink: 0, fontWeight: 500, fontSize: 13 }}>
-                  {item.stock_code || "--"}
+                  borderBottom: idx < filteredItems.length - 1 ? `1px solid ${colors.border.light}` : "none" }}>
+                <span style={{ width: 70, flexShrink: 0, fontWeight: 600, fontSize: 12, fontFamily: "monospace", letterSpacing: "0.02em" }}>
+                  {shortCode}
                 </span>
                 <span onClick={() => handleView(item.stock_code || "")}
-                  style={{ width: 90, flexShrink: 0, color: colors.text.primary, fontWeight: 500,
-                    cursor: "pointer", textDecoration: "underline", textDecorationColor: colors.text.tertiary,
-                    textUnderlineOffset: 2 }}>
-                  {item.stock_name || item.stock_code?.replace(".SH","").replace(".SZ","") || ""}
+                  style={{ flex: 1, minWidth: 60, color: colors.text.primary, fontWeight: 500,
+                    cursor: "pointer", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {item.stock_name || shortCode}
                 </span>
-                <span style={{ width: 60, flexShrink: 0 }}>
+                <span style={{ width: 58, flexShrink: 0, textAlign: "center" }}>
                   <span style={{ display: "inline-flex", alignItems: "center", fontSize: 10, fontWeight: 500,
                     lineHeight: 1.3, padding: "1px 6px", borderRadius: 20,
                     backgroundColor: strategyName === "底部反转" ? colors.semantic.amberBg : colors.purple[50],
@@ -242,14 +215,14 @@ function MobileStockPool() {
                     {strategyName}
                   </span>
                 </span>
-                <span style={{ width: 50, flexShrink: 0, textAlign: "right", fontWeight: 600, color: colors.purple[500] }}>
+                <span style={{ width: 40, flexShrink: 0, textAlign: "right", fontWeight: 700, color: colors.purple[500], fontSize: 13 }}>
                   {score.toFixed(1)}
                 </span>
               </div>
             );
           })}
           {filteredItems.length === 0 && (
-            <div style={{ padding: "20px 14px", textAlign: "center", fontSize: 12, color: colors.text.tertiary }}>
+            <div style={{ padding: "24px 14px", textAlign: "center", fontSize: 12, color: colors.text.tertiary }}>
               {selectedDate ? `${selectedDate} 无候选股票` : "暂无数据"}
             </div>
           )}

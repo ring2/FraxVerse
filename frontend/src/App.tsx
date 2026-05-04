@@ -3,6 +3,7 @@ import { Routes, Route, Navigate } from "react-router-dom";
 import { ConfigProvider, App as AntApp } from "antd";
 import { ThemeProvider, useTheme } from "./theme/ThemeContext";
 import { fraxLightTheme, fraxDarkTheme } from "./theme/fraxTheme";
+import { WebSocketProvider } from "./hooks/useWebSocketEvents";
 import PcLayout from "./components/layout/PcLayout";
 import MobileLayout from "./components/layout/MobileLayout";
 import ProtectedRoute from "./components/common/ProtectedRoute";
@@ -343,7 +344,9 @@ function AppContent() {
 function App() {
   return (
     <ThemeProvider>
-      <AppContent />
+      <WebSocketProvider>
+        <AppContent />
+      </WebSocketProvider>
     </ThemeProvider>
   );
 }

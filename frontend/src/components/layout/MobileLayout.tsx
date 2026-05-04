@@ -1,4 +1,5 @@
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
+import { Badge } from "antd";
 import {
   CompassOutlined,
   AppstoreOutlined,
@@ -7,6 +8,7 @@ import {
   SettingOutlined,
 } from "@ant-design/icons";
 import { useTheme } from "../../theme/ThemeContext";
+import { useNotificationStore } from "../../stores/useNotificationStore";
 
 const TAB_ITEMS = [
   { key: "/m/dashboard", title: "看盘", icon: <CompassOutlined /> },
@@ -21,6 +23,7 @@ const MobileLayout: React.FC = () => {
   const location = useLocation();
   const { colors, mode } = useTheme();
   const isLight = mode === "light";
+  const unreadCount = useNotificationStore((s) => s.unreadCount);
 
   return (
     <div
@@ -119,7 +122,13 @@ const MobileLayout: React.FC = () => {
                   transition: "transform 0.2s ease",
                 }}
               >
-                {item.icon}
+                {item.key === "/m/more" && unreadCount > 0 ? (
+                  <Badge count={unreadCount} size="small" offset={[4, -4] as [number, number]}>
+                    <span style={{ fontSize: 20 }}>{item.icon}</span>
+                  </Badge>
+                ) : (
+                  item.icon
+                )}
               </span>
               <span
                 style={{

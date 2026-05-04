@@ -26,6 +26,7 @@ from src.api.routes.misc import (
 )
 from src.api.routes.settings import router as settings_router
 from src.api.routes.strategy_scan import router as strategy_scan_router
+from src.api.routes.ws import router as ws_router
 from src.config import settings
 from src.db.models import AccountSyncLog, Positions
 from src.db.session import check_db_health, get_session
@@ -45,7 +46,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 注册路由
+app.include_router(ws_router)
 app.include_router(auth_router)
 app.include_router(trade_router)
 app.include_router(market_router)

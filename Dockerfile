@@ -21,7 +21,7 @@ RUN sed -i 's/deb.debian.org/mirrors.tencentyun.com/g' /etc/apt/sources.list.d/d
 # 不锁死版本号，让 pip 自动解析依赖树，避免冲突
 RUN pip install --no-cache-dir \
     fastapi \
-    uvicorn \
+    "uvicorn[standard]" \
     sqlalchemy \
     asyncpg \
     psycopg2-binary \

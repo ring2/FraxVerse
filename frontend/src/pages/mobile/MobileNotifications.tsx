@@ -1,9 +1,7 @@
-import { useEffect, useState } from "react";
 import { App } from "antd";
 import { useTheme } from "../../theme/ThemeContext";
 import { MobileSectionCard } from "../../components/mobile";
-import { notificationService } from "../../services/notificationService";
-import type { NotificationItem } from "../../types/api-extended";
+import { useNotificationStore, type NotificationItem } from "../../stores/useNotificationStore";
 
 /* ---- Helpers ---- */
 function getPriorityColor(priority: string): string {
@@ -36,73 +34,49 @@ function formatTime(iso: string): string {
   return iso.slice(0, 10);
 }
 
-let colors: any; // placeholder, will be set inside component
+let colors: any;
 
 function MobileNotifications() {
   const { message } = App.useApp();
   const th = useTheme();
   colors = th.colors;
 
-  const [loading, setLoading] = useState(true);
-  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const notifications = useNotificationStore((s) => s.notifications);
+  const markRead = useNotificationStore((s) => s.markRead);
+  const markAllRead = useNotificationStore((s) => s.markAllRead);
+  const unreadCount = useNotificationStore((s) => s.unreadCount);
 
-  useEffect(() => {
-    let cancelled = false;
-
-    notificationService
-      .getNotifications()
-      .then((data) => {
-        if (!cancelled) setNotifications(data);
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setNotifications([]);
-          message.info("已加载模拟数据（API 暂不可用）");
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [message]);
-
-  const handleMarkRead = async (id: number) => {
-    try {
-      await notificationService.markRead(String(id));
-    } catch {
-      // fallback: just update local state
-    }
-    setNotifications((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, is_read: true } : n)),
-    );
+  const handleMarkRead = (id: string) => {
+    markRead(id);
+    message.success("已标记已读");
   };
 
-  if (loading) {
-    return (
-      <div className="page-enter"
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          minHeight: "60vh",
-        }}
-      >
-        <span style={{ fontSize: 14, color: colors.text.tertiary }}>加载中...</span>
-      </div>
-    );
-  }
-
   return (
-    <div className="page-enter"
+    <div
+      className="page-enter"
       style={{
         display: "flex",
         flexDirection: "column",
         gap: 12,
       }}
     >
+      {/* 全部已读按钮 */}
+      {unreadCount > 0 && (
+        <div
+          onClick={markAllRead}
+          style={{
+            textAlign: "right",
+            padding: "4px 14px",
+            fontSize: 12,
+            color: colors.purple[500],
+            cursor: "pointer",
+            userSelect: "none",
+          }}
+        >
+          全部标记已读 ({unreadCount})
+        </div>
+      )}
+
       <MobileSectionCard title={`通知 (${notifications.length})`}>
         {notifications.length === 0 ? (
           <div
@@ -116,7 +90,7 @@ function MobileNotifications() {
             暂无通知
           </div>
         ) : (
-          notifications.map((n) => (
+          notifications.map((n: NotificationItem) => (
             <div
               key={n.id}
               style={{
@@ -164,13 +138,13 @@ function MobileNotifications() {
                   <span
                     style={{
                       fontSize: 10,
-                      color: getPriorityColor(n.priority),
+                      color: getPriorityColor(n.level),
                       background: colors.bg.subtle,
                       padding: "1px 5px",
                       borderRadius: colors.radius.sm + "px",
                     }}
                   >
-                    {getPriorityLabel(n.priority)}
+                    {getPriorityLabel(n.level)}
                   </span>
                 </div>
                 <span
@@ -192,7 +166,7 @@ function MobileNotifications() {
                   marginBottom: 8,
                 }}
               >
-                {n.content}
+                {n.body}
               </div>
 
               {/* 标记已读按钮 */}
