@@ -43,7 +43,7 @@ NEWS_INTERVAL = 1800           # 新闻采集：30分钟
 STOP_LOSS_INTERVAL = 30        # 止损监视：30秒
 DATA_QUALITY_INTERVAL = 86400  # 数据质量：24小时
 PRE_MARKET_INTERVAL = 86400    # 开盘前复核：每天一次
-MARKET_SCAN_INTERVAL = 3600    # 收盘扫描：每小时检查一次窗口
+MARKET_SCAN_INTERVAL = 3600    # 收盘扫描：每小时检查一次窗口（已改用cron精确触发，保留常量兼容）
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -424,15 +424,19 @@ class Scheduler:
                     self._last_data_quality_time = now
                     run_data_quality_check()
 
-                if now - self._last_pre_market_time >= PRE_MARKET_INTERVAL:
-                    current_hour = datetime.now(UTC).astimezone().hour
-                    if 8 <= current_hour <= 10:
+                # 开盘前复核：交易日 9:00 精确触发
+                if now - self._last_pre_market_time >= 60:
+                    from src.daily_pipeline import is_trade_day
+                    bj_now = datetime.now(UTC).astimezone()
+                    if is_trade_day() and bj_now.hour == 9 and bj_now.minute == 0:
                         self._last_pre_market_time = now
                         run_pre_market_review()
 
-                if now - self._last_market_scan_time >= MARKET_SCAN_INTERVAL:
-                    from src.daily_pipeline import is_in_scan_window, is_trade_day
-                    if is_trade_day() and is_in_scan_window():
+                # 收盘扫描：交易日 16:30 精确触发
+                if now - self._last_market_scan_time >= 60:
+                    from src.daily_pipeline import is_trade_day
+                    bj_now = datetime.now(UTC).astimezone()
+                    if is_trade_day() and bj_now.hour == 16 and bj_now.minute == 30:
                         self._last_market_scan_time = now
                         run_close_market_scan()
 
