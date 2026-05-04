@@ -12,16 +12,11 @@ FraxVerse · LLM 客户端与四位 Agent 提示词
 """
 from __future__ import annotations
 
-import asyncio
 import json
 import logging
-import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
-import httpx
-
-from src.config import settings
 from src.agent.models import AgentName, AgentOutput, PredictedOutcome
 
 logger = logging.getLogger(__name__)
@@ -47,7 +42,9 @@ AGENT_PROMPTS: dict[str, dict[str, str]] = {
             "- score: 0-100 整数评分\n"
             "- buy_reasons: 至少1条买入理由\n"
             "- against_reasons: 至少1条反对理由（证伪视角）\n"
-            "- confidence: 0-1 信心度\n\n"
+            "- confidence: 0-1 信心度\n"
+            "- suggested_entry_low / suggested_entry_high: 建议买入价格区间（可选）\n"
+            "- strategy_advice: 策略建议（可选，如突破确认后买入或分批建仓）\n\n"
             "## 重要约束\n"
             "- ⚠️ 你只能做定性判断，不要计算任何数学指标\n"
             "- ⚠️ 不要分析K线、均线、成交量\n"
@@ -88,7 +85,9 @@ AGENT_PROMPTS: dict[str, dict[str, str]] = {
             "- score: 0-100 整数评分\n"
             "- buy_reasons: 至少1条买入理由\n"
             "- against_reasons: 至少1条反对理由（证伪视角）\n"
-            "- confidence: 0-1 信心度\n\n"
+            "- confidence: 0-1 信心度\n"
+            "- suggested_entry_low / suggested_entry_high: 建议买入价格区间（可选）\n"
+            "- strategy_advice: 策略建议（可选，如突破确认后买入或分批建仓）\n\n"
             "## 重要约束\n"
             "- ⚠️ 你只能做定性判断，不要计算任何数学指标\n"
             "- ⚠️ 不要分析K线、均线\n"
@@ -131,7 +130,9 @@ AGENT_PROMPTS: dict[str, dict[str, str]] = {
             "- score: 0-100 整数评分\n"
             "- buy_reasons: 至少1条买入理由\n"
             "- against_reasons: 至少1条反对理由（证伪视角）\n"
-            "- confidence: 0-1 信心度\n\n"
+            "- confidence: 0-1 信心度\n"
+            "- suggested_entry_low / suggested_entry_high: 建议买入价格区间（可选）\n"
+            "- strategy_advice: 策略建议（可选，如突破确认后买入或分批建仓）\n\n"
             "## 重要约束\n"
             "- ⚠️ 你只能做定性判断，不要计算任何数学指标\n"
             "- ⚠️ 不要分析K线、均线、涨跌幅百分比\n"
@@ -171,7 +172,9 @@ AGENT_PROMPTS: dict[str, dict[str, str]] = {
             "- score: 0-100 整数评分（越低越反对）\n"
             "- buy_reasons: 至少1条买入理由\n"
             "- against_reasons: 至少1条反对理由（证伪视角）\n"
-            "- confidence: 0-1 信心度\n\n"
+            "- confidence: 0-1 信心度\n"
+            "- suggested_entry_low / suggested_entry_high: 建议买入价格区间（可选）\n"
+            "- strategy_advice: 策略建议（可选）\n\n"
             "## 重要约束\n"
             "- ⚠️ 你只能做定性判断，不要计算任何数学指标\n"
             "- ⚠️ 不要分析K线、均线\n"
@@ -390,13 +393,18 @@ STRUCTURED_OUTPUT_SYSTEM = (
     '  "buy_reasons": ["理由1", "理由2", ...],\n'
     '  "against_reasons": ["反对理由1", "反对理由2", ...],\n'
     '  "confidence": <0.0-1.0小数>,\n'
-    '  "predicted_outcome": "buy" 或 "hold" 或 "avoid"\n'
+    '  "predicted_outcome": "buy" 或 "hold" 或 "avoid",\n'
+    '  "suggested_entry_low": <建议买入价格下限，浮点数，可选>,\n'
+    '  "suggested_entry_high": <建议买入价格上限，浮点数，可选>,\n'
+    '  "strategy_advice": "策略建议文本（如分批建仓/突破确认后买入），可选"\n'
     '}\n\n'
     "约束：\n"
     "- score 必须在 0-100 之间\n"
     "- buy_reasons 至少1条\n"
     "- against_reasons 至少1条\n"
-    "- confidence 表示你对自己判断的信心程度"
+    "- confidence 表示你对自己判断的信心程度\n"
+    "- 如果你有明确的买入价格区间建议，填写 suggested_entry_low 和 suggested_entry_high\n"
+    "- strategy_advice 是你的策略建议，如\"分批建仓3笔\"\"突破20日均线确认后买入\"等"
 )
 
 
@@ -512,7 +520,7 @@ def call_llm_api(
             base_url_override=actual_base_url,
             max_retries=max_retries,
         )
-    except RuntimeError as e:
+    except RuntimeError:
         raise
     except Exception as e:
         raise RuntimeError(f"LLM API call failed: {e}") from e
@@ -607,6 +615,9 @@ def call_single_agent(
             against_reasons=data["against_reasons"],
             confidence=float(data.get("confidence", 0.5)),
             predicted_outcome=PredictedOutcome(data.get("predicted_outcome", "hold")),
+            suggested_entry_low=data.get("suggested_entry_low"),
+            suggested_entry_high=data.get("suggested_entry_high"),
+            strategy_advice=data.get("strategy_advice"),
         )
     except (json.JSONDecodeError, KeyError, ValueError) as e:
         logger.error("Agent %s JSON parse error: %s | raw: %s", agent_name, e, llm_resp.content[:200])

@@ -6,10 +6,9 @@ FraxVerse · AI-Agent 模块 — Pydantic 结构化输出模型
 
 from __future__ import annotations
 
-from typing import Optional
+from enum import Enum
 
 from pydantic import BaseModel, Field, field_validator
-from enum import Enum
 
 
 class AgentName(str, Enum):
@@ -40,7 +39,17 @@ class AgentOutput(BaseModel):
     against_reasons: list[str] = Field(description="反对理由，至少1条")  # [PRD-T-102]
     confidence: float = Field(ge=0.0, le=1.0, default=0.5, description="信心度")
     predicted_outcome: PredictedOutcome = Field(default=PredictedOutcome.HOLD)
-    supplement: Optional[str] = None
+    supplement: str | None = None
+    # 价格区间与策略建议（收盘扫描场景）
+    suggested_entry_low: float | None = Field(
+        default=None, description="建议买入价格下限"
+    )
+    suggested_entry_high: float | None = Field(
+        default=None, description="建议买入价格上限"
+    )
+    strategy_advice: str | None = Field(
+        default=None, description="策略建议（如分批建仓、突破确认后买入等）"
+    )
 
     @field_validator("score")
     @classmethod
@@ -77,9 +86,9 @@ class WeightedVoteResult(BaseModel):
     against_score_sum: float
     net_score: float
     decision: DecisionType
-    decision_reason: Optional[str] = None  # 决策原因
+    decision_reason: str | None = None  # 决策原因
     risk_veto: bool = False  # [PRD-T-101]
-    risk_veto_reason: Optional[str] = None
+    risk_veto_reason: str | None = None
     agent_votes: dict[str, dict]  # {agent_name: {score, weight, effective_score}}
     convergence_method: str = "normal"  # normal/trimmed_mean/degraded
 
@@ -94,7 +103,7 @@ class LLMCallRecord(BaseModel):
     total_cost: float
     latency_ms: int
     is_success: bool
-    error_message: Optional[str] = None
+    error_message: str | None = None
 
 
 class DegradeLevel(str, Enum):

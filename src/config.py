@@ -57,6 +57,14 @@ class Settings(BaseSettings):
     QMT_ACCOUNT_ID: str = os.getenv("QMT_ACCOUNT_ID", "")
     QMT_ACCOUNT_TYPE: str = os.getenv("QMT_ACCOUNT_TYPE", "STOCK")
 
+    # 邮件推送 (SMTP)
+    SMTP_HOST: str = os.getenv("SMTP_HOST", "smtp.qq.com")
+    SMTP_PORT: int = int(os.getenv("SMTP_PORT", "465"))
+    SMTP_USER: str = os.getenv("SMTP_USER", "")        # QQ邮箱地址
+    SMTP_PASSWORD: str = os.getenv("SMTP_PASSWORD", "") # QQ邮箱授权码（非密码）
+    SMTP_TO: str = os.getenv("SMTP_TO", "")             # 收件人邮箱地址
+    SMTP_USE_SSL: bool = os.getenv("SMTP_USE_SSL", "true").lower() == "true"
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"

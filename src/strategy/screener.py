@@ -209,18 +209,18 @@ def screen_strategy2(config: dict | None = None) -> list[StrategyCandidate]:  # 
 
         # 获取所有正常股票
         cursor.execute("""
-            SELECT code, name, listing_date, market_cap
+            SELECT code, name, list_date
             FROM stocks
-            WHERE status IS NULL OR status != 'D'
+            WHERE is_suspended = false
         """)
         all_stocks = cursor.fetchall()
 
         today = date.today()
 
-        for code, name, listing_date, market_cap in all_stocks:  # noqa: B007
+        for code, name, list_date in all_stocks:  # noqa: B007
             if is_st_stock(name):  # strategy2 ST排除
                 continue
-            if is_new_stock(listing_date, today, config):
+            if is_new_stock(list_date, today, config):
                 continue
 
             cursor.execute("""
@@ -309,23 +309,18 @@ def screen_strategy1(config: dict | None = None) -> list[StrategyCandidate]:
         cursor = conn.cursor()
 
         cursor.execute("""
-            SELECT code, name, listing_date, market_cap
+            SELECT code, name, list_date
             FROM stocks
-            WHERE status IS NULL OR status != 'D'
+            WHERE is_suspended = false
         """)
         all_stocks = cursor.fetchall()
 
         today = date.today()
 
-        for code, name, listing_date, market_cap in all_stocks:  # noqa: B007
+        for code, name, list_date in all_stocks:  # noqa: B007
             if is_st_stock(name):  # strategy1 ST排除
                 continue
-            if is_new_stock(listing_date, today, config):
-                continue
-            if market_cap is not None and (
-                market_cap < config["min_market_cap"] or
-                market_cap > config["max_market_cap"]
-            ):
+            if is_new_stock(list_date, today, config):
                 continue
 
             cursor.execute("""

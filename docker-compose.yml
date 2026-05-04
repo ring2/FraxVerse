@@ -93,6 +93,13 @@ services:
       REDIS_URL: "redis://redis:6379/0"
       JWT_SECRET_KEY: "${JWT_SECRET_KEY:-dev-secret-key-change-in-production}"
       TZ: Asia/Shanghai
+      FRAXVERSE_DB_HOST: postgres
+      FRAXVERSE_DB_PORT: "5432"
+      FRAXVERSE_DB_NAME: fraxverse
+      FRAXVERSE_DB_USER: fraxverse
+      FRAXVERSE_DB_PASSWORD: fraxverse_dev
+      FRAXVERSE_REDIS_HOST: redis
+      FRAXVERSE_REDIS_PORT: "6379"
     command: ["python", "-m", "src.cron_scheduler", "--mode", "all"]
     depends_on:
       postgres:

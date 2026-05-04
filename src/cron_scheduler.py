@@ -7,12 +7,14 @@ FraxVerse · 统一调度入口
 3. 数据质量检查（data_quality）— 每日收盘后
 4. 经验归档（stop_loss → 自动写入经验库）
 5. 开盘前复核（开盘前30分钟）
+6. 收盘扫描 — 每个交易日 16:00-17:30
 
 用法：
     python -m src.cron_scheduler --mode all       # 启动全部
     python -m src.cron_scheduler --mode news       # 仅新闻采集
     python -m src.cron_scheduler --mode stop-loss  # 仅止损监视器
     python -m src.cron_scheduler --once news       # 单次执行新闻采集
+| 收盘扫描 — 每个交易日 16:00-17:30
 """
 
 import argparse
@@ -20,16 +22,14 @@ import hashlib
 import json
 import logging
 import signal
-import sys
 import time
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
-from typing import Any
 
 from sqlalchemy import text
 
-from src.data.news_collector import collect_hot_news
 from src.data.data_quality import detect_suspension
+from src.data.news_collector import collect_hot_news
 from src.db.session import get_session
 from src.monitor.stop_loss import StopLossMonitor
 
@@ -43,6 +43,7 @@ NEWS_INTERVAL = 1800           # 新闻采集：30分钟
 STOP_LOSS_INTERVAL = 30        # 止损监视：30秒
 DATA_QUALITY_INTERVAL = 86400  # 数据质量：24小时
 PRE_MARKET_INTERVAL = 86400    # 开盘前复核：每天一次
+MARKET_SCAN_INTERVAL = 3600    # 收盘扫描：每小时检查一次窗口
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -360,6 +361,24 @@ def run_pre_market_review():
 
 
 # ═══════════════════════════════════════════════════════════════════
+# 定时任务：收盘扫描
+# ═══════════════════════════════════════════════════════════════════
+
+def run_close_market_scan():
+    """收盘扫描：每个交易日 16:00-17:30 执行"""
+    from src.daily_pipeline import run_close_market_scan as pipeline
+    logger.info("[schedule] 收盘扫描...")
+    try:
+        result = pipeline()
+        if result.get("status") == "ok":
+            top5 = result.get("top5_codes", [])
+            count = result.get("candidates_count", 0)
+            logger.info(f"[schedule] 收盘扫描完成 | 候选: {count} 只 | Top5: {', '.join(top5)}")
+    except Exception as e:
+        logger.error(f"收盘扫描失败: {e}", exc_info=True)
+
+
+# ═══════════════════════════════════════════════════════════════════
 # 主调度器
 # ═══════════════════════════════════════════════════════════════════
 
@@ -371,6 +390,7 @@ class Scheduler:
         self._last_news_time = 0.0
         self._last_data_quality_time = 0.0
         self._last_pre_market_time = 0.0
+        self._last_market_scan_time = 0.0
 
     def start(self):
         self._running = True
@@ -380,6 +400,7 @@ class Scheduler:
         logger.info(f"  止损监视: 每 {STOP_LOSS_INTERVAL}s")
         logger.info(f"  数据质量: 每 {DATA_QUALITY_INTERVAL}s")
         logger.info(f"  开盘复核: 每 {PRE_MARKET_INTERVAL}s")
+        logger.info(f"  收盘扫描: 每 {MARKET_SCAN_INTERVAL}s（交易日 16:00-17:30 窗口执行）")
         logger.info("=" * 50)
 
         import threading
@@ -409,6 +430,12 @@ class Scheduler:
                         self._last_pre_market_time = now
                         run_pre_market_review()
 
+                if now - self._last_market_scan_time >= MARKET_SCAN_INTERVAL:
+                    from src.daily_pipeline import is_in_scan_window, is_trade_day
+                    if is_trade_day() and is_in_scan_window():
+                        self._last_market_scan_time = now
+                        run_close_market_scan()
+
                 time.sleep(10)
             except KeyboardInterrupt:
                 logger.info("收到中断信号")
@@ -429,7 +456,7 @@ class Scheduler:
 def main():
     parser = argparse.ArgumentParser(description="FraxVerse 统一调度器")
     parser.add_argument("--mode", type=str, default="all", choices=["all", "news", "stop-loss", "data-quality"])
-    parser.add_argument("--once", type=str, default=None, choices=["news", "data-quality", "pre-market"])
+    parser.add_argument("--once", type=str, default=None, choices=["news", "data-quality", "pre-market", "market-scan"])
     args = parser.parse_args()
 
     logging.basicConfig(
@@ -445,6 +472,9 @@ def main():
         return
     elif args.once == "pre-market":
         run_pre_market_review()
+        return
+    elif args.once == "market-scan":
+        run_close_market_scan()
         return
 
     if args.mode == "news":
