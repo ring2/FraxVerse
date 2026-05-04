@@ -1,8 +1,9 @@
 """
 FraxVerse · 止损监视器（独立进程）
 
-定时扫描持仓 → 检查止损条件 → 自动卖出 → 记录风险事件 → 微信通知
+定时扫描持仓 → 检查止损条件 → 自动卖出 → 记录风险事件 → 事件通知
 """
+
 import logging
 import signal
 import time
@@ -20,6 +21,7 @@ from src.db.models import (
     TradeMode,
 )
 from src.db.session import get_session
+from src.eventbus.bus import EventType, get_bus
 from src.execution.engine import TradeEngine
 
 logger = logging.getLogger(__name__)
@@ -197,6 +199,26 @@ class StopLossMonitor:
         db.add(risk_event)
         db.commit()
 
+        # ── 事件驱动通知 ──
+        try:
+            bus = get_bus()
+            bus.publish_type(
+                EventType.STOP_LOSS_TRIGGERED,
+                source="stop_loss_monitor",
+                data={
+                    "position_id": pos.id,
+                    "stock_code": pos.stock_code,
+                    "trigger_price": float(current_price),
+                    "cost_price": float(pos.cost_price),
+                    "loss_pct": float(pnl_pct),
+                    "reason": reason,
+                    "quantity": available,
+                    "order_id": order.id,
+                },
+            )
+        except Exception as exc:
+            logger.warning("Failed to publish stop loss event: %s", exc)
+
         logger.info(f"止损执行完成: 订单 {order.id}")
 
     def check_single(self, position_id: int) -> dict:
@@ -249,7 +271,8 @@ def run_monitor(scan_interval: int = DEFAULT_SCAN_INTERVAL):
     monitor = StopLossMonitor(scan_interval=scan_interval)
     monitor.start()
 
-# 集成微信推送
+
+# 兼容旧版直接调用（事件驱动已替代，保留不走事件时的 fallback）
 try:
     from src.notification.wechat import get_notifier
 
