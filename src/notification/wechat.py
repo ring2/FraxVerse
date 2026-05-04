@@ -1,11 +1,13 @@
 """
-FraxVerse · 微信推送服务
+FraxVerse · 微信通知服务
 
+消息写入 Redis 消息队列，由 Hermes Agent 轮询发送到微信。
 功能：
-1. 通过 Hermes Agent 的 weixin 通道发送消息
-2. 支持交易信号、止损告警、风险预警等消息类型
-3. 记录推送日志到 notifications 表
-4. 支持去重和重试
+1. 通知记录持久化到 notifications 表
+2. 消息写入 Redis List（queue:wechat_messages）
+3. Hermes 侧 weixin_redis_poller.py 读取并调用 send_message 发送
+4. 支持去重（dedup_key）
+5. 支持邮件兜底（当 Hermes 队列不可用时作为备选通道）
 """
 import logging
 from datetime import UTC, datetime
@@ -117,19 +119,37 @@ class WeChatNotifier:
 
     def _do_send(self, db: Session, notification: Notifications):
         """
-        执行实际发送
+        执行发送
 
-        SIMULATION模式下只更新状态为sent，不实际发送。
-        生产环境通过 Hermes 的 weixin 通道发送。
+        优先写入 Redis 消息队列（Hermes 轮询发送到微信），
+        写入失败时降级为邮件兜底。
         """
         try:
-            # SIMULATION模式：标记为已发送
-            notification.push_status = "sent"
-            notification.wechat_msg_id = f"sim_{notification.id}"
-            db.commit()
+            # 1. 尝试 Redis 队列（主要通道）
+            message_text = (
+                f"{notification.title}\n\n"
+                f"{notification.content}"
+            )
+            sent_via_redis = self._push_to_redis_queue(notification, message_text)
 
+            if sent_via_redis:
+                notification.push_status = "sent"
+                notification.push_channel = "wechat_queue"
+                db.commit()
+                logger.info(
+                    f"通知已入队: [{notification.event_type}] {notification.title}"
+                )
+                return
+
+            # 2. Redis 不可用 → 降级为邮件
+            logger.warning("Redis 队列不可用，降级为邮件发送")
+            self._send_email(notification)
+
+            notification.push_status = "sent"
+            notification.push_channel = "email"
+            db.commit()
             logger.info(
-                f"通知已发送: [{notification.event_type}] {notification.title}"
+                f"通知已发送（邮件兜底）: [{notification.event_type}] {notification.title}"
             )
 
         except Exception as e:
@@ -137,6 +157,40 @@ class WeChatNotifier:
             notification.retry_count += 1
             db.commit()
             logger.error(f"通知发送失败: {e}")
+
+    def _push_to_redis_queue(
+        self, notification: Notifications, text: str
+    ) -> bool:
+        """将通知写入 Redis 消息队列"""
+        try:
+            from src.notification.wechat_queue import push_wechat_text
+
+            return push_wechat_text(
+                text,
+                source=notification.event_type,
+                dedup_key=notification.dedup_key,
+            )
+        except Exception as exc:
+            logger.warning("Redis 队列写入失败: %s", exc)
+            return False
+
+    def _send_email(self, notification: Notifications) -> bool:
+        """通过邮件发送通知"""
+        try:
+            from src.notification.email_notifier import get_email_notifier
+
+            notifier = get_email_notifier()
+            priority = "urgent" if notification.priority == "urgent" else \
+                       "high" if notification.priority == "high" else \
+                       "normal"
+            return notifier.send(
+                title=notification.title,
+                content=notification.content,
+                priority=priority,
+            )
+        except Exception as exc:
+            logger.warning("邮件推送失败: %s", exc)
+            return False
 
     def send_trade_signal(
         self,
