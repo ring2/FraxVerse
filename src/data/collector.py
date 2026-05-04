@@ -65,8 +65,11 @@ def fetch_daily_kline(
     end_s = end.replace("-", "") if end else None
 
     try:
+        # AKShare 的 stock_zh_a_hist 接收纯数字代码即可（会自动识别市场）
+        # 传入 "000001.SZ" 等带后缀格式可能返回空数据
+        symbol_clean = stock_code.split(".")[0]
         df = ak.stock_zh_a_hist(
-            symbol=stock_code,
+            symbol=symbol_clean,
             period="daily",
             start_date=start_s,
             end_date=end_s,
@@ -148,8 +151,8 @@ def save_kline_to_db(df: pd.DataFrame, stock_code: str) -> int:
                 """
                 INSERT INTO daily_klines
                     (stock_code, trade_date, open, high, low, close, volume, amount,
-                     amplitude, pct_change, change_value, turnover, adjust_flag)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                     turnover_rate, adjust_flag)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT (stock_code, trade_date) DO UPDATE SET
                     open = EXCLUDED.open,
                     high = EXCLUDED.high,
@@ -157,10 +160,7 @@ def save_kline_to_db(df: pd.DataFrame, stock_code: str) -> int:
                     close = EXCLUDED.close,
                     volume = EXCLUDED.volume,
                     amount = EXCLUDED.amount,
-                    amplitude = EXCLUDED.amplitude,
-                    pct_change = EXCLUDED.pct_change,
-                    change_value = EXCLUDED.change_value,
-                    turnover = EXCLUDED.turnover,
+                    turnover_rate = EXCLUDED.turnover_rate,
                     adjust_flag = EXCLUDED.adjust_flag
                 """,
                 (
@@ -172,9 +172,6 @@ def save_kline_to_db(df: pd.DataFrame, stock_code: str) -> int:
                     float(row.get("close")) if pd.notna(row.get("close")) else None,
                     float(row.get("volume")) if pd.notna(row.get("volume")) else None,
                     float(row.get("amount")) if pd.notna(row.get("amount")) else None,
-                    float(row.get("amplitude")) if pd.notna(row.get("amplitude")) else None,
-                    float(row.get("pct_change")) if pd.notna(row.get("pct_change")) else None,
-                    float(row.get("change")) if pd.notna(row.get("change")) else None,
                     float(row.get("turnover")) if pd.notna(row.get("turnover")) else None,
                     "qfq",
                 ),

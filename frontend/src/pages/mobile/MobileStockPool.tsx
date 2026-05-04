@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { App } from "antd";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { App, DatePicker } from "antd";
+import dayjs from "dayjs";
 import { useTheme } from "../../theme/ThemeContext";
 import {
   MobileMetricCard,
@@ -16,6 +17,7 @@ const STRATEGY_NAMES: Record<string, string> = {
   bottom_reversal: "底部反转",
   trend_momentum: "趋势跟踪",
   bottom_volume: "底部反转",
+  scan: "中证500",
 };
 
 function MobileStockPool() {
@@ -23,11 +25,14 @@ function MobileStockPool() {
   const { colors } = useTheme();
 
   const [loading, setLoading] = useState(true);
-  const [allItems, setAllItems] = useState<StockPoolItem[]>([]);
+  const [currentItems, setCurrentItems] = useState<StockPoolItem[]>([]);
+  const [availableDates, setAvailableDates] = useState<string[]>([]);
   const [activeFilter, setActiveFilter] = useState("全部");
   const [selectedDate, setSelectedDate] = useState<string>("");
   const [detailCode, setDetailCode] = useState<string | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
+  const [scanning, setScanning] = useState(false);
+  const scanningRef = useRef(false);
 
   const parseScore = (s: string | null | undefined): number => {
     if (!s) return 0;
@@ -35,56 +40,93 @@ function MobileStockPool() {
     return isNaN(n) ? 0 : Math.max(0, Math.min(100, n));
   };
 
-  const availableDates = useMemo(() => {
-    const set = new Set<string>();
-    for (const item of allItems) {
-      if (item.date) set.add(item.date);
-    }
-    return Array.from(set).sort().reverse();
-  }, [allItems]);
-
-  useEffect(() => {
-    let cancelled = false;
+  /** 加载已选日期的股票池数据 */
+  const fetchPoolByDate = useCallback(async (date: string) => {
     setLoading(true);
-    strategyService.getPool().then((data) => {
-      if (cancelled) return;
-      const pool = data || [];
-      setAllItems(pool);
-      const dates = Array.from(new Set(pool.map((i) => i.date))).sort().reverse();
-      if (dates.length > 0 && !cancelled) setSelectedDate(dates[0]);
-    }).catch(() => {
-      if (!cancelled) setAllItems([]);
-    }).finally(() => {
-      if (!cancelled) setLoading(false);
-    });
-    return () => { cancelled = true; };
-  }, []);
-
-  const handleRescan = useCallback(async () => {
     try {
-      const result = await strategyService.scan();
-      message.success(result.message || "扫描完成");
-      setLoading(true);
-      const data = await strategyService.getPool();
-      const pool = data || [];
-      setAllItems(pool);
-      const dates = Array.from(new Set(pool.map((i) => i.date))).sort().reverse();
-      if (dates.length > 0) setSelectedDate(dates[0]);
+      const data = await strategyService.getPool(date);
+      setCurrentItems(data || []);
     } catch {
-      message.error("扫描失败，请稍后重试");
+      setCurrentItems([]);
     } finally {
       setLoading(false);
     }
-  }, [message]);
+  }, []);
+
+  /** 刷新可用日期列表（从 stock_pool 拿到有数据的日期 + 保持选中） */
+  const refreshAfterScan = useCallback(async (scannedDate: string) => {
+    // 重新加载 stock_pool 数据
+    const data = await strategyService.getPool();
+    const allItems = data || [];
+    const dates = Array.from(new Set(allItems.map((i) => i.date))).sort().reverse();
+    setAvailableDates(dates);
+    // 重新加载当前日期的数据
+    await fetchPoolByDate(scannedDate);
+    // 如果当前日期不在可用列表中，切到最新日期
+    if (!dates.includes(scannedDate) && dates.length > 0) {
+      setSelectedDate(dates[0]);
+      await fetchPoolByDate(dates[0]);
+    }
+  }, [fetchPoolByDate]);
+
+  /** 初始化：先加载 stock_pool 数据，再选中第一条 */
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      const data = await strategyService.getPool();
+      if (cancelled) return;
+      const allItems = data || [];
+      const dates = Array.from(new Set(allItems.map((i) => i.date))).sort().reverse();
+      setAvailableDates(dates);
+      if (dates.length > 0) {
+        setSelectedDate(dates[0]);
+        await fetchPoolByDate(dates[0]);
+      } else {
+        setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /** 选择日期时重新请求 */
+  const handleDateChange = useCallback((d: dayjs.Dayjs | null) => {
+    if (!d) return;
+    const dateStr = d.format("YYYY-MM-DD");
+    setSelectedDate(dateStr);
+    fetchPoolByDate(dateStr);
+  }, [fetchPoolByDate]);
+
+  /** 重新扫描：根据选中日期扫描 */
+  const handleRescan = useCallback(async () => {
+    if (!selectedDate) {
+      message.warning("请先选择一个交易日");
+      return;
+    }
+    if (scanningRef.current) return;
+    scanningRef.current = true;
+    setScanning(true);
+    try {
+      const result = await strategyService.scan(selectedDate);
+      message.success(result.message || "扫描完成");
+      // 刷新 stock_pool 日期列表 + 重新加载当前日期数据
+      await refreshAfterScan(selectedDate);
+    } catch (e) {
+      console.error("扫描失败", e);
+      message.error("扫描失败，请稍后重试");
+    } finally {
+      scanningRef.current = false;
+      setScanning(false);
+      setLoading(false);
+    }
+  }, [selectedDate, message, refreshAfterScan]);
 
   const handleView = useCallback((code: string) => {
     setDetailCode(code);
     setDetailOpen(true);
   }, []);
 
-  const dateItems = selectedDate
-    ? allItems.filter((i) => i.date === selectedDate)
-    : [];
+  const dateItems = currentItems;
 
   const filteredItems =
     activeFilter === "全部"
@@ -125,7 +167,7 @@ function MobileStockPool() {
               cursor: "pointer", border: "none", outline: "none",
               background: colors.gradient.primary, color: colors.text.inverse,
               boxShadow: colors.btnShadow }}>
-            重新扫描
+            {scanning ? "扫描中..." : `扫描 ${selectedDate || ""}`}
           </button>
         </div>
       </div>
@@ -138,28 +180,28 @@ function MobileStockPool() {
           change={{ text: "0-100", type: "up" }} />
       </div>
 
-      {/* ===== 日期选择：pill 样式 ===== */}
-      {availableDates.length > 0 && (
-        <div style={{ marginBottom: 12 }}>
-          <div style={{ fontSize: 10, color: colors.text.tertiary, marginBottom: 6 }}>
-            选择交易日
-          </div>
-          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-            {availableDates.map((d) => (
-              <span key={d} onClick={() => setSelectedDate(d)}
-                style={{ display: "inline-flex", alignItems: "center", fontSize: 12, fontWeight: 500,
-                  lineHeight: 1.3, padding: "5px 12px", borderRadius: 20, cursor: "pointer",
-                  userSelect: "none", whiteSpace: "nowrap",
-                  background: selectedDate === d ? colors.gradient.primary : colors.bg.subtle,
-                  color: selectedDate === d ? colors.text.inverse : colors.text.secondary,
-                  border: selectedDate === d ? "none" : `1px solid ${colors.border.light}`,
-                  transition: "all 0.15s ease" }}>
-                {d.replace(/-/g, "/")}
-              </span>
-            ))}
-          </div>
+      {/* ===== 交易日选择：DatePicker ===== */}
+      <div style={{ marginBottom: 12 }}>
+        <div style={{ fontSize: 10, color: colors.text.tertiary, marginBottom: 6 }}>
+          选择交易日
         </div>
-      )}
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <DatePicker
+            value={selectedDate ? dayjs(selectedDate) : null}
+            onChange={handleDateChange}
+            allowClear={false}
+            size="small"
+            style={{ width: 140, borderRadius: `${colors.radius.md}px` }}
+            picker="date"
+            inputReadOnly
+          />
+          <span style={{ fontSize: 11, color: colors.text.tertiary }}>
+            {availableDates.length > 0
+              ? `含 ${availableDates.length} 个交易日数据`
+              : "选日期扫描后即生成"}
+          </span>
+        </div>
+      </div>
 
       {/* ===== 策略筛选 ===== */}
       <div style={{ display: "flex", gap: 8, marginBottom: 14, overflowX: "auto", scrollbarWidth: "none" }}>

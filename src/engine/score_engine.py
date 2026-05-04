@@ -21,6 +21,7 @@
 
 import logging
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any
 
 import requests
@@ -54,7 +55,7 @@ def _market(code: str) -> int:
     return 1
 
 
-def _fetch_json(url: str, params: dict, timeout: int = 5) -> dict | None:
+def _fetch_json(url: str, params: dict, timeout: int = 3) -> dict | None:
     """通用 GET 请求 + JSON 解析"""
     try:
         resp = requests.get(url, params=params, timeout=timeout)
@@ -416,16 +417,31 @@ def batch_score(codes: list[str],
     """
     engine = ScoreEngine(weights=weights)
     results = []
+    errors = 0
 
-    for code in codes:
-        r = engine.score(code)
-        if r["score_total"] > 0:
-            r["strategy_type"] = strategy
-            results.append(r)
-            logger.info("%s 评分: %.1f (量价%.1f 资金%.1f 板块%.1f 盘口%.1f 情绪%.1f)",
-                        code, r["score_total"],
-                        r["score_volume"], r["score_fund"],
-                        r["score_sector"], r["score_order_book"], r["score_sentiment"])
+    with ThreadPoolExecutor(max_workers=30) as executor:
+        fut_map = {executor.submit(engine.score, code): code for code in codes}
+        for idx, fut in enumerate(as_completed(fut_map)):
+            if idx > 0 and idx % 10 == 0:
+                logger.info("评分进度: %d/%d (错误 %d)", idx, len(codes), errors)
+            code = fut_map[fut]
+            try:
+                r = fut.result()
+            except Exception as e:
+                logger.warning("评分异常 %s: %s", code, e)
+                errors += 1
+                continue
+            if r["score_total"] > 0:
+                r["strategy_type"] = strategy
+                results.append(r)
+                logger.info("%s 评分: %.1f (量价%.1f 资金%.1f 板块%.1f 盘口%.1f 情绪%.1f)",
+                            code, r["score_total"],
+                            r["score_volume"], r["score_fund"],
+                            r["score_sector"], r["score_order_book"], r["score_sentiment"])
+            else:
+                errors += 1
+
+    logger.info("策略 %s 评分完成: %d 只通过, %d 只失败/0分", strategy, len(results), errors)
 
     results.sort(key=lambda x: x["score_total"], reverse=True)
     return results

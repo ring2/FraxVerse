@@ -3,11 +3,14 @@ import type { ApiResponse } from "../types/api-extended";
 
 const api = axios.create({
   baseURL: "/api/v1",
-  timeout: 15000,
+  timeout: 360000,
   headers: {
     "Content-Type": "application/json",
   },
 });
+
+// 强制 runtime 设置 timeout，防止 build-time tree-shaking 优化掉
+api.defaults.timeout = 360000;
 
 // Request interceptor — attach access token
 api.interceptors.request.use(
@@ -16,6 +19,8 @@ api.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+    // 每个请求单独设 timeout，绕开 rolldown 常量折叠
+    config.timeout = 360000;
     return config;
   },
   (error) => Promise.reject(error)

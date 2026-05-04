@@ -55,13 +55,13 @@ def fetch_klines_from_db(start: date, end: date) -> dict[str, pd.DataFrame]:
             {
                 "stock_code": r.stock_code,
                 "date": r.trade_date,
-                "open": float(r.open_price) if r.open_price else 0,
-                "high": float(r.high_price) if r.high_price else 0,
-                "low": float(r.low_price) if r.low_price else 0,
-                "close": float(r.close_price) if r.close_price else 0,
+                "open": float(r.open) if r.open else 0,
+                "high": float(r.high) if r.high else 0,
+                "low": float(r.low) if r.low else 0,
+                "close": float(r.close) if r.close else 0,
                 "volume": float(r.volume) if r.volume else 0,
                 "amount": float(r.amount) if r.amount else 0,
-                "pre_close": float(r.pre_close) if r.pre_close else 0,
+                "pre_close": float(r.close) if r.close else 0,
             }
             for r in rows
         ]
@@ -222,6 +222,26 @@ def main():
         logger.error("无 K 线数据，无法回测")
         sys.exit(1)
 
+    # 如果 DB 中没有历史评分数据，用真实 K 线模拟生成
+    if not scored_pool:
+        logger.warning("DB 中无历史评分数据，使用真实 K 线模拟评分池")
+        from src.strategy.simulate_scored_pool import simulate_daily_scored_pool
+
+        # 注意：模拟需要往前多取 60 个交易日数据作为预热
+        pre_start = start_date - timedelta(days=120)
+        pre_klines = fetch_klines_from_db(pre_start, end_date)
+        if not pre_klines:
+            pre_klines = klines
+
+        pool1 = simulate_daily_scored_pool(pre_klines, start_date, end_date, "bottom_volume", top_n=15)
+        pool2 = simulate_daily_scored_pool(pre_klines, start_date, end_date, "trend_momentum", top_n=15)
+
+        logger.info("策略一模拟评分池: %d 天有候选", len(pool1))
+        logger.info("策略二模拟评分池: %d 天有候选", len(pool2))
+    else:
+        pool1 = scored_pool
+        pool2 = scored_pool
+
     # ── 策略一：周期底部量能异动 ──
     logger.info("===== 运行策略一：周期底部量能异动 =====")
     r1 = run_backtest(
@@ -230,7 +250,7 @@ def main():
         capital=capital,
         klines_dict=klines,
         market_states=market_states,
-        scored_pool=scored_pool,
+        scored_pool=pool1,
     )
     print_report(r1, "策略一：周期底部量能异动")
 
@@ -242,7 +262,7 @@ def main():
         capital=capital,
         klines_dict=klines,
         market_states=market_states,
-        scored_pool=scored_pool,
+        scored_pool=pool2,
     )
     print_report(r2, "策略二：趋势动量低吸")
 

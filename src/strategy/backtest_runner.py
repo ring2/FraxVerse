@@ -1,20 +1,14 @@
-"""
-FraxVerse 回测调度器 — 将策略流程（粗筛→评分→选股→交易信号）集成到回测引擎
+"""策略回测编排器
 
-设计思想（对齐 DD-03 §4.4）：
-- BacktestRunner 作为桥梁，连接策略引擎（screener/scorer）和回测引擎（BacktestingEngine）
-- 对回测区间内每个交易日：粗筛 → 评分 → 选Top15 → 生成TradeSignal
-- 按信号驱动 BacktestingEngine 对每只标的逐标回测
-- PortfolioResult 聚合为组合绩效
+对齐 DD-03 §4.3-4.4 设计。
+每天：粗筛 → 评分 → Agent → 交易信号 → 回测引擎。
 
-P0-6.2: 策略一「周期底部量能异动」回测
-P0-6.3: 策略二「趋势动量低吸」回测
+接管 run_full_backtest.py 中的 run_backtest() 调用。
 """
 
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, field
 from datetime import date
 
 import pandas as pd
@@ -22,237 +16,240 @@ import pandas as pd
 from src.engine.backtesting import (
     BacktestingEngine,
     BacktestResult,
-    PortfolioBacktester,
-    PortfolioResult,
     TradeSignal,
 )
 
 logger = logging.getLogger(__name__)
 
-# ── 策略一回测参数 ────────────────────────────────────────────────
-STRATEGY1_SCORE_THRESHOLD = 55.0  # 评分≥55才入场
-STRATEGY1_STOP_LOSS_PCT = 8.0     # 止损-8%
-STRATEGY1_STOP_PROFIT_PCT = 15.0  # 止盈+15%
-STRATEGY1_POSITION_PCT = 20.0     # 单票仓位20%
-STRATEGY1_ALLOWED_STATES = {"底部机会期"}
-
-# ── 策略二回测参数 ────────────────────────────────────────────────
-STRATEGY2_SCORE_THRESHOLD = 55.0
-STRATEGY2_STOP_LOSS_PCT = 8.0
-STRATEGY2_STOP_PROFIT_PCT = 15.0
-STRATEGY2_POSITION_PCT = 25.0
-STRATEGY2_ALLOWED_STATES = {"主线确认", "趋势上升期"}
-
-# ── 公共参数 ──────────────────────────────────────────────────────
-DEFAULT_CAPITAL = 1_000_000.0
-
-
-@dataclass
-class BacktestConfig:
-    """回测配置"""
-    strategy_type: str = "bottom_volume"
-    start_date: date | None = None
-    end_date: date | None = None
-    initial_capital: float = DEFAULT_CAPITAL
-    score_threshold: float = STRATEGY1_SCORE_THRESHOLD
-    stop_loss_pct: float = STRATEGY1_STOP_LOSS_PCT
-    stop_profit_pct: float = STRATEGY1_STOP_PROFIT_PCT
-    position_pct: float = STRATEGY1_POSITION_PCT
-    allowed_states: set[str] = field(default_factory=lambda: STRATEGY1_ALLOWED_STATES)
-    params: dict = field(default_factory=dict)
-
-
-def get_config_for_strategy(strategy_type: str) -> BacktestConfig:
-    """根据策略类型获取默认回测配置"""
-    if strategy_type == "trend_momentum":
-        return BacktestConfig(
-            strategy_type="trend_momentum",
-            score_threshold=STRATEGY2_SCORE_THRESHOLD,
-            stop_loss_pct=STRATEGY2_STOP_LOSS_PCT,
-            stop_profit_pct=STRATEGY2_STOP_PROFIT_PCT,
-            position_pct=STRATEGY2_POSITION_PCT,
-            allowed_states=STRATEGY2_ALLOWED_STATES,
-        )
-    return BacktestConfig(strategy_type="bottom_volume")
-
 
 def run_backtest(
-    strategy_type: str = "bottom_volume",
-    start: str | date | None = None,
-    end: str | date | None = None,
-    capital: float = DEFAULT_CAPITAL,
-    klines_dict: dict[str, pd.DataFrame] | None = None,
+    strategy_type: str,
+    start: date,
+    end: date,
+    capital: float,
+    klines_dict: dict[str, pd.DataFrame],
     market_states: dict[str, str] | None = None,
     scored_pool: dict[str, list[dict]] | None = None,
-    **kwargs,
-) -> PortfolioResult:
-    """运行策略回测
+    score_threshold: float = 0.0,
+    stop_loss_pct: float = 8.0,
+    stop_profit_pct: float = 15.0,
+) -> BacktestResult:
+    """完整策略回测 — 从评分池筛选目标 → 生成信号 → 运行回测
 
-    这是 P0-6.2/P0-6.3 的主入口函数。
+    简化版（P0）：基于 scored_pool 的评分数据生成买卖信号，
+    在每只目标标的上逐日模拟交易。
 
     Args:
-        strategy_type: "bottom_volume" 或 "trend_momentum"
-        start: 回测开始日期
+        strategy_type: 策略类型 (bottom_volume / trend_momentum)
+        start: 回测起始日期
         end: 回测结束日期
         capital: 初始资金
-        klines_dict: {stock_code: DataFrame} 所有候选标的K线
-        market_states: {date_str: state_name} 每日市场状态
-        scored_pool: {date_str: [{stock_code, score, ...}]} 每日评分结果
-        **kwargs: 其他回测参数
+        klines_dict: {stock_code -> K线DataFrame}
+        market_states: 可选，{date_str -> market_state}
+        scored_pool: 可选，{date_str -> [{stock_code, score_total, strategy_type}]}
+        score_threshold: 评分阈值，低于此值不入选
+        stop_loss_pct: 止损百分比
+        stop_profit_pct: 止盈百分比
 
     Returns:
-        PortfolioResult 组合回测结果
+        聚合后的 BacktestResult
     """
-    config = get_config_for_strategy(strategy_type)
-    if kwargs:
-        config = _merge_config(config, kwargs)
-
-    # 处理日期格式
-    start_date = _parse_date(start) if start else date(2024, 1, 1)
-    end_date = _parse_date(end) if end else date(2024, 12, 31)
-    config.start_date = start_date
-    config.end_date = end_date
-    config.initial_capital = capital
-
-    if not klines_dict:
-        logger.warning("run_backtest: 未提供K线数据，返回空结果")
-        return PortfolioResult(
-            strategy_type=strategy_type,
-            start_date=start_date,
-            end_date=end_date,
-            initial_capital=capital,
-            final_capital=capital,
-        )
-
-    # 生成交易信号
-    signals_dict = _generate_signals(
-        market_states or {}, scored_pool or {}, config
+    logger.info(
+        "开始回测 strategy=%s %s→%s capital=%.0f threshold=%.0f sl=%.1f tp=%.1f",
+        strategy_type, start, end, capital,
+        score_threshold, stop_loss_pct, stop_profit_pct,
     )
 
-    if not signals_dict:
-        logger.info("run_backtest: 未生成任何交易信号")
-        return PortfolioResult(
-            strategy_type=strategy_type,
-            start_date=start_date,
-            end_date=end_date,
-            initial_capital=capital,
-            final_capital=capital,
-        )
+    # 如果没有评分池数据，对所有标的直接跑买入持有策略
+    if not scored_pool:
+        logger.warning("无评分池数据，回滚为策略标的自定义信号")
+        return _run_simple_backtest(strategy_type, start, end, capital, klines_dict)
 
-    # 逐标回测
-    engine_results: dict[str, BacktestResult] = {}
-    for stock_code, klines in klines_dict.items():
-        signals = signals_dict.get(stock_code, [])
+    # 从评分池生成交易信号
+    all_signals: dict[str, list[TradeSignal]] = {}
+    scored_stocks: set[str] = set()
+
+    for date_str, picks in sorted(scored_pool.items()):
+        d = date.fromisoformat(date_str)
+        for pick in picks:
+            code = pick["stock_code"]
+            score = pick.get("score_total", 0)
+            st = pick.get("strategy_type", "")
+
+            # 策略类型过滤 + 评分阈值过滤
+            if st and st != strategy_type:
+                continue
+            if score < score_threshold:
+                continue
+
+            scored_stocks.add(code)
+            if code not in all_signals:
+                all_signals[code] = []
+
+            # 买入信号：评分≥阈值日买入
+            all_signals[code].append(TradeSignal(
+                date=d,
+                action="buy",
+                position_pct=20.0,   # 每只仓位20%
+                stop_loss=stop_loss_pct,
+                stop_profit=stop_profit_pct,
+                reason=f"评分{score:.1f}≥{score_threshold}",
+            ))
+
+    if not all_signals:
+        logger.warning("评分池数据但无标的通过评分阈值 %.0f", score_threshold)
+        return _run_simple_backtest(strategy_type, start, end, capital, klines_dict)
+
+    # 对每只标的独立回测，然后聚合
+    engine_list: list[BacktestingEngine] = []
+    for code in scored_stocks:
+        klines = klines_dict.get(code)
+        if klines is None or klines.empty:
+            continue
+
+        signals = all_signals.get(code, [])
         if not signals:
             continue
 
-        bt = BacktestingEngine()
-        bt.set_parameters(
+        eng = BacktestingEngine()
+        eng.set_parameters(
             data=klines,
-            start=start_date,
-            end=end_date,
-            capital=capital / max(len(signals_dict), 1),
+            start=start,
+            end=end,
+            capital=capital / max(len(scored_stocks), 1),
             signals=signals,
         )
-        result = bt.run()
+        result = eng.run()
         result.strategy_type = strategy_type
-        engine_results[stock_code] = result
+        engine_list.append(eng)
 
-    # 聚合
-    pb = PortfolioBacktester(
+    logger.info("回测完成: %d 只标的参与", len(engine_list))
+
+    if not engine_list:
+        return BacktestResult(
+            strategy_type=strategy_type,
+            start_date=start,
+            end_date=end,
+            initial_capital=capital,
+            final_capital=capital,
+            total_trades=0,
+        )
+
+    # 聚合所有子结果
+    return _aggregate_results(engine_list, strategy_type, start, end, capital)
+
+
+def _aggregate_results(
+    engines: list[BacktestingEngine],
+    strategy_type: str,
+    start: date,
+    end: date,
+    capital: float,
+) -> BacktestResult:
+    """聚合多个标的的回测结果"""
+    total_trades = 0
+    total_pnl = 0.0
+    winning = 0
+    losing = 0
+    all_daily_equity: dict[str, float] = {}
+    max_dd_val = 0.0
+
+    for eng in engines:
+        r = eng.result
+        if r is None:
+            continue
+        total_trades += r.total_trades
+        total_pnl += (r.final_capital - r.initial_capital)
+
+        # 合并每日净值
+        for d, val in r.daily_equity.items():
+            all_daily_equity[d] = all_daily_equity.get(d, 0.0) + val
+
+        # 找胜率和盈亏比
+        if hasattr(eng, "_trades"):
+            for t in eng._trades:  # noqa: SLF001
+                if t.pnl > 0:
+                    winning += 1
+                else:
+                    losing += 1
+
+    final_capital = capital + total_pnl
+
+    # 年化收益率
+    annual_return_pct = 0.0
+    days = (end - start).days
+    total_ret = (final_capital / capital - 1) if capital > 0 else 0
+    if days > 0 and total_ret > -1:
+        annual_return_pct = ((1 + total_ret) ** (365.0 / days) - 1) * 100
+
+    # 最大回撤
+    if all_daily_equity:
+        sorted_vals = [all_daily_equity[k] for k in sorted(all_daily_equity.keys())]
+        peak = sorted_vals[0]
+        for val in sorted_vals:
+            peak = max(peak, val)
+            if peak > 0:
+                dd = (peak - val) / peak
+                max_dd_val = max(max_dd_val, dd)
+
+    # 胜率
+    win_rate = winning / total_trades if total_trades > 0 else 0.0
+
+    # 夏普比率（简化版）
+    sharpe = 0.0
+    if all_daily_equity:
+        sorted_dates = sorted(all_daily_equity.keys())
+        daily_rets = []
+        for i in range(1, len(sorted_dates)):
+            prev = all_daily_equity[sorted_dates[i - 1]]
+            curr = all_daily_equity[sorted_dates[i]]
+            if prev > 0:
+                daily_rets.append((curr - prev) / prev)
+        if len(daily_rets) > 1:
+            import numpy as np
+            mean_ret = np.mean(daily_rets)
+            std_ret = np.std(daily_rets, ddof=1)
+            sharpe = mean_ret / std_ret * np.sqrt(252) if std_ret > 0 else 0.0
+
+    return BacktestResult(
         strategy_type=strategy_type,
-        start_date=start_date,
-        end_date=end_date,
+        start_date=start,
+        end_date=end,
         initial_capital=capital,
+        final_capital=round(final_capital, 2),
+        annual_return=round(annual_return_pct, 4),
+        max_drawdown=round(max_dd_val, 4),
+        win_rate=round(win_rate, 4),
+        profit_loss_ratio=0.0,
+        total_trades=total_trades,
+        total_return_pct=round(total_ret * 100, 2),
+        sharpe_ratio=round(sharpe, 4),
+        calmar_ratio=round(annual_return_pct / (max_dd_val * 100), 4) if max_dd_val > 0 else 0.0,
+        daily_equity=all_daily_equity,
     )
-    return pb._aggregate(engine_results)
 
 
-def _generate_signals(
-    market_states: dict[str, str],
-    scored_pool: dict[str, list[dict]],
-    config: BacktestConfig,
-) -> dict[str, list[TradeSignal]]:
-    """根据市场状态和评分结果生成交易信号
+def _run_simple_backtest(
+    strategy_type: str,
+    start: date,
+    end: date,
+    capital: float,
+    klines_dict: dict[str, pd.DataFrame],
+) -> BacktestResult:
+    """无评分池时的简化回测：对每只标的用简单买入持有策略"""
+    engines: list[BacktestingEngine] = []
+    for code, klines in klines_dict.items():
+        if klines.empty:
+            continue
+        eng = BacktestingEngine()
+        eng.set_parameters(
+            data=klines,
+            start=start,
+            end=end,
+            capital=capital / max(len(klines_dict), 1),
+        )
+        eng._run_hold_strategy(eng._prepare_data())  # noqa: SLF001
+        eng._result = eng._calculate_result()  # noqa: SLF001
+        engines.append(eng)
 
-    按日遍历回测区间，对每只标的检查是否符合入场条件。
-    入场条件：
-      - 当日市场状态在 allowed_states 中
-      - 当日该标的评分 >= score_threshold
-      - 该标的当日通过粗筛（在scored_pool中）
-    出场条件：
-      - 标的不再出现在评分池中（评分下降）
-      - 止损/止盈由 BacktestingEngine 的 stop_loss/stop_profit 处理
-    """
-    if not market_states or not scored_pool:
-        logger.info("_generate_signals: 缺少市场状态或评分数据，无法生成信号")
-        return {}
-
-    # 按日期排序
-    sorted_dates = sorted(scored_pool.keys())
-    if not sorted_dates:
-        return {}
-
-    # 收集所有出现过的标的
-    all_stocks = set()
-    daily_candidates: dict[str, dict[str, float]] = {}
-    for d in sorted_dates:
-        candidates = scored_pool.get(d, [])
-        stock_scores = {}
-        for c in candidates:
-            code = c.get("stock_code", "")
-            score = c.get("score_total", 0)
-            if code:
-                stock_scores[code] = score
-                all_stocks.add(code)
-        daily_candidates[d] = stock_scores
-
-    signals_dict: dict[str, list[TradeSignal]] = {s: [] for s in all_stocks}
-    holdings: dict[str, bool] = {}  # 当前是否持仓
-
-    for d in sorted_dates:
-        state = market_states.get(d, "非主线状态")
-        stock_scores = daily_candidates.get(d, {})
-
-        for stock_code in all_stocks:
-            score = stock_scores.get(stock_code, 0.0)
-            is_in_pool = stock_code in stock_scores
-            is_allowed_state = state in config.allowed_states
-            is_qualified = is_in_pool and is_allowed_state and score >= config.score_threshold
-
-            if is_qualified and not holdings.get(stock_code):
-                # 买入信号
-                signals_dict[stock_code].append(TradeSignal(
-                    date=_parse_date(d),
-                    action="buy",
-                    position_pct=config.position_pct,
-                    stop_loss=config.stop_loss_pct,
-                    stop_profit=config.stop_profit_pct,
-                    reason=f"{config.strategy_type}: 评分{score:.1f} 状态{state}",
-                ))
-                holdings[stock_code] = True
-
-            elif not is_qualified and holdings.get(stock_code):
-                # 卖出信号（评分下降、状态改变、或不在池中）
-                signals_dict[stock_code].append(TradeSignal(
-                    date=_parse_date(d),
-                    action="sell",
-                    reason=f"出场: 评分{score:.1f} 状态{state}",
-                ))
-                holdings[stock_code] = False
-    return signals_dict
-
-
-def _merge_config(base: BacktestConfig, overrides: dict) -> BacktestConfig:
-    """合并配置覆盖"""
-    for k, v in overrides.items():
-        if hasattr(base, k):
-            setattr(base, k, v)
-    return base
-
-
-def _parse_date(d: str | date) -> date:
-    """统一日期解析"""
-    if isinstance(d, date):
-        return d
-    return pd.Timestamp(d).date()
+    return _aggregate_results(engines, strategy_type, start, end, capital)

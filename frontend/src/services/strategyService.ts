@@ -48,8 +48,10 @@ export const strategyService = {
    * POST /api/v1/strategy/scan
    * 触发股票池扫描 — 拉取K线+评分+入库
    */
-  async scan(): Promise<{ message: string; data?: any }> {
-    const res = await api.post("/strategy/scan");
+  async scan(poolDate?: string): Promise<{ message: string; data?: any }> {
+    const params: Record<string, string> = {};
+    if (poolDate) params.pool_date = poolDate;
+    const res = await api.post("/strategy/scan", null, { params });
     const d = res.data;
     if (d && d.data) return { message: d.message, data: d.data };
     return { message: "扫描完成" };
