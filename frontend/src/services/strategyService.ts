@@ -28,8 +28,10 @@ export const strategyService = {
    * GET /api/v1/trade/pool
    * 每日股票池 — 返回 StockPoolItem[] 数组
    */
-  async getPool(): Promise<StockPoolItem[]> {
-    const res = await api.get("/trade/pool");
+  async getPool(poolDate?: string): Promise<StockPoolItem[]> {
+    const params: Record<string, string> = {};
+    if (poolDate) params.pool_date = poolDate;
+    const res = await api.get("/trade/pool", { params });
     return Array.isArray(res.data) ? res.data : [];
   },
 
