@@ -7,498 +7,27 @@ import { authService } from "../../services/authService";
 import { settingsService } from "../../services/settingsService";
 import type { SettingsMap, LLMProvider, LLMConnection, TradeModeInfo } from "../../services/settingsService";
 
-/* ===================================================================
-   MobileSettings — 12 大分类 50+ 项参数
-   所有配置读写后端 /api/v1/settings/configs，持久化到 PostgreSQL
-   =================================================================== */
-
-/* ---- Toggle switch ---- */
-const Toggle = ({
-  checked,
-  onChange,
-}: {
-  checked: boolean;
-  onChange: (v: boolean) => void;
-}) => {
-  const { colors } = useTheme();
-  return (
-    <div
-      onClick={(e) => {
-        e.stopPropagation();
-        onChange(!checked);
-      }}
-      style={{
-        width: 40,
-        height: 22,
-        borderRadius: 11,
-        background: checked ? colors.purple[500] : colors.border.medium,
-        position: "relative",
-        cursor: "pointer",
-        transition: "background 0.2s ease",
-        flexShrink: 0,
-      }}
-    >
-      <div
-        style={{
-          width: 18,
-          height: 18,
-          borderRadius: "50%",
-          background: "#fff",
-          position: "absolute",
-          top: 2,
-          left: checked ? 20 : 2,
-          transition: "left 0.2s ease",
-          boxShadow: "0 1px 3px rgba(0,0,0,0.15)",
-        }}
-      />
-    </div>
-  );
-};
-
-/* ---- Setting row ---- */
-const Row = ({
-  label,
-  desc,
-  right,
-}: {
-  label: string;
-  desc?: string;
-  right: React.ReactNode;
-}) => {
-  const { colors } = useTheme();
-  return (
-    <div
-      style={{
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        padding: "10px 14px",
-        borderBottom: `1px solid ${colors.border.light}`,
-        gap: 12,
-      }}
-    >
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div
-          style={{
-            fontSize: 13,
-            color: colors.text.primary,
-            lineHeight: 1.4,
-          }}
-        >
-          {label}
-        </div>
-        {desc && (
-          <div
-            style={{
-              fontSize: 11,
-              color: colors.text.tertiary,
-              marginTop: 2,
-              lineHeight: 1.3,
-            }}
-          >
-            {desc}
-          </div>
-        )}
-      </div>
-      <div style={{ flexShrink: 0 }}>{right}</div>
-    </div>
-  );
-};
-
-/* ---- Number pill badge ---- */
-const Badge = ({ label, color }: { label: string; color?: string }) => {
-  const { colors } = useTheme();
-  return (
-    <span
-      style={{
-        display: "inline-flex",
-        alignItems: "center",
-        fontSize: 11,
-        fontWeight: 500,
-        padding: "2px 10px",
-        borderRadius: 20,
-        backgroundColor: color ? `${color}18` : colors.purple[50],
-        color: color || colors.purple[500],
-        lineHeight: 1.3,
-      }}
-    >
-      {label}
-    </span>
-  );
-};
-
-/* ---- Collapse card ---- */
-const CollapseCard = ({
-  dotColor,
-  title,
-  defaultOpen = false,
-  children,
-}: {
-  dotColor?: string;
-  title: string;
-  defaultOpen?: boolean;
-  children: React.ReactNode;
-}) => {
-  const { colors } = useTheme();
-  const [open, setOpen] = useState(defaultOpen);
-  return (
-    <div
-      style={{
-        background: colors.bg.surface,
-        borderRadius: `${colors.radius.md}px`,
-        border: `1px solid ${colors.border.light}`,
-        overflow: "hidden",
-        marginBottom: 10,
-      }}
-    >
-      <div
-        onClick={() => setOpen(!open)}
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          padding: "12px 14px",
-          cursor: "pointer",
-          userSelect: "none",
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <span
-            style={{
-              width: 8,
-              height: 8,
-              borderRadius: "50%",
-              background: dotColor || colors.purple[400],
-              flexShrink: 0,
-            }}
-          />
-          <span
-            style={{ fontSize: 13, fontWeight: 600, color: colors.text.primary }}
-          >
-            {title}
-          </span>
-        </div>
-        <svg
-          width="14" height="14" viewBox="0 0 24 24" fill="none"
-          stroke={colors.text.tertiary} strokeWidth="2"
-          strokeLinecap="round"
-          style={{
-            transform: open ? "rotate(180deg)" : "rotate(0deg)",
-            transition: "transform 0.2s ease",
-            flexShrink: 0,
-          }}
-        >
-          <polyline points="6 9 12 15 18 9" />
-        </svg>
-      </div>
-      {open && <div style={{ paddingBottom: 4 }}>{children}</div>}
-    </div>
-  );
-};
-
-/* ---- Section group label ---- */
-const GroupLabel = ({ label }: { label: string }) => {
-  const { colors } = useTheme();
-  return (
-    <div
-      style={{
-        fontSize: 11,
-        fontWeight: 600,
-        color: colors.text.tertiary,
-        textTransform: "uppercase",
-        letterSpacing: "0.05em",
-        margin: "16px 0 8px",
-        paddingLeft: 2,
-      }}
-    >
-      {label}
-    </div>
-  );
-};
-
-/* ---- LLM 厂商连接+模型使用分配（V2 重构） ---- */
-const CUSTOM_MODEL_VALUE = "__custom__";
-
-/**
- * 「我的 API 连接」— 每个厂商一张小卡片，配 Key 和 URL
- */
-const ConnectionCard = ({
-  provider,
-  connection,
-  onSave,
-  onDelete,
-  colors,
-}: {
-  provider: { name: string; label: string; default_base_url: string };
-  connection?: { has_api_key: boolean; base_url: string };
-  onSave: (providerName: string, apiKey: string, baseUrl: string) => void;
-  onDelete: (providerName: string) => void;
-  colors: Record<string, any>;
-}) => {
-  const [apiKey, setApiKey] = useState(
-    connection?.has_api_key ? "••••••••" : "",
-  );
-  const [baseUrl, setBaseUrl] = useState(connection?.base_url ?? "");
-  const [changed, setChanged] = useState(false);
-
-  const handleSave = () => {
-    const finalKey = apiKey === "••••••••" ? "" : apiKey;
-    onSave(provider.name, finalKey, baseUrl);
-    setChanged(false);
-  };
-
-  return (
-    <div style={{
-      padding: "8px 10px",
-      borderBottom: `1px solid ${colors.border.light}`,
-    }}>
-      <div style={{
-        display: "flex", alignItems: "center", justifyContent: "space-between",
-        marginBottom: 4,
-      }}>
-        <span style={{ fontSize: 12, fontWeight: 600, color: colors.text.primary }}>
-          {provider.label}
-        </span>
-        {connection ? (
-          <span
-            onClick={() => onDelete(provider.name)}
-            style={{ fontSize: 10, color: colors.semantic.down, cursor: "pointer" }}
-          >删除</span>
-        ) : (
-          <span style={{ fontSize: 10, color: colors.text.tertiary }}>未配置</span>
-        )}
-      </div>
-      <div style={{ display: "flex", gap: 4, alignItems: "center", marginBottom: 4 }}>
-        <input
-          value={apiKey}
-          onChange={(e) => { setApiKey(e.target.value); setChanged(true); }}
-          placeholder="API Key"
-          type="password"
-          style={{
-            flex: 1, padding: "4px 6px", fontSize: 11,
-            borderRadius: `${colors.radius.sm}px`,
-            border: `1px solid ${colors.border.medium}`,
-            background: colors.bg.surface, outline: "none",
-            color: colors.text.primary,
-          }}
-        />
-        <span style={{ fontSize: 10, color: colors.text.tertiary, whiteSpace: "nowrap" }}>Key</span>
-      </div>
-      <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
-        <input
-          value={baseUrl}
-          onChange={(e) => { setBaseUrl(e.target.value); setChanged(true); }}
-          placeholder={provider.default_base_url}
-          style={{
-            flex: 1, padding: "4px 6px", fontSize: 11,
-            borderRadius: `${colors.radius.sm}px`,
-            border: `1px solid ${colors.border.medium}`,
-            background: colors.bg.surface, outline: "none",
-            color: colors.text.primary,
-          }}
-        />
-        <span style={{ fontSize: 10, color: colors.text.tertiary, whiteSpace: "nowrap" }}>URL</span>
-        {changed && (
-          <button
-            onClick={handleSave}
-            style={{
-              padding: "3px 8px", fontSize: 10, borderRadius: `${colors.radius.sm}px`,
-              border: "none", background: colors.purple[500], color: "#fff",
-              cursor: "pointer", lineHeight: 1.3,
-            }}
-          >保存</button>
-        )}
-      </div>
-    </div>
-  );
-};
-
-/**
- * 「模型使用分配」— 选择已配置的厂商 + 模型
- */
-const UsageSlot = ({
-  title,
-  desc,
-  providerKey,
-  modelKey,
-  reuseKey,
-  connections,
-  allProviders,
-  configs,
-  setConfig,
-  colors,
-}: {
-  title: string;
-  desc: string;
-  providerKey: string;
-  modelKey: string;
-  reuseKey?: string;         // 如 'daily_analysis' — 勾选复用
-  connections: string[];     // 已配 Key 的厂商列表
-  allProviders: LLMProvider[];
-  configs: SettingsMap;
-  setConfig: (key: string, value: string | number | boolean) => void;
-  colors: Record<string, any>;
-}) => {
-  const currentProvider = String(configs[providerKey] ?? "");
-  const currentModel = String(configs[modelKey] ?? "");
-  const currentReuse = String(configs[reuseKey ? reuseKey + "_reuse" : ""] ?? "false");
-
-  // 找到当前选中的厂商的预设信息
-  const selectedProviderInfo = allProviders.find((p) => p.name === currentProvider);
-  const availableModels = selectedProviderInfo?.models ?? [];
-
-  // 判断是否是自定义模型
-  const isCustomModel = currentModel && !availableModels.includes(currentModel);
-
-  const handleProviderChange = (newProvider: string) => {
-    setConfig(providerKey, newProvider);
-    // 自动选该厂商的默认模型
-    const info = allProviders.find((p) => p.name === newProvider);
-    if (info?.default_model) {
-      setConfig(modelKey, info.default_model);
-    }
-  };
-
-  // 已配 Key 的厂商列表
-  const providerOptions = allProviders.map((p) => ({
-    value: p.name,
-    label: p.label + (connections.includes(p.name) ? "" : "（未配 Key）"),
-    disabled: !connections.includes(p.name) && p.name !== currentProvider,
-  }));
-
-  return (
-    <div style={{ padding: "10px 14px", borderBottom: `1px solid ${colors.border.light}` }}>
-      <div style={{ fontSize: 13, fontWeight: 600, color: colors.text.primary, marginBottom: 4 }}>
-        {title}
-      </div>
-      <div style={{ fontSize: 11, color: colors.text.tertiary, marginBottom: 8 }}>{desc}</div>
-
-      {reuseKey && (
-        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
-          <input
-            type="checkbox"
-            checked={currentReuse === "true"}
-            onChange={() => {
-              setConfig(reuseKey + "_reuse", currentReuse === "true" ? "false" : "true");
-            }}
-            style={{ cursor: "pointer" }}
-          />
-          <span style={{ fontSize: 11, color: colors.text.secondary }}>
-            复用「{reuseKey === "daily_analysis" ? "每日分析" : reuseKey}」模型的配置
-          </span>
-        </div>
-      )}
-
-      {currentReuse !== "true" && (
-        <>
-          {/* 厂商选择 */}
-          <Select
-            showSearch
-            style={{ width: "100%", fontSize: 12, marginBottom: 6 }}
-            value={currentProvider || undefined}
-            onChange={handleProviderChange}
-            placeholder="选择厂商"
-            options={providerOptions}
-          />
-
-          {/* 模型选择 */}
-          {currentProvider && (
-            <Select
-              showSearch
-              style={{ width: "100%", fontSize: 12 }}
-              value={isCustomModel ? CUSTOM_MODEL_VALUE : (currentModel || undefined)}
-              onChange={(value: string) => {
-                if (value === CUSTOM_MODEL_VALUE) {
-                  setConfig(modelKey, "");
-                } else {
-                  setConfig(modelKey, value);
-                }
-              }}
-              placeholder="选择模型"
-              options={[
-                ...availableModels.map((m: string) => ({ value: m, label: m })),
-                { value: CUSTOM_MODEL_VALUE, label: "✏️ 自定义模型" },
-              ]}
-            />
-          )}
-
-          {/* 自定义模型输入 */}
-          {isCustomModel && (
-            <input
-              value={currentModel}
-              onChange={(e) => setConfig(modelKey, e.target.value)}
-              placeholder="输入自定义模型名"
-              style={{
-                width: "100%", marginTop: 6, padding: "5px 8px", fontSize: 12,
-                borderRadius: `${colors.radius.sm}px`,
-                border: `1px solid ${colors.border.medium}`,
-                background: colors.bg.surface, outline: "none",
-                color: colors.text.primary,
-                boxSizing: "border-box",
-              }}
-            />
-          )}
-
-          {isCustomModel && (
-            <div style={{ marginTop: 4, fontSize: 11, color: colors.semantic.amber }}>
-              自定义模型名，请确保该模型名在所选厂商的API中有效
-            </div>
-          )}
-        </>
-      )}
-    </div>
-  );
-};
-
-/* ---- Text input field ---- */
-const InputField = ({
-  value,
-  onChange,
-  placeholder,
-  type = "text",
-  suffix,
-}: {
-  value: string;
-  onChange: (v: string) => void;
-  placeholder?: string;
-  type?: string;
-  suffix?: string;
-}) => {
-  const { colors } = useTheme();
-  return (
-    <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-      <input
-        type={type}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          width: 90,
-          padding: "6px 8px",
-          borderRadius: `${colors.radius.sm}px`,
-          border: `1px solid ${colors.border.medium}`,
-          background: colors.bg.surface,
-          outline: "none",
-          color: colors.text.primary,
-          fontSize: 12,
-          textAlign: type === "number" ? "center" : "left",
-          lineHeight: 1.4,
-        }}
-      />
-      {suffix && (
-        <span style={{ fontSize: 11, color: colors.text.tertiary, whiteSpace: "nowrap" }}>
-          {suffix}
-        </span>
-      )}
-    </div>
-  );
-};
+/* ─── 子组件 ─── */
+import Row from "./settings/Row";
+import Toggle from "./settings/Toggle";
+import Badge from "./settings/Badge";
+import InputField from "./settings/InputField";
+import CollapseCard from "./settings/CollapseCard";
+import GroupLabel from "./settings/GroupLabel";
+import ConnectionCard from "./settings/ConnectionCard";
+import UsageSlot from "./settings/UsageSlot";
 
 /* ===================================================================
-   Main Component
+   MobileSettings — 新版：6 卡心智分组 + InfoTip 内联说明
    =================================================================== */
-function MobileSettings() {
+
+/** 检查配置项是否已被用户修改（非空且不是默认值状态） */
+function isConfigured(configs: SettingsMap, key: string): boolean {
+  const v = configs[key];
+  return v !== undefined && v !== null && v !== "";
+}
+
+export default function MobileSettings() {
   const { message } = App.useApp();
   const { colors, mode, toggle } = useTheme();
   const { user } = useAuthStore();
@@ -540,9 +69,7 @@ function MobileSettings() {
     ]).then(([providers, conns]) => {
       setAllProviders(providers);
       setLlmConnections(conns);
-    }).catch(() => {
-      // ignore
-    }).finally(() => setLlmConnectionsLoading(false));
+    }).catch(() => {}).finally(() => setLlmConnectionsLoading(false));
   }, []);
   useEffect(() => { loadLLMConnections(); }, []);
 
@@ -563,8 +90,7 @@ function MobileSettings() {
 
   /* ---- toggle helper ---- */
   const toggleBool = useCallback((key: string) => {
-    const current = configs[key];
-    setConfig(key, current === true ? false : true);
+    setConfig(key, configs[key] === true ? false : true);
   }, [configs, setConfig]);
 
   /* ---- input change helper ---- */
@@ -599,13 +125,10 @@ function MobileSettings() {
     <>
     <div className="page-enter">
       {/* 标题 */}
-      <div
-        style={{ fontSize: 18, fontWeight: 600, marginBottom: 6, lineHeight: 1.3 }}
-      >
+      <div style={{ fontSize: 18, fontWeight: 600, marginBottom: 6, lineHeight: 1.3 }}>
         <span style={{
           background: "linear-gradient(135deg, #7F77DD, #9B93E4)",
-          WebkitBackgroundClip: "text",
-          WebkitTextFillColor: "transparent",
+          WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent",
           backgroundClip: "text",
         }}>
           设置
@@ -616,48 +139,47 @@ function MobileSettings() {
         系统配置与偏好 · 自动持久化
       </div>
 
-      {/* ==================== 基础 ==================== */}
-      <GroupLabel label="基础" />
-
-      {/* 1. 账号安全 */}
-      <CollapseCard title="账号安全" dotColor={colors.purple[400]}>
+      {/* ==================== ① 我的账户 ==================== */}
+      <CollapseCard title="我的账户" subtitle="登录信息、安全设置"
+        dotColor={colors.purple[400]}
+        totalItems={1} configuredItems={[isConfigured(configs, "session_timeout")].filter(Boolean).length}>
         <Row label="用户名" right={<span style={{ fontSize: 13, color: colors.text.secondary }}>{user?.username || "admin"}</span>} />
-        <Row
-          label="修改密码"
-          desc="修改后将自动登出，需重新登录"
+        <Row label="修改密码" desc="修改后将自动登出，需重新登录"
           right={
             <button onClick={(e) => { e.stopPropagation(); handleChangePassword(); }}
-              style={{
-                padding: "5px 12px", borderRadius: `${colors.radius.sm}px`,
-                fontSize: 12, fontWeight: 500, cursor: "pointer",
-                border: `1px solid ${colors.border.medium}`,
-                background: "transparent", color: colors.text.secondary, lineHeight: 1.4,
-              }}
-            >修改</button>
-          }
-        />
-        <Row label="自动登出时间" desc="无操作超过此时间自动登出"
-          right={<InputField value={n("session_timeout")} onChange={(v) => setNum("session_timeout", v)} suffix="分钟" />}
-        />
+              style={{ padding: "5px 12px", borderRadius: `${colors.radius.sm}px`, fontSize: 12,
+                fontWeight: 500, cursor: "pointer", border: `1px solid ${colors.border.medium}`,
+                background: "transparent", color: colors.text.secondary, lineHeight: 1.4 }}>
+              修改</button>
+          } />
+        <Row label="自动登出时间" desc="无操作超过此时间自动登出" configKey="session_timeout"
+          right={<InputField value={n("session_timeout")} onChange={(v) => setNum("session_timeout", v)} suffix="分钟" />} />
       </CollapseCard>
 
-      {/* 2. LLM 配置 — V2：连接+使用分配 */}
-      <CollapseCard title="LLM 配置" dotColor={colors.purple[400]}>
+      {/* ==================== ② AI 模型 ==================== */}
+      <CollapseCard title="AI 模型" subtitle="厂商 API 连接 + 任务模型分配"
+        dotColor={colors.purple[400]}
+        totalItems={5} configuredItems={[
+          isConfigured(configs, "llm_timeout"),
+          isConfigured(configs, "llm_max_concurrent"),
+          isConfigured(configs, "llm_monthly_token_limit"),
+          isConfigured(configs, "agent_discussion_rounds"),
+          isConfigured(configs, "agent_convergence_threshold"),
+        ].filter(Boolean).length}>
 
-        {/* ── 我的 API 连接 ── */}
+        {/* 我的 API 连接 */}
         <div style={{ padding: "10px 14px", borderBottom: `1px solid ${colors.border.light}` }}>
           <div style={{ fontSize: 12, fontWeight: 600, color: colors.text.primary, marginBottom: 2 }}>🔌 我的 API 连接</div>
-          <div style={{ fontSize: 10, color: colors.text.tertiary, marginBottom: 8 }}>每个厂商配一次 Key 和 URL，后续所有模型使用分配都用这些连接</div>
+          <div style={{ fontSize: 10, color: colors.text.tertiary, marginBottom: 8 }}>
+            每个厂商配一次 Key 和 URL，后续所有模型使用分配都用这些连接
+          </div>
           {(llmConnectionsLoading || allProviders.length === 0) ? (
             <span style={{ fontSize: 11, color: colors.text.tertiary }}>加载中...</span>
           ) : (
             allProviders.map((p) => {
               const conn = llmConnections.find((c) => c.provider_name === p.name);
               return (
-                <ConnectionCard
-                  key={p.name}
-                  provider={p}
-                  connection={conn}
+                <ConnectionCard key={p.name} provider={p} connection={conn}
                   onSave={(providerName, apiKey, baseUrl) => {
                     settingsService.upsertLLMConnection(providerName, apiKey, baseUrl).then(() => {
                       message.success(`${p.label} 连接已保存`);
@@ -674,8 +196,7 @@ function MobileSettings() {
                       }),
                     });
                   }}
-                  colors={colors}
-                />
+                  colors={colors} />
               );
             })
           )}
@@ -686,83 +207,95 @@ function MobileSettings() {
           </div>
         </div>
 
-        {/* ── 模型使用分配 ── */}
+        {/* 模型使用分配 */}
         <GroupLabel label="模型使用分配" />
         <div style={{ fontSize: 10, color: colors.text.tertiary, padding: "0 14px 8px" }}>
           每个任务指定用什么厂商的什么模型。未配 Key 的厂商不可选。
         </div>
 
-        <UsageSlot
-          title="每日分析"
-          desc="Agent 日常分析使用的模型"
-          providerKey="daily_analysis_provider"
-          modelKey="daily_analysis_model"
+        <UsageSlot title="每日分析" desc="Agent 日常分析使用的模型"
+          providerKey="daily_analysis_provider" modelKey="daily_analysis_model"
           connections={llmConnections.map((c) => c.provider_name)}
-          allProviders={allProviders}
-          configs={configs}
-          setConfig={setConfig}
-          colors={colors}
-        />
+          allProviders={allProviders} configs={configs} setConfig={setConfig} colors={colors} />
 
-        <UsageSlot
-          title="关键决策"
-          desc="开仓/止损前的复核模型"
-          providerKey="key_decision_provider"
-          modelKey="key_decision_model"
+        <UsageSlot title="关键决策" desc="开仓/止损前的复核模型"
+          providerKey="key_decision_provider" modelKey="key_decision_model"
           reuseKey="daily_analysis"
           connections={llmConnections.map((c) => c.provider_name)}
-          allProviders={allProviders}
-          configs={configs}
-          setConfig={setConfig}
-          colors={colors}
-        />
+          allProviders={allProviders} configs={configs} setConfig={setConfig} colors={colors} />
 
-        <Row label="请求超时" right={<InputField value={n("llm_timeout")} onChange={(v) => setNum("llm_timeout", v)} suffix="秒" />} />
-        <Row label="最大并发数" right={<InputField value={n("llm_max_concurrent")} onChange={(v) => setNum("llm_max_concurrent", v)} />} />
-        <Row label="每月 Token 上限" right={<InputField value={n("llm_monthly_token_limit")} onChange={(v) => setNum("llm_monthly_token_limit", v)} />} />
+        <Row label="请求超时" configKey="llm_timeout"
+          right={<InputField value={n("llm_timeout")} onChange={(v) => setNum("llm_timeout", v)} suffix="秒" />} />
+        <Row label="最大并发数" configKey="llm_max_concurrent"
+          right={<InputField value={n("llm_max_concurrent")} onChange={(v) => setNum("llm_max_concurrent", v)} />} />
+        <Row label="每月 Token 上限" configKey="llm_monthly_token_limit"
+          right={<InputField value={n("llm_monthly_token_limit")} onChange={(v) => setNum("llm_monthly_token_limit", v)} />} />
       </CollapseCard>
 
-      {/* 3. Agent 提示词 */}
-      <CollapseCard title="Agent 提示词" dotColor={colors.purple[400]}>
-        <Row label="讨论轮数" right={<InputField value={n("agent_discussion_rounds")} onChange={(v) => setNum("agent_discussion_rounds", v)} />} />
-        <Row label="输出收敛阈值" right={<InputField value={n("agent_convergence_threshold")} onChange={(v) => setNum("agent_convergence_threshold", v)} />} />
+      {/* ==================== ③ 交易策略 ==================== */}
+      <CollapseCard title="交易策略" subtitle="选股参数、止盈止损、仓位控制"
+        dotColor={colors.semantic.up}
+        totalItems={14} configuredItems={[
+          "strategy_bottom_days","strategy_bottom_decline_pct","strategy_bottom_crash_pct",
+          "strategy_bottom_min_klines","strategy_sector_concentration","strategy_sector_check_days",
+          "strategy_adx_threshold","strategy_shrink_ratio","strategy_momentum_drop_pct",
+          "strategy_momentum_min_amount","strategy_momentum_min_klines",
+          "strategy_stop_loss_pct","strategy_take_profit_pct","strategy_max_positions",
+        ].map((k) => isConfigured(configs, k)).filter(Boolean).length}>
+
+        <GroupLabel label="底部量能异动（S1）" />
+        <Row label="底部区域天数" configKey="strategy_bottom_days"
+          right={<InputField value={n("strategy_bottom_days")} onChange={(v) => setNum("strategy_bottom_days", v)} suffix="日" />} />
+        <Row label="跌幅阈值" configKey="strategy_bottom_decline_pct"
+          right={<InputField value={n("strategy_bottom_decline_pct")} onChange={(v) => setNum("strategy_bottom_decline_pct", v)} suffix="%" />} />
+        <Row label="暴力下杀跌幅" configKey="strategy_bottom_crash_pct"
+          right={<InputField value={n("strategy_bottom_crash_pct")} onChange={(v) => setNum("strategy_bottom_crash_pct", v)} suffix="%" />} />
+        <Row label="最少 K 线数" configKey="strategy_bottom_min_klines"
+          right={<InputField value={n("strategy_bottom_min_klines")} onChange={(v) => setNum("strategy_bottom_min_klines", v)} suffix="根" />} />
+
+        <GroupLabel label="趋势动量低吸（S2）" />
+        <Row label="回踩跌幅" configKey="strategy_momentum_drop_pct"
+          right={<InputField value={n("strategy_momentum_drop_pct")} onChange={(v) => setNum("strategy_momentum_drop_pct", v)} suffix="%" />} />
+        <Row label="最低成交额" configKey="strategy_momentum_min_amount"
+          right={<InputField value={n("strategy_momentum_min_amount")} onChange={(v) => setNum("strategy_momentum_min_amount", v)} suffix="元" />} />
+        <Row label="最少 K 线数" configKey="strategy_momentum_min_klines"
+          right={<InputField value={n("strategy_momentum_min_klines")} onChange={(v) => setNum("strategy_momentum_min_klines", v)} suffix="根" />} />
+        <Row label="ADX 阈值" configKey="strategy_adx_threshold"
+          right={<InputField value={n("strategy_adx_threshold")} onChange={(v) => setNum("strategy_adx_threshold", v)} />} />
+        <Row label="缩量比例" configKey="strategy_shrink_ratio"
+          right={<InputField value={n("strategy_shrink_ratio")} onChange={(v) => setNum("strategy_shrink_ratio", v)} suffix="%" />} />
+
+        <GroupLabel label="板块筛选" />
+        <Row label="板块集中度" configKey="strategy_sector_concentration"
+          right={<InputField value={n("strategy_sector_concentration")} onChange={(v) => setNum("strategy_sector_concentration", v)} suffix="%" />} />
+        <Row label="板块持续性" configKey="strategy_sector_check_days"
+          right={<InputField value={n("strategy_sector_check_days")} onChange={(v) => setNum("strategy_sector_check_days", v)} suffix="天" />} />
+
+        <GroupLabel label="止盈止损" />
+        <Row label="默认止损" configKey="strategy_stop_loss_pct"
+          right={<InputField value={n("strategy_stop_loss_pct")} onChange={(v) => setNum("strategy_stop_loss_pct", v)} suffix="%" />} />
+        <Row label="默认止盈" configKey="strategy_take_profit_pct"
+          right={<InputField value={n("strategy_take_profit_pct")} onChange={(v) => setNum("strategy_take_profit_pct", v)} suffix="%" />} />
+        <Row label="最大持仓数" configKey="strategy_max_positions"
+          right={<InputField value={n("strategy_max_positions")} onChange={(v) => setNum("strategy_max_positions", v)} />} />
       </CollapseCard>
 
-      {/* ==================== 策略与风控 ==================== */}
-      <GroupLabel label="策略与风控" />
+      {/* ==================== ④ 风控与执行 ==================== */}
+      <CollapseCard title="风控与执行" subtitle="回撤保护、仓位限制、交易成本"
+        dotColor={colors.semantic.down}
+        totalItems={10} configuredItems={[
+          "risk_daily_max_drawdown","risk_extreme_drawdown","risk_max_consecutive_losses",
+          "risk_single_position_limit","risk_factor_crowding","risk_extreme_market_decline",
+          "trade_commission_rate","trade_stamp_tax_rate","trade_slippage",
+        ].map((k) => isConfigured(configs, k)).filter(Boolean).length}>
 
-      {/* 4. 策略参数 */}
-      <CollapseCard title="策略参数" dotColor={colors.semantic.up}>
-        <Row label="底部区域阈值" desc="近 N 日跌幅判断" right={<InputField value={n("strategy_bottom_days")} onChange={(v) => setNum("strategy_bottom_days", v)} suffix="日" />} />
-        <Row label="跌幅阈值" right={<InputField value={n("strategy_bottom_decline_pct")} onChange={(v) => setNum("strategy_bottom_decline_pct", v)} suffix="%" />} />
-        <Row label="暴力下杀跌幅" right={<InputField value={n("strategy_bottom_crash_pct")} onChange={(v) => setNum("strategy_bottom_crash_pct", v)} suffix="%" />} />
-        <Row label="板块集中度" desc="主线板块判定标准" right={<InputField value={n("strategy_sector_concentration")} onChange={(v) => setNum("strategy_sector_concentration", v)} suffix="%" />} />
-        <Row label="ADX 阈值" right={<InputField value={n("strategy_adx_threshold")} onChange={(v) => setNum("strategy_adx_threshold", v)} />} />
-        <Row label="缩量比例" right={<InputField value={n("strategy_shrink_ratio")} onChange={(v) => setNum("strategy_shrink_ratio", v)} suffix="%" />} />
-        <Row label="默认止损偏移" right={<InputField value={n("strategy_stop_loss_pct")} onChange={(v) => setNum("strategy_stop_loss_pct", v)} suffix="%" />} />
-        <Row label="默认止盈偏移" right={<InputField value={n("strategy_take_profit_pct")} onChange={(v) => setNum("strategy_take_profit_pct", v)} suffix="%" />} />
-        <Row label="最大持仓数" right={<InputField value={n("strategy_max_positions")} onChange={(v) => setNum("strategy_max_positions", v)} />} />
-      </CollapseCard>
-
-      {/* 5. 风控参数 */}
-      <CollapseCard title="风控参数" dotColor={colors.semantic.down}>
-        <Row label="单日最大回撤" desc="触发降仓" right={<InputField value={n("risk_daily_max_drawdown")} onChange={(v) => setNum("risk_daily_max_drawdown", v)} suffix="%" />} />
-        <Row label="极端回撤阈值" desc="触发清仓" right={<InputField value={n("risk_extreme_drawdown")} onChange={(v) => setNum("risk_extreme_drawdown", v)} suffix="%" />} />
-        <Row label="最大连续亏损次数" desc="触发策略暂停" right={<InputField value={n("risk_max_consecutive_losses")} onChange={(v) => setNum("risk_max_consecutive_losses", v)} />} />
-        <Row label="单票仓位上限" right={<InputField value={n("risk_single_position_limit")} onChange={(v) => setNum("risk_single_position_limit", v)} suffix="%" />} />
-        <Row label="因子拥挤度阈值" right={<InputField value={n("risk_factor_crowding")} onChange={(v) => setNum("risk_factor_crowding", v)} suffix="%" />} />
-        <Row label="极端行情阈值" desc="大盘单日跌幅" right={<InputField value={n("risk_extreme_market_decline")} onChange={(v) => setNum("risk_extreme_market_decline", v)} suffix="%" />} />
-      </CollapseCard>
-
-      {/* 6. 交易配置 */}
-      <CollapseCard title="交易配置" dotColor={colors.semantic.amber}>
+        <GroupLabel label="交易模式" />
         <div style={{ padding: "10px 14px", borderBottom: `1px solid ${colors.border.light}` }}>
           <div style={{ fontSize: 12, fontWeight: 600, color: colors.text.primary, marginBottom: 2 }}>交易模式</div>
           <div style={{ fontSize: 10, color: colors.text.tertiary, marginBottom: 6 }}>
-            SIMULATION=模拟(默认) / PAPER=模拟真金 / LIVE=实盘
+            SIMULATION=模拟 / PAPER=模拟真金 / LIVE=实盘
           </div>
-          <Select
-            style={{ width: "100%", fontSize: 12 }}
+          <Select style={{ width: "100%", fontSize: 12 }}
             value={tradeMode.current_mode}
             onChange={(value: string) => {
               settingsService.updateTradeMode(value).then(() => {
@@ -774,10 +307,9 @@ function MobileSettings() {
               { value: "SIMULATION", label: "🟢 模拟（SIMULATION）" },
               { value: "PAPER", label: "🟡 模拟真金（PAPER）" },
               { value: "LIVE", label: "🔴 实盘（LIVE）" },
-            ]}
-          />
+            ]} />
         </div>
-        <Row label="确认模式" desc="advisory=顾问建议 semi_auto=半自动 full_auto=全自动"
+        <Row label="确认模式" desc="advisory=建议  semi_auto=半自动  full_auto=全自动"
           right={
             <span style={{ fontSize: 11, color: colors.text.tertiary, cursor: "pointer" }}
               onClick={() => {
@@ -788,90 +320,133 @@ function MobileSettings() {
                   message.success(`确认模式已切换为 ${next}`);
                   setTradeMode((prev: any) => ({ ...prev, confirm_mode: next }));
                 }).catch((_: any) => message.error("切换失败"));
-              }}
-            >
+              }}>
               {tradeMode.confirm_mode === "advisory" ? "💡 顾问建议" :
                tradeMode.confirm_mode === "semi_auto" ? "⚡ 半自动" : "🤖 全自动"}
             </span>
-          }
-        />
-        <Row label="佣金费率" right={<InputField value={n("trade_commission_rate")} onChange={(v) => setNum("trade_commission_rate", v)} suffix="万分之" />} />
-        <Row label="印花税率" right={<InputField value={n("trade_stamp_tax_rate")} onChange={(v) => setNum("trade_stamp_tax_rate", v)} suffix="千分之" />} />
-        <Row label="滑点" right={<InputField value={n("trade_slippage")} onChange={(v) => setNum("trade_slippage", v)} suffix="跳" />} />
+          } />
+
+        <GroupLabel label="风控参数" />
+        <Row label="单日最大回撤" desc="触发降半仓" configKey="risk_daily_max_drawdown"
+          right={<InputField value={n("risk_daily_max_drawdown")} onChange={(v) => setNum("risk_daily_max_drawdown", v)} suffix="%" />} />
+        <Row label="极端回撤阈值" desc="触发清仓" configKey="risk_extreme_drawdown"
+          right={<InputField value={n("risk_extreme_drawdown")} onChange={(v) => setNum("risk_extreme_drawdown", v)} suffix="%" />} />
+        <Row label="最大连续亏损" desc="触发策略暂停" configKey="risk_max_consecutive_losses"
+          right={<InputField value={n("risk_max_consecutive_losses")} onChange={(v) => setNum("risk_max_consecutive_losses", v)} suffix="次" />} />
+        <Row label="单票仓位上限" configKey="risk_single_position_limit"
+          right={<InputField value={n("risk_single_position_limit")} onChange={(v) => setNum("risk_single_position_limit", v)} suffix="%" />} />
+        <Row label="因子拥挤度阈值" configKey="risk_factor_crowding"
+          right={<InputField value={n("risk_factor_crowding")} onChange={(v) => setNum("risk_factor_crowding", v)} suffix="%" />} />
+        <Row label="极端行情阈值" desc="大盘单日跌幅" configKey="risk_extreme_market_decline"
+          right={<InputField value={n("risk_extreme_market_decline")} onChange={(v) => setNum("risk_extreme_market_decline", v)} suffix="%" />} />
+
+        <GroupLabel label="交易成本" />
+        <Row label="佣金费率" configKey="trade_commission_rate"
+          right={<InputField value={n("trade_commission_rate")} onChange={(v) => setNum("trade_commission_rate", v)} suffix="万分之" />} />
+        <Row label="印花税率" configKey="trade_stamp_tax_rate"
+          right={<InputField value={n("trade_stamp_tax_rate")} onChange={(v) => setNum("trade_stamp_tax_rate", v)} suffix="千分之" />} />
+        <Row label="滑点" configKey="trade_slippage"
+          right={<InputField value={n("trade_slippage")} onChange={(v) => setNum("trade_slippage", v)} suffix="跳" />} />
       </CollapseCard>
 
-      {/* ==================== 数据与推送 ==================== */}
-      <GroupLabel label="数据与推送" />
+      {/* ==================== ⑤ 数据与通知 ==================== */}
+      <CollapseCard title="数据与通知" subtitle="数据源、新闻、推送开关"
+        dotColor={colors.semantic.amber}
+        totalItems={14} configuredItems={[
+          "datasource_akshare","datasource_qmt",
+          "datasource_qmt_host","datasource_qmt_port",
+          "datasource_sync_time","datasource_news_poll_interval",
+          "news_wsj","news_akshare","news_collect_interval","news_max_retention","news_hot_keywords",
+          "push_risk_alert","push_agent_result","push_open","push_stop","push_news","push_daily_review","push_pre_market",
+        ].map((k) => isConfigured(configs, k)).filter(Boolean).length}>
 
-      {/* 7. 数据源 */}
-      <CollapseCard title="数据源" dotColor={colors.semantic.amber}>
+        <GroupLabel label="数据源" />
         <Row label="AKShare 数据源" desc="免费 A 股行情数据"
-          right={<Toggle checked={!!configs["datasource_akshare"]} onChange={() => toggleBool("datasource_akshare")} />}
-        />
+          right={<Toggle checked={!!configs["datasource_akshare"]} onChange={() => toggleBool("datasource_akshare")} />} />
         <Row label="miniQMT 数据源" desc="实时行情 + 交易通道"
-          right={<Toggle checked={!!configs["datasource_qmt"]} onChange={() => toggleBool("datasource_qmt")} />}
-        />
-        <Row label="miniQMT 地址" right={<InputField value={s("datasource_qmt_host")} onChange={(v) => setStr("datasource_qmt_host", v)} />} />
-        <Row label="miniQMT 端口" right={<InputField value={n("datasource_qmt_port")} onChange={(v) => setNum("datasource_qmt_port", v)} />} />
-        <Row label="数据同步时间" desc="每日收盘后" right={<InputField value={s("datasource_sync_time")} onChange={(v) => setStr("datasource_sync_time", v)} />} />
-        <Row label="舆情轮询间隔" right={<InputField value={n("datasource_news_poll_interval")} onChange={(v) => setNum("datasource_news_poll_interval", v)} suffix="分钟" />} />
-      </CollapseCard>
+          right={<Toggle checked={!!configs["datasource_qmt"]} onChange={() => toggleBool("datasource_qmt")} />} />
+        <Row label="miniQMT 地址" configKey="datasource_qmt_host"
+          right={<InputField value={s("datasource_qmt_host")} onChange={(v) => setStr("datasource_qmt_host", v)} />} />
+        <Row label="miniQMT 端口" configKey="datasource_qmt_port"
+          right={<InputField value={n("datasource_qmt_port")} onChange={(v) => setNum("datasource_qmt_port", v)} />} />
+        <Row label="数据同步时间" desc="每日收盘后" configKey="datasource_sync_time"
+          right={<InputField value={s("datasource_sync_time")} onChange={(v) => setStr("datasource_sync_time", v)} />} />
+        <Row label="舆情轮询间隔" configKey="datasource_news_poll_interval"
+          right={<InputField value={n("datasource_news_poll_interval")} onChange={(v) => setNum("datasource_news_poll_interval", v)} suffix="分钟" />} />
 
-      {/* 8. 新闻配置 */}
-      <CollapseCard title="新闻配置" dotColor={colors.semantic.amber}>
+        <GroupLabel label="新闻" />
         <Row label="华尔街见闻" desc="全球财经快讯"
-          right={<Toggle checked={!!configs["news_wsj"]} onChange={() => toggleBool("news_wsj")} />}
-        />
+          right={<Toggle checked={!!configs["news_wsj"]} onChange={() => toggleBool("news_wsj")} />} />
         <Row label="AKShare 新闻" desc="东方财富、新浪聚合"
-          right={<Toggle checked={!!configs["news_akshare"]} onChange={() => toggleBool("news_akshare")} />}
-        />
-        <Row label="采集间隔" right={<InputField value={n("news_collect_interval")} onChange={(v) => setNum("news_collect_interval", v)} suffix="分钟" />} />
-        <Row label="最多保留" right={<InputField value={n("news_max_retention")} onChange={(v) => setNum("news_max_retention", v)} suffix="条" />} />
-        <Row label="热点关键词" right={<InputField value={s("news_hot_keywords")} onChange={(v) => setStr("news_hot_keywords", v)} />} />
+          right={<Toggle checked={!!configs["news_akshare"]} onChange={() => toggleBool("news_akshare")} />} />
+        <Row label="采集间隔" configKey="news_collect_interval"
+          right={<InputField value={n("news_collect_interval")} onChange={(v) => setNum("news_collect_interval", v)} suffix="分钟" />} />
+        <Row label="最多保留" configKey="news_max_retention"
+          right={<InputField value={n("news_max_retention")} onChange={(v) => setNum("news_max_retention", v)} suffix="条" />} />
+        <Row label="热点关键词" configKey="news_hot_keywords"
+          right={<InputField value={s("news_hot_keywords")} onChange={(v) => setStr("news_hot_keywords", v)} />} />
+
+        <GroupLabel label="推送通知" />
+        <Row label="🔔 风控告警" configKey="push_risk_alert"
+          right={<Toggle checked={!!configs["push_risk_alert"]} onChange={() => toggleBool("push_risk_alert")} />} />
+        <Row label="🤖 Agent 精选结果" configKey="push_agent_result"
+          right={<Toggle checked={!!configs["push_agent_result"]} onChange={() => toggleBool("push_agent_result")} />} />
+        <Row label="📈 开仓推送" configKey="push_open"
+          right={<Toggle checked={!!configs["push_open"]} onChange={() => toggleBool("push_open")} />} />
+        <Row label="📉 止损/止盈推送" configKey="push_stop"
+          right={<Toggle checked={!!configs["push_stop"]} onChange={() => toggleBool("push_stop")} />} />
+        <Row label="📰 舆情推送" configKey="push_news"
+          right={<Toggle checked={!!configs["push_news"]} onChange={() => toggleBool("push_news")} />} />
+        <Row label="📊 每日复盘推送" configKey="push_daily_review"
+          right={<Toggle checked={!!configs["push_daily_review"]} onChange={() => toggleBool("push_daily_review")} />} />
+        <Row label="🔍 开盘前复核推送" configKey="push_pre_market"
+          right={<Toggle checked={!!configs["push_pre_market"]} onChange={() => toggleBool("push_pre_market")} />} />
       </CollapseCard>
 
-      {/* 9. 推送通知 */}
-      <CollapseCard title="推送通知" dotColor={colors.semantic.amber}>
-        <Row label="🔔 风控告警" desc="告警类型、当前值、阈值" right={<Toggle checked={!!configs["push_risk_alert"]} onChange={() => toggleBool("push_risk_alert")} />} />
-        <Row label="🤖 Agent 精选结果" desc="每日策略运行报告" right={<Toggle checked={!!configs["push_agent_result"]} onChange={() => toggleBool("push_agent_result")} />} />
-        <Row label="📈 开仓推送" desc="标的、成交价、仓位" right={<Toggle checked={!!configs["push_open"]} onChange={() => toggleBool("push_open")} />} />
-        <Row label="📉 止损/止盈推送" desc="触发原因、盈亏金额" right={<Toggle checked={!!configs["push_stop"]} onChange={() => toggleBool("push_stop")} />} />
-        <Row label="📰 舆情推送" desc="事件类型、影响评估" right={<Toggle checked={!!configs["push_news"]} onChange={() => toggleBool("push_news")} />} />
-        <Row label="📊 每日复盘推送" desc="操作总结、持仓变化" right={<Toggle checked={!!configs["push_daily_review"]} onChange={() => toggleBool("push_daily_review")} />} />
-        <Row label="🔍 开盘前复核推送" desc="外盘波动、计划复核" right={<Toggle checked={!!configs["push_pre_market"]} onChange={() => toggleBool("push_pre_market")} />} />
-      </CollapseCard>
+      {/* ==================== ⑥ 系统 ==================== */}
+      <CollapseCard title="系统" subtitle="复核、经验库、日志、备份、主题"
+        dotColor={colors.text.tertiary}
+        totalItems={14} configuredItems={[
+          "review_high_open_cancel_pct","review_low_open_cancel_pct","review_overseas_volatility_pct",
+          "experience_decay_months","experience_archive_months",
+          "experience_weight_market","experience_weight_sector","experience_weight_tech","experience_weight_fund",
+          "log_level","rate_limit","backup_time","backup_retention_days","particle_effect",
+        ].map((k) => isConfigured(configs, k)).filter(Boolean).length}>
 
-      {/* ==================== 高级 ==================== */}
-      <GroupLabel label="高级" />
+        <GroupLabel label="开盘复核" />
+        <Row label="高开取消阈值" configKey="review_high_open_cancel_pct"
+          right={<InputField value={n("review_high_open_cancel_pct")} onChange={(v) => setNum("review_high_open_cancel_pct", v)} suffix="%" />} />
+        <Row label="低开取消阈值" configKey="review_low_open_cancel_pct"
+          right={<InputField value={n("review_low_open_cancel_pct")} onChange={(v) => setNum("review_low_open_cancel_pct", v)} suffix="%" />} />
+        <Row label="外盘波动阈值" configKey="review_overseas_volatility_pct"
+          right={<InputField value={n("review_overseas_volatility_pct")} onChange={(v) => setNum("review_overseas_volatility_pct", v)} suffix="%" />} />
 
-      {/* 10. 复核配置 */}
-      <CollapseCard title="复核配置" dotColor={colors.text.tertiary}>
-        <Row label="高开取消阈值" desc="超过此比例取消买入计划" right={<InputField value={n("review_high_open_cancel_pct")} onChange={(v) => setNum("review_high_open_cancel_pct", v)} suffix="%" />} />
-        <Row label="低开取消阈值" desc="低于此比例取消买入计划" right={<InputField value={n("review_low_open_cancel_pct")} onChange={(v) => setNum("review_low_open_cancel_pct", v)} suffix="%" />} />
-        <Row label="外盘波动阈值" desc="触发开盘前复核" right={<InputField value={n("review_overseas_volatility_pct")} onChange={(v) => setNum("review_overseas_volatility_pct", v)} suffix="%" />} />
-      </CollapseCard>
+        <GroupLabel label="经验库" />
+        <Row label="衰减周期" configKey="experience_decay_months"
+          right={<InputField value={n("experience_decay_months")} onChange={(v) => setNum("experience_decay_months", v)} suffix="月" />} />
+        <Row label="归档周期" configKey="experience_archive_months"
+          right={<InputField value={n("experience_archive_months")} onChange={(v) => setNum("experience_archive_months", v)} suffix="月" />} />
+        <Row label="市场状态权重" configKey="experience_weight_market"
+          right={<InputField value={n("experience_weight_market")} onChange={(v) => setNum("experience_weight_market", v)} suffix="%" />} />
+        <Row label="板块属性权重" configKey="experience_weight_sector"
+          right={<InputField value={n("experience_weight_sector")} onChange={(v) => setNum("experience_weight_sector", v)} suffix="%" />} />
+        <Row label="技术形态权重" configKey="experience_weight_tech"
+          right={<InputField value={n("experience_weight_tech")} onChange={(v) => setNum("experience_weight_tech", v)} suffix="%" />} />
+        <Row label="资金特征权重" configKey="experience_weight_fund"
+          right={<InputField value={n("experience_weight_fund")} onChange={(v) => setNum("experience_weight_fund", v)} suffix="%" />} />
 
-      {/* 11. 经验库配置 */}
-      <CollapseCard title="经验库配置" dotColor={colors.text.tertiary}>
-        <Row label="经验衰减周期" desc="超过此时间权重逐渐降低" right={<InputField value={n("experience_decay_months")} onChange={(v) => setNum("experience_decay_months", v)} suffix="月" />} />
-        <Row label="归档周期" desc="未验证的旧经验自动归档" right={<InputField value={n("experience_archive_months")} onChange={(v) => setNum("experience_archive_months", v)} suffix="月" />} />
-        <Row label="市场状态权重" right={<InputField value={n("experience_weight_market")} onChange={(v) => setNum("experience_weight_market", v)} suffix="%" />} />
-        <Row label="板块属性权重" right={<InputField value={n("experience_weight_sector")} onChange={(v) => setNum("experience_weight_sector", v)} suffix="%" />} />
-        <Row label="技术形态权重" right={<InputField value={n("experience_weight_tech")} onChange={(v) => setNum("experience_weight_tech", v)} suffix="%" />} />
-        <Row label="资金特征权重" right={<InputField value={n("experience_weight_fund")} onChange={(v) => setNum("experience_weight_fund", v)} suffix="%" />} />
-      </CollapseCard>
-
-      {/* 12. 系统配置 */}
-      <CollapseCard title="系统配置" dotColor={colors.text.tertiary}>
-        <Row label="日志级别" right={<Badge label={s("log_level", "INFO")} />} />
-        <Row label="全局限流" right={<span style={{ fontSize: 12, color: colors.text.secondary }}>{n("rate_limit")} 次/秒/IP</span>} />
-        <Row label="备份时间" right={<InputField value={s("backup_time")} onChange={(v) => setStr("backup_time", v)} />} />
-        <Row label="备份保留" right={<InputField value={n("backup_retention_days")} onChange={(v) => setNum("backup_retention_days", v)} suffix="天" />} />
-        <Row label="粒子效果" desc="背景粒子动画"
-          right={<Toggle checked={!!configs["particle_effect"]} onChange={() => toggleBool("particle_effect")} />}
-        />
-        <Row
-          label="主题"
+        <GroupLabel label="系统配置" />
+        <Row label="日志级别" configKey="log_level"
+          right={<Badge label={s("log_level", "INFO")} />} />
+        <Row label="全局限流" configKey="rate_limit"
+          right={<span style={{ fontSize: 12, color: colors.text.secondary }}>{n("rate_limit")} 次/秒/IP</span>} />
+        <Row label="备份时间" configKey="backup_time"
+          right={<InputField value={s("backup_time")} onChange={(v) => setStr("backup_time", v)} />} />
+        <Row label="备份保留" configKey="backup_retention_days"
+          right={<InputField value={n("backup_retention_days")} onChange={(v) => setNum("backup_retention_days", v)} suffix="天" />} />
+        <Row label="粒子效果" desc="背景粒子动画" configKey="particle_effect"
+          right={<Toggle checked={!!configs["particle_effect"]} onChange={() => toggleBool("particle_effect")} />} />
+        <Row label="主题"
           right={
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <span style={{ fontSize: 12, color: colors.text.secondary, textTransform: "capitalize" }}>
@@ -879,8 +454,7 @@ function MobileSettings() {
               </span>
               <Toggle checked={mode === "dark"} onChange={toggle} />
             </div>
-          }
-        />
+          } />
       </CollapseCard>
 
       {/* ==================== 底部 ==================== */}
@@ -893,12 +467,10 @@ function MobileSettings() {
           <Row label="数据源" right={<span style={{ fontSize: 12, color: colors.text.tertiary }}>AKShare + miniQMT</span>} />
           <div style={{ padding: "10px 14px" }}>
             <button onClick={(e) => { e.stopPropagation(); handleLogout(); }}
-              style={{
-                width: "100%", padding: "10px 14px", borderRadius: `${colors.radius.md}px`,
+              style={{ width: "100%", padding: "10px 14px", borderRadius: `${colors.radius.md}px`,
                 fontSize: 14, fontWeight: 500, cursor: "pointer", border: "none", outline: "none",
-                background: colors.semantic.upBg, color: colors.semantic.up, lineHeight: 1.4,
-              }}
-            >退出登录</button>
+                background: colors.semantic.upBg, color: colors.semantic.up, lineHeight: 1.4 }}>
+              退出登录</button>
           </div>
         </div>
       </div>
@@ -923,8 +495,7 @@ function MobileSettings() {
             message.error("密码修改失败：" + (err?.response?.data?.detail || err?.message || "未知错误"));
           }
         }}
-        okText="确认修改" cancelText="取消"
-      >
+        okText="确认修改" cancelText="取消">
         <Form form={pwForm} layout="vertical">
           <Form.Item name="oldPassword" label="当前密码" rules={[{ required: true, message: "请输入当前密码" }]}>
             <Input.Password placeholder="输入当前密码" />
@@ -932,17 +503,15 @@ function MobileSettings() {
           <Form.Item name="newPassword" label="新密码" rules={[{ required: true, message: "请输入新密码" }, { min: 6, message: "密码至少6位" }]}>
             <Input.Password placeholder="输入新密码" />
           </Form.Item>
-          <Form.Item name="confirmPassword" label="确认新密码"
-            rules={[
-              { required: true, message: "请再次输入新密码" },
-              ({ getFieldValue }) => ({
-                validator(_, value) {
-                  if (!value || getFieldValue("newPassword") === value) return Promise.resolve();
-                  return Promise.reject(new Error("两次输入的密码不一致"));
-                },
-              }),
-            ]}
-          >
+          <Form.Item name="confirmPassword" label="确认新密码" rules={[
+            { required: true, message: "请再次输入新密码" },
+            ({ getFieldValue }) => ({
+              validator(_, value) {
+                if (!value || getFieldValue("newPassword") === value) return Promise.resolve();
+                return Promise.reject(new Error("两次输入的密码不一致"));
+              },
+            }),
+          ]}>
             <Input.Password placeholder="再次输入新密码" />
           </Form.Item>
         </Form>
@@ -950,5 +519,3 @@ function MobileSettings() {
   </>
   );
 }
-
-export default MobileSettings;
