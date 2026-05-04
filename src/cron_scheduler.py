@@ -317,7 +317,14 @@ def run_data_quality_check():
 # ═══════════════════════════════════════════════════════════════════
 
 def run_pre_market_review():
-    """开盘前复核（PRD 4.2.2节）"""
+    """开盘前复核（交易日 9:00 触发）
+
+    1. 读取昨日股票池 top-5 buy 决策
+    2. 检查隔夜新闻（对每只标的查询 news 表）
+    3. 有突发利好/利空的标的 -> Agent 重新评估
+    4. 无新闻的标的 -> 按原计划执行
+    5. 推送复核报告到微信
+    """
     logger.info("[schedule] 开盘前复核...")
     try:
         db = get_session()
@@ -335,32 +342,91 @@ def run_pre_market_review():
                 logger.info("[schedule] 无待执行决策")
                 return
 
-            cancelled = []
+            # ---- 检查隔夜新闻 ----
+            from datetime import timedelta
+            news_cutoff = (datetime.now(UTC).astimezone() - timedelta(hours=24)).isoformat()
+
+            re_eval_codes = []
+            normal_codes = []
+            news_lines = []
+
             for d in decisions:
                 code = d[0]
-                has_kline = db.execute(text("""
-                    SELECT COUNT(*) FROM daily_klines
-                    WHERE stock_code = :code
-                    AND trade_date = (SELECT MAX(trade_date) FROM daily_klines WHERE stock_code = :code)
-                """), {"code": code}).scalar()
-                if not has_kline or has_kline == 0:
-                    cancelled.append(code)
-                    logger.warning(f"开盘前复核取消: {code} 可能停牌")
+                # 查此标的24小时内新闻
+                news = db.execute(text("""
+                    SELECT title, source_display, sentiment
+                    FROM news
+                    WHERE related_stocks @> :code_json
+                    AND fetched_at >= :cutoff
+                    ORDER BY fetched_at DESC
+                    LIMIT 3
+                """), {
+                    "code_json": json.dumps([code]),
+                    "cutoff": news_cutoff,
+                }).fetchall()
 
-            if cancelled:
-                msg = f"计划买入 {len(decisions)} 只，取消 {len(cancelled)} 只（{', '.join(cancelled)}）"
+                if news:
+                    re_eval_codes.append(code)
+                    for n in news:
+                        emoji = "🔴" if n[2] == "negative" else "🟢" if n[2] == "positive" else "⚪"
+                        news_lines.append(f"{emoji} {code}: {n[0][:60]} ({n[1]})")
+                else:
+                    normal_codes.append(code)
+
+            # ---- 有新闻的标的触发 Agent 重新评估 ----
+            if re_eval_codes:
+                logger.info("[schedule] 发现 %d 只标的有隔夜新闻，触发 Agent 重新评估: %s",
+                            len(re_eval_codes), ", ".join(re_eval_codes))
+                try:
+                    from src.agent.orchestrator import AgentOrchestrator
+                    orchestrator = AgentOrchestrator()
+                    results = orchestrator.run_daily_analysis(
+                        analysis_date=date.today().isoformat(),
+                        stock_codes=re_eval_codes,
+                    )
+                    # 更新 stock_pool 最终决策
+                    for r in results:
+                        db.execute(text("""
+                            UPDATE stock_pool
+                            SET final_decision = :decision,
+                                final_score = :score
+                            WHERE stock_code = :code
+                            AND date = (SELECT MAX(date) FROM stock_pool)
+                        """), {
+                            "decision": r.final_decision,
+                            "score": r.weighted_score,
+                            "code": r.stock_code,
+                        })
+                    db.commit()
+                    agent_msg = f"Agent重新评估完成: {len(results)} 只"
+                except Exception as ae:
+                    logger.error(f"Agent重新评估失败: {ae}", exc_info=True)
+                    agent_msg = "Agent重新评估失败，按原计划执行"
             else:
-                msg = f"计划买入 {len(decisions)} 只，全部正常"
+                agent_msg = "无隔夜新闻，按原计划执行"
 
-            send_wechat_notification("📋 开盘前复核", msg)
-            logger.info(f"[schedule] {msg}")
+            # ---- 推送复核报告 ----
+            report_lines = []
+            report_lines.append(f"昨日决策: {len(decisions)} 只")
+            if normal_codes:
+                report_lines.append(f"正常执行: {', '.join(normal_codes)}")
+            if re_eval_codes:
+                report_lines.append(f"重评估: {', '.join(re_eval_codes)}")
+            report_lines.append(agent_msg)
+            if news_lines:
+                report_lines.append("")
+                report_lines.append("隔夜新闻摘要:")
+                report_lines.extend(news_lines)
+
+            sep = "\n"
+            send_wechat_notification("开盘前复核", sep.join(report_lines))
+            logger.info("[schedule] %s", agent_msg)
         finally:
             db.close()
     except Exception as e:
-        logger.error(f"开盘前复核失败: {e}")
+        logger.error(f"开盘前复核失败: {e}", exc_info=True)
 
 
-# ═══════════════════════════════════════════════════════════════════
 # 定时任务：收盘扫描
 # ═══════════════════════════════════════════════════════════════════
 

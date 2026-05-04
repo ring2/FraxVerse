@@ -7,6 +7,7 @@ SIMULATION 模式下全部模拟执行，不依赖 miniQMT
 import uuid
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+import logging
 
 from sqlalchemy.orm import Session
 
@@ -22,6 +23,8 @@ from src.db.session import get_session
 # ============================================================================
 # 常量 & 配置
 # ============================================================================
+
+logger = logging.getLogger(__name__)
 
 # 推进式仓位（50% + 5% + 补仓）
 BATCH_FIRST_PCT = Decimal("50")     # 第一批 50%
@@ -298,6 +301,24 @@ class OrderExecutor:
 
         self.db.commit()
         self.db.refresh(order)
+
+        # ---- 订单成交后推送微信通知 ----
+        try:
+            from src.notification.wechat_queue import push_wechat_trade_signal
+            push_wechat_trade_signal(
+                stock_code=stock_code,
+                direction=direction,
+                volume=volume,
+                price=float(price) if price else None,
+                filled_price=float(order.filled_avg_price) if order.filled_avg_price else None,
+                filled_volume=order.filled_volume,
+                order_status=order.status,
+                strategy_type=strategy_type,
+                trigger_source=trigger_source,
+            )
+        except Exception as e:
+            logger.warning(f"交易通知推送异常: {e}")
+
         return order
 
     def _execute_simulation(
